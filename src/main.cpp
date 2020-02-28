@@ -1,64 +1,36 @@
 #include <iostream>
 #include <CL/opencl.h>
+#include <ocl_wrapper.hpp>
 
-
-cl_context CreateContext()
+cl_context createDefaultContext(oclw::Wrapper& wrapper)
 {
-	cl_int errNum;
-	cl_uint numPlatforms;
-	cl_platform_id firstPlatformId;
-	cl_context context = NULL;
-	// First, select an OpenCL platform to run on.
-	// For this example, we simply choose the first available
-	// platform. Normally, you would query for all available
-	// platforms and select the most appropriate one.
-	errNum = clGetPlatformIDs(1, &firstPlatformId, &numPlatforms);
-	if (errNum != CL_SUCCESS || numPlatforms <= 0)
-	{
-		std::cerr << "Failed to find any OpenCL platforms." << std::endl;
-		return NULL;
+	auto platforms = wrapper.getPlatforms();
+	if (platforms.empty()) {
+		return nullptr;
 	}
-
-	// Next, create an OpenCL context on the platform. Attempt to
-	// create a GPU-based context, and if that fails, try to create
-	// a CPU-based context.
-	cl_context_properties contextProperties[] =
-	{
-		CL_CONTEXT_PLATFORM,
-		(cl_context_properties)firstPlatformId,
-		0
-	};
-
-	context = clCreateContextFromType(contextProperties, CL_DEVICE_TYPE_GPU, NULL, NULL, &errNum);
-	if (errNum != CL_SUCCESS)
-	{
-		std::cout << "Could not create GPU context, trying CPU..." << std::endl;
-		context = clCreateContextFromType(contextProperties, CL_DEVICE_TYPE_CPU, NULL, NULL, &errNum);
-		if (errNum != CL_SUCCESS)
-		{
-			std::cerr << "Failed to create an OpenCL GPU or CPU context." << std::endl;
-			return NULL;
+	// Trying to create GPU context
+	std::cout << "Creating context on GPU..." << std::endl;
+	cl_context context = wrapper.createContext(platforms.front(), oclw::Wrapper::GPU);
+	if (!context) {
+		// If not available try on CPU
+		std::cout << "Creating context on CPU..." << std::endl;
+		context = wrapper.createContext(platforms.front(), oclw::Wrapper::CPU);
+		if (!context) {
+			std::cout << "Cannot create context." << std::endl;
+			return nullptr;
 		}
 	}
-
+	std::cout << "Done." << std::endl;
 	return context;
 }
 
 
 int main()
 {
-	cl_context context = 0;
-	cl_command_queue commandQueue = 0;
-	cl_program program = 0;
-	cl_device_id device = 0;
-	cl_kernel kernel = 0;
-	cl_mem memObjects[3] = { 0, 0, 0 };
-	cl_int errNum;
-	// Create an OpenCL context on first available platform
-	context = CreateContext();
-	if (context == NULL)
-	{
-	}
+	oclw::Wrapper wrapper;
+	wrapper.fetchPlatforms(1);
+
+	cl_context context = createDefaultContext(wrapper);
 
 	return 0;
 }
