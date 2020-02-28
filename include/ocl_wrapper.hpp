@@ -8,6 +8,74 @@
 
 namespace oclw
 {
+	const std::vector<std::string> cl_errors = {
+		"CL_SUCCESS",
+		"CL_DEVICE_NOT_FOUND",
+		"CL_DEVICE_NOT_AVAILABLE",
+		"CL_COMPILER_NOT_AVAILABLE",
+		"CL_MEM_OBJECT_ALLOCATION_FAILURE",
+		"CL_OUT_OF_RESOURCES",
+		"CL_OUT_OF_HOST_MEMORY",
+		"CL_PROFILING_INFO_NOT_AVAILABLE",
+		"CL_MEM_COPY_OVERLAP",
+		"CL_IMAGE_FORMAT_MISMATCH",
+		"CL_IMAGE_FORMAT_NOT_SUPPORTED",
+		"CL_BUILD_PROGRAM_FAILURE",
+		"CL_MAP_FAILURE",
+		"CL_MISALIGNED_SUB_BUFFER_OFFSET",
+		"CL_EXEC_STATUS_ERROR_FOR_EVENTS_IN_WAIT_LIST",
+		"CL_COMPILE_PROGRAM_FAILURE",
+		"CL_LINKER_NOT_AVAILABLE",
+		"CL_LINK_PROGRAM_FAILURE",
+		"CL_DEVICE_PARTITION_FAILED",
+		"CL_KERNEL_ARG_INFO_NOT_AVAILABLE",
+		"CL_INVALID_VALUE",
+		"CL_INVALID_DEVICE_TYPE",
+		"CL_INVALID_PLATFORM",
+		"CL_INVALID_DEVICE",
+		"CL_INVALID_CONTEXT",
+		"CL_INVALID_QUEUE_PROPERTIES",
+		"CL_INVALID_COMMAND_QUEUE",
+		"CL_INVALID_HOST_PTR",
+		"CL_INVALID_MEM_OBJECT",
+		"CL_INVALID_IMAGE_FORMAT_DESCRIPTOR",
+		"CL_INVALID_IMAGE_SIZE",
+		"CL_INVALID_SAMPLER",
+		"CL_INVALID_BINARY",
+		"CL_INVALID_BUILD_OPTIONS",
+		"CL_INVALID_PROGRAM",
+		"CL_INVALID_PROGRAM_EXECUTABLE",
+		"CL_INVALID_KERNEL_NAME",
+		"CL_INVALID_KERNEL_DEFINITION",
+		"CL_INVALID_KERNEL",
+		"CL_INVALID_ARG_INDEX",
+		"CL_INVALID_ARG_VALUE",
+		"CL_INVALID_ARG_SIZE",
+		"CL_INVALID_KERNEL_ARGS",
+		"CL_INVALID_WORK_DIMENSION",
+		"CL_INVALID_WORK_GROUP_SIZE",
+		"CL_INVALID_WORK_ITEM_SIZE",
+		"CL_INVALID_GLOBAL_OFFSET",
+		"CL_INVALID_EVENT_WAIT_LIST",
+		"CL_INVALID_EVENT",
+		"CL_INVALID_OPERATION",
+		"CL_INVALID_GL_OBJECT",
+		"CL_INVALID_BUFFER_SIZE",
+		"CL_INVALID_MIP_LEVEL",
+		"CL_INVALID_GLOBAL_WORK_SIZE",
+		"CL_INVALID_PROPERTY",
+		"CL_INVALID_IMAGE_DESCRIPTOR",
+		"CL_INVALID_COMPILER_OPTIONS",
+		"CL_INVALID_LINKER_OPTIONS",
+		"CL_INVALID_DEVICE_PARTITION_COUNT"
+	};
+
+	const std::string& getErrorString(cl_int err_num)
+	{
+		const int32_t error_code = -err_num > 19 ? - err_num - 10 :  -err_num;
+		return cl_errors[error_code];
+	}
+
 	enum PlatformType {
 		CPU = CL_DEVICE_TYPE_CPU,
 		GPU = CL_DEVICE_TYPE_GPU
@@ -25,12 +93,11 @@ namespace oclw
 		WrapperException(cl_int error, const std::string& message)
 			: m_error(error)
 			, m_message(message)
-		{
-		}
+		{}
 
 		const char* what() const override
 		{
-			return m_message.c_str();
+			return (m_message + " '" + getErrorString(m_error) + "'").c_str();
 		}
 
 		cl_int getErrorCode() const
@@ -49,14 +116,17 @@ namespace oclw
 	public:
 		template<typename T>
 		MemoryObject(cl_context context, std::vector<T>& data, int32_t mode)
+			: m_element_count(data.size())
+			, m_total_size(sizeof(T) * data.size())
 		{
-			const uint64_t element_count = data.size();
-			m_memory_object = clCreateBuffer(context, mode, sizeof(T) * element_count, data.data(), NULL);
+			m_memory_object = clCreateBuffer(context, mode, m_total_size, data.data(), NULL);
 		}
 
 		MemoryObject(cl_context context, uint32_t element_size, uint64_t element_count, int32_t mode)
+			: m_element_count(element_count)
+			, m_total_size(element_size * element_count)
 		{
-			m_memory_object = clCreateBuffer(context, mode, element_size * element_count, NULL, NULL);
+			m_memory_object = clCreateBuffer(context, mode, m_total_size, NULL, NULL);
 		}
 
 		operator bool() const
@@ -64,13 +134,20 @@ namespace oclw
 			return m_memory_object;
 		}
 
-		cl_mem* getRaw()
+		cl_mem& getRaw()
 		{
-			return &m_memory_object;
+			return m_memory_object;
+		}
+
+		std::size_t getBytesSize() const
+		{
+			return m_total_size;
 		}
 
 	private:
 		cl_mem m_memory_object;
+		const std::size_t m_element_count;
+		const std::size_t m_total_size;
 	};
 
 
@@ -79,10 +156,12 @@ namespace oclw
 	public:
 		Kernel(cl_kernel raw_kernel = nullptr)
 			: m_kernel(raw_kernel)
+			, m_name("")
 		{}
 
 		Kernel(cl_program program, const std::string& name)
 			: m_kernel(nullptr)
+			, m_name(name)
 		{
 			cl_kernel raw_kernel = clCreateKernel(program, name.c_str(), NULL);
 			m_kernel = raw_kernel;
@@ -90,11 +169,22 @@ namespace oclw
 
 		void setArgument(uint32_t arg_num, MemoryObject& object)
 		{
-			int32_t err_num = clSetKernelArg(m_kernel, arg_num, sizeof(cl_mem), object.getRaw());
+			int32_t err_num = clSetKernelArg(m_kernel, arg_num, sizeof(cl_mem), &(object.getRaw()));
+		}
+
+		cl_kernel& getRaw()
+		{
+			return m_kernel;
+		}
+
+		const std::string& getName() const
+		{
+			return m_name;
 		}
 
 	private:
 		cl_kernel m_kernel;
+		const std::string m_name;
 	};
 
 
@@ -117,8 +207,7 @@ namespace oclw
 			}
 
 			err_num = clBuildProgram(program, 0, NULL, NULL, NULL, NULL);
-			if (err_num != CL_SUCCESS)
-			{
+			if (err_num != CL_SUCCESS) {
 				// Determine the reason for the error
 				char buildLog[16384];
 				clGetProgramBuildInfo(program, device, CL_PROGRAM_BUILD_LOG, sizeof(buildLog), buildLog, NULL);
@@ -134,13 +223,57 @@ namespace oclw
 			return m_program;
 		}
 
-		cl_kernel createKernel(const std::string& kernel_name)
+		Kernel createKernel(const std::string& kernel_name)
 		{
-			return clCreateKernel(m_program, kernel_name.c_str(), NULL);
+			return Kernel(m_program, kernel_name);
 		}
 
 	private:
 		cl_program m_program;
+	};
+
+
+	class CommandQueue
+	{
+	public:
+		CommandQueue(cl_command_queue raw_command_queue = nullptr)
+			: m_command_queue(raw_command_queue)
+		{}
+
+		CommandQueue(cl_context context, cl_device_id device)
+			: m_command_queue(nullptr)
+		{
+			cl_command_queue command_queue = clCreateCommandQueue(context, device, 0, NULL);
+			if (!command_queue) {
+				throw WrapperException(-1, "Cannot create command queue");
+			}
+			m_command_queue = command_queue;
+		}
+
+		operator bool() const
+		{
+			return m_command_queue;
+		}
+
+		void addKernel(Kernel& kernel, uint32_t work_dimension, const std::size_t* global_work_offset, const size_t* global_work_size, const size_t* local_work_size)
+		{
+			int32_t err_num = clEnqueueNDRangeKernel(m_command_queue, kernel.getRaw(), work_dimension, global_work_offset, global_work_size, local_work_size, 0, NULL, NULL);
+			if (err_num != CL_SUCCESS) {
+				throw WrapperException(err_num, "Cannot add kernel '" + kernel.getName() + "' to command queue");
+			}
+		}
+
+		template<typename T>
+		void readMemoryObject(MemoryObject& object, bool blocking_read, std::vector<T>& result)
+		{
+			int32_t err_num = clEnqueueReadBuffer(m_command_queue, object.getRaw(), blocking_read ? CL_TRUE : CL_FALSE, 0, object.getBytesSize(), result.data(), 0, NULL, NULL);
+			if (err_num != CL_SUCCESS) {
+				throw WrapperException(err_num, "Cannot read from buffer");
+			}
+		}
+
+	private:
+		cl_command_queue m_command_queue;
 	};
 
 
@@ -196,14 +329,9 @@ namespace oclw
 			return m_devices;
 		}
 
-		cl_command_queue createQueue(cl_device_id device)
+		CommandQueue createQueue(cl_device_id device)
 		{
-			cl_command_queue command_queue = nullptr;			
-			command_queue = clCreateCommandQueue(m_context, device, 0, NULL);
-			if (!command_queue) {
-				throw WrapperException(-1, "Cannot create queue");
-			}
-			return command_queue;
+			return CommandQueue(m_context, device);
 		}
 
 		Program createProgram(cl_device_id device, const std::string& source_filename) const
