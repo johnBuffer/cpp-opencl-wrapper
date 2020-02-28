@@ -18,6 +18,32 @@ namespace oclw
 		ReadWrite = CL_MEM_READ_WRITE
 	};
 
+
+	class WrapperException : public std::exception
+	{
+	public:
+		WrapperException(cl_int error, const std::string& message)
+			: m_error(error)
+			, m_message(message)
+		{
+		}
+
+		const char* what() const override
+		{
+			return m_message.c_str();
+		}
+
+		cl_int getErrorCode() const
+		{
+			return m_error;
+		}
+
+	private:
+		cl_int m_error;
+		std::string m_message;
+	};
+
+
 	class MemoryObject
 	{
 	public:
@@ -38,6 +64,11 @@ namespace oclw
 			return m_memory_object;
 		}
 
+		cl_mem* getRaw()
+		{
+			return &m_memory_object;
+		}
+
 	private:
 		cl_mem m_memory_object;
 	};
@@ -45,7 +76,25 @@ namespace oclw
 
 	class Kernel
 	{
+	public:
+		Kernel(cl_kernel raw_kernel = nullptr)
+			: m_kernel(raw_kernel)
+		{}
 
+		Kernel(cl_program program, const std::string& name)
+			: m_kernel(nullptr)
+		{
+			cl_kernel raw_kernel = clCreateKernel(program, name.c_str(), NULL);
+			m_kernel = raw_kernel;
+		}
+
+		void setArgument(uint32_t arg_num, MemoryObject& object)
+		{
+			int32_t err_num = clSetKernelArg(m_kernel, arg_num, sizeof(cl_mem), object.getRaw());
+		}
+
+	private:
+		cl_kernel m_kernel;
 	};
 
 
@@ -54,9 +103,7 @@ namespace oclw
 	public:
 		Program(cl_program program = nullptr)
 			: m_program(program)
-		{
-
-		}
+		{}
 
 		Program(cl_context context, const std::string& source, cl_device_id device)
 			: m_program(nullptr)
@@ -66,7 +113,7 @@ namespace oclw
 			const char *src_str = source.c_str();
 			program = clCreateProgramWithSource(context, 1, (const char**)&src_str, NULL, NULL);
 			if (program == NULL) {
-				return;
+				throw WrapperException(-1, "Cannot create program");
 			}
 
 			err_num = clBuildProgram(program, 0, NULL, NULL, NULL, NULL);
@@ -74,12 +121,9 @@ namespace oclw
 			{
 				// Determine the reason for the error
 				char buildLog[16384];
-				clGetProgramBuildInfo(program, device, CL_PROGRAM_BUILD_LOG,
-					sizeof(buildLog), buildLog, NULL);
-				std::cerr << "Error in kernel: " << std::endl;
-				std::cerr << buildLog << std::endl;
+				clGetProgramBuildInfo(program, device, CL_PROGRAM_BUILD_LOG, sizeof(buildLog), buildLog, NULL);
 				clReleaseProgram(program);
-				return;
+				throw WrapperException(-1, "Cannot build program: '" + std::string(buildLog) + "'");
 			}
 
 			m_program = program;
@@ -114,7 +158,7 @@ namespace oclw
 
 		Context(cl_platform_id platform_id, PlatformType type)
 		{
-			cl_int errNum;
+			cl_int err_num;
 			cl_context context = nullptr;
 			cl_context_properties contextProperties[] = {
 				CL_CONTEXT_PLATFORM,
@@ -122,9 +166,12 @@ namespace oclw
 				0
 			};
 
-			context = clCreateContextFromType(contextProperties, type, NULL, NULL, &errNum);
-			if (errNum == CL_SUCCESS) {
+			context = clCreateContextFromType(contextProperties, type, NULL, NULL, &err_num);
+			if (err_num == CL_SUCCESS) {
 				m_context = context;
+			}
+			else {
+				throw WrapperException(err_num, "Cannot create context");
 			}
 		}
 
@@ -135,17 +182,15 @@ namespace oclw
 			std::size_t device_buffer_size = 0;
 			err_num = clGetContextInfo(m_context, CL_CONTEXT_DEVICES, 0, NULL, &device_buffer_size);
 			// Check everything is OK
-			if (err_num != CL_SUCCESS) {
-				return m_devices;
+			if (err_num != CL_SUCCESS || device_buffer_size <= 0) {
+				throw WrapperException(err_num, "Cannot get devices");
 			}
-			if (device_buffer_size <= 0) {
-				return m_devices;
-			}
+			
 			const uint64_t devices_count = device_buffer_size / sizeof(cl_device_id);
 			m_devices.resize(devices_count);
 			err_num = clGetContextInfo(m_context, CL_CONTEXT_DEVICES, device_buffer_size, m_devices.data(), NULL);
 			if (err_num != CL_SUCCESS) {
-				return m_devices;
+				throw WrapperException(err_num, "Cannot get devices");
 			}
 
 			return m_devices;
@@ -156,17 +201,16 @@ namespace oclw
 			cl_command_queue command_queue = nullptr;			
 			command_queue = clCreateCommandQueue(m_context, device, 0, NULL);
 			if (!command_queue) {
-				return nullptr;
+				throw WrapperException(-1, "Cannot create queue");
 			}
 			return command_queue;
 		}
 
-		Program createProgram(cl_device_id device, const char* fileName) const
+		Program createProgram(cl_device_id device, const std::string& source_filename) const
 		{
-			std::ifstream kernel_file(fileName, std::ios::in);
-			if (!kernel_file.is_open())
-			{
-				return nullptr;
+			std::ifstream kernel_file(source_filename, std::ios::in);
+			if (!kernel_file.is_open()) {
+				throw WrapperException(-1, "Cannot open source file '" + source_filename + "'");
 			}
 			std::ostringstream oss;
 			oss << kernel_file.rdbuf();
@@ -177,13 +221,21 @@ namespace oclw
 		template<typename T>
 		MemoryObject createMemoryObject(std::vector<T>& data, int32_t mode = ReadOnly)
 		{
-			return MemoryObject(m_context, data, mode);
+			MemoryObject object = MemoryObject(m_context, data, mode);
+			if (!object) {
+				throw WrapperException(-1, "Cannot create memory object");
+			}
+			return object;
 		}
 
 		template<typename T>
 		MemoryObject createMemoryObject(uint64_t element_count, int32_t mode = ReadOnly)
 		{
-			return MemoryObject(m_context, sizeof(T), element_count, mode);
+			MemoryObject object = MemoryObject(m_context, sizeof(T), element_count, mode);
+			if (!object) {
+				throw WrapperException(-1, "Cannot create memory object");
+			}
+			return object;
 		}
 
 	private:
@@ -215,7 +267,8 @@ namespace oclw
 
 		Context createContext(cl_platform_id platform_id, PlatformType type) const
 		{
-			return Context(platform_id, type);
+			Context context = Context(platform_id, type);
+			return context;
 		}
 
 	private:
