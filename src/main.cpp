@@ -39,7 +39,7 @@ int main()
 		// Create command queue
 		oclw::CommandQueue command_queue = context.createQueue(device);
 		// Create OpenCL program from HelloWorld.cl kernel source
-		oclw::Program program = context.createProgram(device, "../src/kernel.cu");
+		oclw::Program program = context.createProgram(device, "../src/kernel.cl");
 		// Create OpenCL kernel
 		oclw::Kernel kernel = program.createKernel("hello_kernel");
 		// Create memory objects that will be used as arguments to kernel
