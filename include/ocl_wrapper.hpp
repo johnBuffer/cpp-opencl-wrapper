@@ -72,8 +72,13 @@ namespace oclw
 
 	const std::string& getErrorString(cl_int err_num)
 	{
-		const int32_t error_code = -err_num > 19 ? - err_num - 10 :  -err_num;
+		const int32_t error_code = -(err_num < -19 ? err_num + 10 : err_num);
 		return cl_errors[error_code];
+	}
+
+	bool checkError(cl_int err_num)
+	{
+		return err_num != CL_SUCCESS;
 	}
 
 	enum PlatformType {
@@ -97,7 +102,7 @@ namespace oclw
 
 		const char* what() const override
 		{
-			return (m_message + " '" + getErrorString(m_error) + "'").c_str();
+			return (m_message + " [" + getErrorString(m_error) + "]").c_str();
 		}
 
 		cl_int getErrorCode() const
@@ -119,14 +124,23 @@ namespace oclw
 			: m_element_count(data.size())
 			, m_total_size(sizeof(T) * data.size())
 		{
-			m_memory_object = clCreateBuffer(context, mode, m_total_size, data.data(), NULL);
+			initialize(context, mode, m_total_size, data.data());
 		}
 
 		MemoryObject(cl_context context, uint32_t element_size, uint64_t element_count, int32_t mode)
 			: m_element_count(element_count)
 			, m_total_size(element_size * element_count)
 		{
-			m_memory_object = clCreateBuffer(context, mode, m_total_size, NULL, NULL);
+			initialize(context, mode, m_total_size, NULL);
+		}
+
+		void initialize(cl_context context, int32_t mode, uint64_t total_size, void* data)
+		{
+			cl_int err_num;
+			m_memory_object = clCreateBuffer(context, mode, m_total_size, data, &err_num);
+			if (checkError(err_num)) {
+				throw WrapperException(err_num, "Cannot create memory object");
+			}
 		}
 
 		operator bool() const
@@ -163,13 +177,19 @@ namespace oclw
 			: m_kernel(nullptr)
 			, m_name(name)
 		{
-			cl_kernel raw_kernel = clCreateKernel(program, name.c_str(), NULL);
-			m_kernel = raw_kernel;
+			cl_int err_num;
+			m_kernel = clCreateKernel(program, name.c_str(), &err_num);
+			if (checkError(err_num)) {
+				throw WrapperException(err_num, "Cannot create kernel '" + name + "'");
+			}
 		}
 
 		void setArgument(uint32_t arg_num, MemoryObject& object)
 		{
 			int32_t err_num = clSetKernelArg(m_kernel, arg_num, sizeof(cl_mem), &(object.getRaw()));
+			if (checkError(err_num)) {
+				throw WrapperException(err_num, "Cannot set argument of kernel '" + m_name + "'");
+			}
 		}
 
 		cl_kernel& getRaw()
@@ -199,23 +219,20 @@ namespace oclw
 			: m_program(nullptr)
 		{
 			int32_t err_num;
-			cl_program program = nullptr;
 			const char *src_str = source.c_str();
-			program = clCreateProgramWithSource(context, 1, (const char**)&src_str, NULL, NULL);
-			if (program == NULL) {
-				throw WrapperException(-1, "Cannot create program");
+			m_program = clCreateProgramWithSource(context, 1, (const char**)&src_str, NULL, &err_num);
+			if (checkError(err_num)) {
+				throw WrapperException(err_num, "Cannot create program");
 			}
 
-			err_num = clBuildProgram(program, 0, NULL, NULL, NULL, NULL);
+			err_num = clBuildProgram(m_program, 0, NULL, NULL, NULL, NULL);
 			if (err_num != CL_SUCCESS) {
 				// Determine the reason for the error
 				char buildLog[16384];
-				clGetProgramBuildInfo(program, device, CL_PROGRAM_BUILD_LOG, sizeof(buildLog), buildLog, NULL);
-				clReleaseProgram(program);
-				throw WrapperException(-1, "Cannot build program: '" + std::string(buildLog) + "'");
+				clGetProgramBuildInfo(m_program, device, CL_PROGRAM_BUILD_LOG, sizeof(buildLog), buildLog, NULL);
+				clReleaseProgram(m_program);
+				throw WrapperException(err_num, "Cannot build program: '" + std::string(buildLog) + "'");
 			}
-
-			m_program = program;
 		}
 
 		operator bool() const
@@ -243,11 +260,11 @@ namespace oclw
 		CommandQueue(cl_context context, cl_device_id device)
 			: m_command_queue(nullptr)
 		{
-			cl_command_queue command_queue = clCreateCommandQueue(context, device, 0, NULL);
-			if (!command_queue) {
-				throw WrapperException(-1, "Cannot create command queue");
+			cl_int err_num;
+			m_command_queue = clCreateCommandQueue(context, device, 0, &err_num);
+			if (checkError(err_num)) {
+				throw WrapperException(err_num, "Cannot create command queue");
 			}
-			m_command_queue = command_queue;
 		}
 
 		operator bool() const
@@ -292,18 +309,12 @@ namespace oclw
 		Context(cl_platform_id platform_id, PlatformType type)
 		{
 			cl_int err_num;
-			cl_context context = nullptr;
 			cl_context_properties contextProperties[] = {
-				CL_CONTEXT_PLATFORM,
-				(cl_context_properties)platform_id,
-				0
+				CL_CONTEXT_PLATFORM, (cl_context_properties)platform_id, 0
 			};
 
-			context = clCreateContextFromType(contextProperties, type, NULL, NULL, &err_num);
-			if (err_num == CL_SUCCESS) {
-				m_context = context;
-			}
-			else {
+			m_context = clCreateContextFromType(contextProperties, type, NULL, NULL, &err_num);
+			if (checkError(err_num)) {
 				throw WrapperException(err_num, "Cannot create context");
 			}
 		}
@@ -315,14 +326,14 @@ namespace oclw
 			std::size_t device_buffer_size = 0;
 			err_num = clGetContextInfo(m_context, CL_CONTEXT_DEVICES, 0, NULL, &device_buffer_size);
 			// Check everything is OK
-			if (err_num != CL_SUCCESS || device_buffer_size <= 0) {
+			if (checkError(err_num) || device_buffer_size <= 0) {
 				throw WrapperException(err_num, "Cannot get devices");
 			}
 			
 			const uint64_t devices_count = device_buffer_size / sizeof(cl_device_id);
 			m_devices.resize(devices_count);
 			err_num = clGetContextInfo(m_context, CL_CONTEXT_DEVICES, device_buffer_size, m_devices.data(), NULL);
-			if (err_num != CL_SUCCESS) {
+			if (checkError(err_num)) {
 				throw WrapperException(err_num, "Cannot get devices");
 			}
 
@@ -349,21 +360,13 @@ namespace oclw
 		template<typename T>
 		MemoryObject createMemoryObject(std::vector<T>& data, int32_t mode = ReadOnly)
 		{
-			MemoryObject object = MemoryObject(m_context, data, mode);
-			if (!object) {
-				throw WrapperException(-1, "Cannot create memory object");
-			}
-			return object;
+			return MemoryObject(m_context, data, mode);
 		}
 
 		template<typename T>
 		MemoryObject createMemoryObject(uint64_t element_count, int32_t mode = ReadOnly)
 		{
-			MemoryObject object = MemoryObject(m_context, sizeof(T), element_count, mode);
-			if (!object) {
-				throw WrapperException(-1, "Cannot create memory object");
-			}
-			return object;
+			return MemoryObject(m_context, sizeof(T), element_count, mode);
 		}
 
 	private:
@@ -380,7 +383,10 @@ namespace oclw
 		void fetchPlatforms(const uint32_t num = 1u)
 		{
 			m_platforms.resize(num);
-			cl_int err_num = clGetPlatformIDs(1, m_platforms.data(), &m_platforms_count);
+			cl_int err_num = clGetPlatformIDs(num, m_platforms.data(), &m_platforms_count);
+			if (checkError(err_num)) {
+				throw WrapperException(err_num, "Cannot fetch platforms");
+			}
 		}
 
 		uint32_t getPlatformCount() const
@@ -395,8 +401,7 @@ namespace oclw
 
 		Context createContext(cl_platform_id platform_id, PlatformType type) const
 		{
-			Context context = Context(platform_id, type);
-			return context;
+			return Context(platform_id, type);
 		}
 
 	private:
