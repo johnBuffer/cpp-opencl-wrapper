@@ -88,7 +88,8 @@ namespace oclw
 
 	enum MemoryObjectReadMode {
 		ReadOnly = CL_MEM_READ_ONLY,
-		ReadWrite = CL_MEM_READ_WRITE
+		ReadWrite = CL_MEM_READ_WRITE,
+		CopyHostPtr = CL_MEM_COPY_HOST_PTR
 	};
 
 
@@ -378,9 +379,12 @@ namespace oclw
 	class Wrapper
 	{
 	public:
-		Wrapper() = default;
+		Wrapper(const uint32_t num = 1u)
+		{
+			fetchPlatforms(num);
+		}
 
-		void fetchPlatforms(const uint32_t num = 1u)
+		void fetchPlatforms(const uint32_t num)
 		{
 			m_platforms.resize(num);
 			cl_int err_num = clGetPlatformIDs(num, m_platforms.data(), &m_platforms_count);

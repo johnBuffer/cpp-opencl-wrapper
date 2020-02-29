@@ -29,8 +29,8 @@ int main()
 {
 	try
 	{
+		// Initialize wrapper
 		oclw::Wrapper wrapper;
-		wrapper.fetchPlatforms(1);
 		// Retrieve context
 		oclw::Context context = createDefaultContext(wrapper);
 		// Get devices
@@ -51,9 +51,9 @@ int main()
 			a[i] = (float)i;
 			b[i] = (float)(i * 2);
 		}
-		oclw::MemoryObject buff_a = context.createMemoryObject(a, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR);
-		oclw::MemoryObject buff_b = context.createMemoryObject(b, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR);
-		oclw::MemoryObject buff_result = context.createMemoryObject<float>(ARRAY_SIZE, CL_MEM_READ_WRITE);
+		oclw::MemoryObject buff_a = context.createMemoryObject(a, oclw::ReadOnly | oclw::CopyHostPtr);
+		oclw::MemoryObject buff_b = context.createMemoryObject(b, oclw::ReadOnly | oclw::CopyHostPtr);
+		oclw::MemoryObject buff_result = context.createMemoryObject<float>(ARRAY_SIZE, oclw::ReadWrite);
 		// Set kernel's args
 		kernel.setArgument(0, buff_a);
 		kernel.setArgument(1, buff_b);
