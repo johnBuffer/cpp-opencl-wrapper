@@ -112,11 +112,6 @@ namespace oclw
 			return (m_message + " [" + getErrorString(m_error) + "]").c_str();
 		}
 
-		const std::string getMessage() const
-		{
-			return (m_message + " [" + getErrorString(m_error) + "]").c_str();
-		}
-
 		cl_int getErrorCode() const
 		{
 			return m_error;

@@ -1,6 +1,8 @@
 #include <iostream>
 #include <CL/opencl.h>
 #include <ocl_wrapper.hpp>
+#include <SFML/Graphics.hpp>
+
 
 oclw::Context createDefaultContext(oclw::Wrapper& wrapper)
 {
@@ -27,6 +29,9 @@ oclw::Context createDefaultContext(oclw::Wrapper& wrapper)
 
 int main()
 {
+	constexpr uint32_t WIN_WIDTH = 640u;
+	constexpr uint32_t WIN_HEIGHT = 480u;
+
 	try
 	{
 		// Initialize wrapper
@@ -39,40 +44,59 @@ int main()
 		// Create command queue
 		oclw::CommandQueue command_queue = context.createQueue(device);
 		// Create OpenCL program from HelloWorld.cl kernel source
-		oclw::Program program = context.createProgram(device, "../src/kernel.cl");
+		oclw::Program program = context.createProgram(device, "../src/image_output.cl");
 		// Create OpenCL kernel
-		oclw::Kernel kernel = program.createKernel("hello_kernel");
+		oclw::Kernel kernel = program.createKernel("work_id_output");
 		// Create memory objects that will be used as arguments to kernel
-		constexpr uint64_t ARRAY_SIZE = 8u;
-		std::vector<float> result(ARRAY_SIZE);
-		std::vector<float> a(ARRAY_SIZE);
-		std::vector<float> b(ARRAY_SIZE);
-		for (int i = 0; i < ARRAY_SIZE; i++) {
-			a[i] = (float)i;
-			b[i] = (float)(i * 2);
-		}
-		oclw::MemoryObject buff_a = context.createMemoryObject(a, oclw::ReadOnly | oclw::CopyHostPtr);
-		oclw::MemoryObject buff_b = context.createMemoryObject(b, oclw::ReadOnly | oclw::CopyHostPtr);
-		oclw::MemoryObject buff_result = context.createMemoryObject<float>(ARRAY_SIZE, oclw::ReadWrite);
+		std::vector<uint8_t> result(WIN_WIDTH * WIN_HEIGHT * 4);
+		
+		oclw::MemoryObject buff_result = context.createMemoryObject<uint8_t>(result.size(), oclw::ReadWrite);
 		// Set kernel's args
-		kernel.setArgument(0, buff_a);
-		kernel.setArgument(1, buff_b);
-		kernel.setArgument(2, buff_result);
+		kernel.setArgument(0, buff_result);
 		// Queue the kernel up for execution across the array
-		size_t globalWorkSize[1] = { ARRAY_SIZE };
-		size_t localWorkSize[1] = { 1 };
-		command_queue.addKernel(kernel, 1, NULL, globalWorkSize, localWorkSize);
+		size_t globalWorkSize[] = { WIN_WIDTH, WIN_HEIGHT };
+		size_t localWorkSize[] = { 1, 1 };
+		command_queue.addKernel(kernel, 2, NULL, globalWorkSize, localWorkSize);
 		command_queue.readMemoryObject(buff_result, true, result);
-		// Output the result buffer
-		for (uint32_t i = 0; i < ARRAY_SIZE; i++)
+
+		// Main loop
+		sf::RenderWindow window(sf::VideoMode(WIN_WIDTH, WIN_HEIGHT), "OpenCL and SFML");
+
+		sf::Image ocl_result;
+		ocl_result.create(WIN_WIDTH, WIN_HEIGHT);
+
+		while (window.isOpen())
 		{
-			std::cout << result[i] << " ";
+			sf::Event event;
+			while (window.pollEvent(event))
+			{
+				if (event.type == sf::Event::Closed)
+					window.close();
+			}
+
+			for (uint32_t x(0); x < WIN_WIDTH; ++x) {
+				for (uint32_t y(0); y < WIN_HEIGHT; ++y) {
+					uint32_t index = 4 * (x + y * WIN_WIDTH);
+					uint8_t r = result[index + 0];
+					uint8_t g = result[index + 1];
+					uint8_t b = result[index + 2];
+					uint8_t a = result[index + 3];
+					ocl_result.setPixel(x, y, sf::Color(r, g, b, a));
+				}
+			}
+
+			window.clear();
+
+			sf::Texture tex;
+			tex.loadFromImage(ocl_result);
+			window.draw(sf::Sprite(tex));
+
+			window.display();
 		}
-		std::cout << std::endl;
 	}
 	catch (const oclw::Exception& error)
 	{
-		std::cout << "Error: " << error.what() << std::endl;
+		std::cout << "Error: " << error.getReadableError() << std::endl;
 	}
 
 	return 0;
