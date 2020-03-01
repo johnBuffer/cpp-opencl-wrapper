@@ -52,6 +52,7 @@ int main()
 		event_manager.addKeyPressedCallback(sf::Keyboard::Left, [&](sfev::CstEv) {params.x -= speed; });
 		event_manager.addKeyPressedCallback(sf::Keyboard::Right, [&](sfev::CstEv) {params.x += speed; });
 
+		sf::Texture tex;
 		sf::Image ocl_result;
 		ocl_result.create(WIN_WIDTH, WIN_HEIGHT);
 
@@ -65,11 +66,11 @@ int main()
 			kernel.setArgument(3, buff_result);
 			// Queue the kernel up for execution across the array
 			size_t globalWorkSize[] = { WIN_WIDTH, WIN_HEIGHT };
-			size_t localWorkSize[] = { 1, 1 };
+			size_t localWorkSize[] = { 20, 20 };
 			command_queue.addKernel(kernel, 2, NULL, globalWorkSize, localWorkSize);
 			command_queue.readMemoryObject(buff_result, true, result);
 
-			for (uint32_t x(0); x < WIN_WIDTH; ++x) {
+			/*for (uint32_t x(0); x < WIN_WIDTH; ++x) {
 				for (uint32_t y(0); y < WIN_HEIGHT; ++y) {
 					uint32_t index = 4 * (x + y * WIN_WIDTH);
 					uint8_t r = result[index + 0];
@@ -78,12 +79,11 @@ int main()
 					uint8_t a = result[index + 3];
 					ocl_result.setPixel(x, y, sf::Color(r, g, b, a));
 				}
-			}
+			}*/
 
 			window.clear();
 
-			sf::Texture tex;
-			tex.loadFromImage(ocl_result);
+			//tex.loadFromImage(ocl_result);
 			window.draw(sf::Sprite(tex));
 
 			window.display();

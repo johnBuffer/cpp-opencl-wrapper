@@ -12,11 +12,9 @@ __kernel void julia(
     const float  screen_ratio     = screen_size_f.x / screen_size_f.y;
     const float2 c_space_coords   = convert_float2(gid) / max(screen_size_f.x, screen_size_f.y);
 
-    const float max_it = 2.0f;
+    const float max_it = 255.0f;
 
-    const float2 position = pos;
-
-    float2 z = c_space_coords - (float2)(0.5f / zoom, 0.5f / (zoom * screen_ratio)) + position;
+    float2 z = c_space_coords - (float2)(0.5f / zoom, 0.5f / (zoom * screen_ratio)) + pos;
 
     float i = 0.0f;
     
@@ -47,9 +45,9 @@ __kernel void julia(
         b = (i-2.0f*t)/t;
     }
     
-    const unsigned int index = gid.x + gid.y * screen_size.x;
-	out_image[4 * index + 0] = (unsigned int)(255.0*r);
-	out_image[4 * index + 1] = (unsigned int)(255.0*g);
-	out_image[4 * index + 2] = (unsigned int)(255.0*b);
-	out_image[4 * index + 3] = 255;
+    const unsigned int index = 4 * (gid.x + gid.y * screen_size.x);
+	out_image[index + 0] = (unsigned int)(255.0f*r);
+	out_image[index + 1] = (unsigned int)(255.0f*g);
+	out_image[index + 2] = (unsigned int)(255.0f*b);
+	out_image[index + 3] = 255;
 }
