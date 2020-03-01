@@ -17,19 +17,25 @@ int main()
 		cl::Platform platform = getDefaultPlatform();
 		cl::Device device = getDefaultDevice(platform);
 		cl::Context context = createDefaultContext();
+
 		cl_int err_num;
-		cl::Buffer buffer(context, oclw::WriteOnly, buffer_size, nullptr, &err_num);
+		cl::Buffer buffer(context, oclw::WriteOnly, buffer_size * sizeof(uint32_t), NULL, &err_num);
+		oclw::checkError(err_num, "Cannot create buffer");
 		
 		const std::string source = oclw::loadSourceFromFile("../src/image_output.cl");
 		cl::Program program(source, true, &err_num);
 		oclw::checkError(err_num, "Cannot build program");
 
-		cl::Kernel kernel(program, "image_output.cl", &err_num);
+		cl::Kernel kernel(program, "work_id_output", &err_num);
 		oclw::checkError(err_num, "Cannot create kernel");
+		err_num = kernel.setArg(0, buffer);
+		oclw::checkError(err_num, "Cannot set kernel arg");
 
 		cl::CommandQueue queue(context, device, 0, &err_num);
 		oclw::checkError(err_num, "Cannot create queue");
 
+		err_num = queue.enqueueNDRangeKernel(kernel, cl::NDRange(), cl::NDRange(8), cl::NDRange(1), nullptr, nullptr);
+		oclw::checkError(err_num, "Cannot enqueue kernel");
 
 		// Main loop
 		sf::RenderWindow window(sf::VideoMode(WIN_WIDTH, WIN_HEIGHT), "OpenCL and SFML");
