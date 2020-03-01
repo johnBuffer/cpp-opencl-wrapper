@@ -18,8 +18,10 @@ int main()
 		cl::Device device = getDefaultDevice(platform);
 		cl::Context context = createDefaultContext();
 
+		uint32_t data[buffer_size];
+
 		cl_int err_num;
-		cl::Buffer buffer(context, oclw::WriteOnly, buffer_size * sizeof(uint32_t), NULL, &err_num);
+		cl::Buffer buffer(context, oclw::ReadOnly, buffer_size * sizeof(uint32_t), &data, &err_num);
 		oclw::checkError(err_num, "Cannot create buffer");
 		
 		const std::string source = oclw::loadSourceFromFile("../src/image_output.cl");
@@ -34,7 +36,7 @@ int main()
 		cl::CommandQueue queue(context, device, 0, &err_num);
 		oclw::checkError(err_num, "Cannot create queue");
 
-		err_num = queue.enqueueNDRangeKernel(kernel, cl::NDRange(), cl::NDRange(8), cl::NDRange(1), nullptr, nullptr);
+		err_num = queue.enqueueNDRangeKernel(kernel, cl::NDRange(), cl::NDRange(8, 1), cl::NDRange(1, 1), nullptr, nullptr);
 		oclw::checkError(err_num, "Cannot enqueue kernel");
 
 		// Main loop
