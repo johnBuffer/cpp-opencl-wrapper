@@ -69,7 +69,7 @@ int main()
 			command_queue.addKernel(kernel, 2, NULL, globalWorkSize, localWorkSize);
 			command_queue.readMemoryObject(buff_result, true, result);
 
-			/*for (uint32_t x(0); x < WIN_WIDTH; ++x) {
+			for (uint32_t x(0); x < WIN_WIDTH; ++x) {
 				for (uint32_t y(0); y < WIN_HEIGHT; ++y) {
 					uint32_t index = 4 * (x + y * WIN_WIDTH);
 					uint8_t r = result[index + 0];
@@ -78,7 +78,7 @@ int main()
 					uint8_t a = result[index + 3];
 					ocl_result.setPixel(x, y, sf::Color(r, g, b, a));
 				}
-			}*/
+			}
 
 			window.clear();
 
