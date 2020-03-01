@@ -1,81 +1,78 @@
 #include <iostream>
-#include <CL/cl.hpp>
-#include "utils.hpp"
-#include "ocl_wrapper.hpp"
-#include <SFML/Graphics.hpp>
+#include <CL/opencl.h>
+#include <ocl_wrapper.hpp>
+
+oclw::Context createDefaultContext(oclw::Wrapper& wrapper)
+{
+	auto platforms = wrapper.getPlatforms();
+	if (platforms.empty()) {
+		return nullptr;
+	}
+	// Trying to create GPU context
+	std::cout << "Creating context on GPU..." << std::endl;
+	oclw::Context context = wrapper.createContext(platforms.front(), oclw::GPU);
+	if (!context) {
+		// If not available try on CPU
+		std::cout << "Creating context on CPU..." << std::endl;
+		context = wrapper.createContext(platforms.front(), oclw::CPU);
+		if (!context) {
+			std::cout << "Cannot create context." << std::endl;
+			return nullptr;
+		}
+	}
+	std::cout << "Done." << std::endl;
+	return context;
+}
 
 
 int main()
 {
-	constexpr uint32_t WIN_WIDTH = 640u;
-	constexpr uint32_t WIN_HEIGHT = 480u;
-
 	try
 	{
-		// OpenCL initialization
-		constexpr uint64_t buffer_size = 8u;
-		cl::Platform platform = getDefaultPlatform();
-		cl::Device device = getDefaultDevice(platform);
-		cl::Context context = createDefaultContext();
-
-		uint32_t data[buffer_size];
-
-		cl_int err_num;
-		cl::Buffer buffer(context, oclw::ReadOnly, buffer_size * sizeof(uint32_t), &data, &err_num);
-		oclw::checkError(err_num, "Cannot create buffer");
-		
-		const std::string source = oclw::loadSourceFromFile("../src/image_output.cl");
-		cl::Program program(source, true, &err_num);
-		oclw::checkError(err_num, "Cannot build program");
-
-		cl::Kernel kernel(program, "work_id_output", &err_num);
-		oclw::checkError(err_num, "Cannot create kernel");
-		err_num = kernel.setArg(0, buffer);
-		oclw::checkError(err_num, "Cannot set kernel arg");
-
-		cl::CommandQueue queue(context, device, 0, &err_num);
-		oclw::checkError(err_num, "Cannot create queue");
-
-		err_num = queue.enqueueNDRangeKernel(kernel, cl::NDRange(), cl::NDRange(8, 1), cl::NDRange(1, 1), nullptr, nullptr);
-		oclw::checkError(err_num, "Cannot enqueue kernel");
-
-		// Main loop
-		sf::RenderWindow window(sf::VideoMode(WIN_WIDTH, WIN_HEIGHT), "OpenCL and SFML");
-
-		sf::Image ocl_result;
-		ocl_result.create(WIN_WIDTH, WIN_HEIGHT);
-
-		std::vector<uint8_t> image_result;
-
-		while (window.isOpen())
-		{
-			sf::Event event;
-			while (window.pollEvent(event))
-			{
-				if (event.type == sf::Event::Closed)
-					window.close();
-			}
-
-			window.clear();
-
-			/*for (uint32_t x(0); x < WIN_WIDTH; ++x) {
-				for (uint32_t y(0); y < WIN_HEIGHT; ++y) {
-					uint32_t index = 4 * (x + y * WIN_WIDTH);
-					uint8_t r = image_result[index + 0];
-					uint8_t g = image_result[index + 1];
-					uint8_t b = image_result[index + 2];
-					uint8_t a = image_result[index + 3];
-					ocl_result.setPixel(x, y, sf::Color(r, g, b, a));
-				}
-			}*/
-
-			window.display();
+		// Initialize wrapper
+		oclw::Wrapper wrapper;
+		// Retrieve context
+		oclw::Context context = createDefaultContext(wrapper);
+		// Get devices
+		auto& devices_list = context.getDevices();
+		cl_device_id device = devices_list.front();
+		// Create command queue
+		oclw::CommandQueue command_queue = context.createQueue(device);
+		// Create OpenCL program from HelloWorld.cl kernel source
+		oclw::Program program = context.createProgram(device, "../src/kernel.cl");
+		// Create OpenCL kernel
+		oclw::Kernel kernel = program.createKernel("hello_kernel");
+		// Create memory objects that will be used as arguments to kernel
+		constexpr uint64_t ARRAY_SIZE = 8u;
+		std::vector<float> result(ARRAY_SIZE);
+		std::vector<float> a(ARRAY_SIZE);
+		std::vector<float> b(ARRAY_SIZE);
+		for (int i = 0; i < ARRAY_SIZE; i++) {
+			a[i] = (float)i;
+			b[i] = (float)(i * 2);
 		}
-		
+		oclw::MemoryObject buff_a = context.createMemoryObject(a, oclw::ReadOnly | oclw::CopyHostPtr);
+		oclw::MemoryObject buff_b = context.createMemoryObject(b, oclw::ReadOnly | oclw::CopyHostPtr);
+		oclw::MemoryObject buff_result = context.createMemoryObject<float>(ARRAY_SIZE, oclw::ReadWrite);
+		// Set kernel's args
+		kernel.setArgument(0, buff_a);
+		kernel.setArgument(1, buff_b);
+		kernel.setArgument(2, buff_result);
+		// Queue the kernel up for execution across the array
+		size_t globalWorkSize[1] = { ARRAY_SIZE };
+		size_t localWorkSize[1] = { 1 };
+		command_queue.addKernel(kernel, 1, NULL, globalWorkSize, localWorkSize);
+		command_queue.readMemoryObject(buff_result, true, result);
+		// Output the result buffer
+		for (uint32_t i = 0; i < ARRAY_SIZE; i++)
+		{
+			std::cout << result[i] << " ";
+		}
+		std::cout << std::endl;
 	}
 	catch (const oclw::Exception& error)
 	{
-		std::cout << "Error " << error.getErrorCode() << ": " << error.getMessage() << std::endl;
+		std::cout << "Error: " << error.what() << std::endl;
 	}
 
 	return 0;
