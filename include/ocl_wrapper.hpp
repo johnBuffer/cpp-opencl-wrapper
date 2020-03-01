@@ -200,10 +200,10 @@ namespace oclw
 			checkError(err_num, "Cannot set argument of kernel '" + m_name + "'");
 		}
 
-		void setArgument(uint32_t arg_num, uint32_t x, uint32_t y)
+		template<typename T>
+		void setArgument(uint32_t arg_num, const T& arg_value)
 		{
-			cl_uint2 v = { x, y };
-			int32_t err_num = clSetKernelArg(m_kernel, arg_num, sizeof(cl_uint2), &v);
+			int32_t err_num = clSetKernelArg(m_kernel, arg_num, sizeof(T), &arg_value);
 			checkError(err_num, "Cannot set argument of kernel '" + m_name + "'");
 		}
 

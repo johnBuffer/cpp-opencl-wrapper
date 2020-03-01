@@ -3,30 +3,24 @@
 #include "ocl_wrapper.hpp"
 
 
-cl::Platform getDefaultPlatform()
+oclw::Context createDefaultContext(oclw::Wrapper& wrapper)
 {
-	std::vector<cl::Platform> platforms;
-	cl::Platform::get(&platforms);
+	auto platforms = wrapper.getPlatforms();
 	if (platforms.empty()) {
-		throw oclw::Exception(-1, "Cannot get platforms");
+		return nullptr;
 	}
-	return platforms.front();
-}
-
-cl::Device getDefaultDevice(const cl::Platform& platform)
-{
-	std::vector<cl::Device> devices;
-	platform.getDevices(CL_DEVICE_TYPE_GPU, &devices);
-	if (devices.empty()) {
-		throw oclw::Exception(-1, "Cannot get devices");
+	// Trying to create GPU context
+	std::cout << "Creating context on GPU..." << std::endl;
+	oclw::Context context = wrapper.createContext(platforms.front(), oclw::GPU);
+	if (!context) {
+		// If not available try on CPU
+		std::cout << "Creating context on CPU..." << std::endl;
+		context = wrapper.createContext(platforms.front(), oclw::CPU);
+		if (!context) {
+			std::cout << "Cannot create context." << std::endl;
+			return nullptr;
+		}
 	}
-	return devices.front();
-}
-
-cl::Context createDefaultContext()
-{
-	cl_int err_num;
-	cl::Context context(CL_DEVICE_TYPE_GPU, nullptr, nullptr, nullptr, &err_num);
-	oclw::checkError(err_num, "Cannot create context");
+	std::cout << "Done." << std::endl;
 	return context;
 }
