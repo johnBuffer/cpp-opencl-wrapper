@@ -103,6 +103,11 @@ namespace oclw
 
 		const char* what() const override
 		{
+			return m_message.c_str();
+		}
+
+		const std::string getReadableError() const
+		{
 			return (m_message + " [" + getErrorString(m_error) + "]").c_str();
 		}
 
