@@ -70,38 +70,44 @@ namespace oclw
 		"CL_INVALID_DEVICE_PARTITION_COUNT"
 	};
 
-	const std::string& getErrorString(cl_int err_num)
-	{
-		const int32_t error_code = -(err_num < -19 ? err_num + 10 : err_num);
-		return cl_errors[error_code];
-	}
 
-	bool checkError(cl_int err_num)
-	{
-		return err_num != CL_SUCCESS;
-	}
+	const std::string& getErrorString(cl_int err_num);
+
+
+	const std::string loadSourceFromFile(const std::string& filename);
+
+
+	void checkError(cl_int err_num, const std::string& err_message);
+
 
 	enum PlatformType {
 		CPU = CL_DEVICE_TYPE_CPU,
 		GPU = CL_DEVICE_TYPE_GPU
 	};
 
+
 	enum MemoryObjectReadMode {
 		ReadOnly = CL_MEM_READ_ONLY,
 		ReadWrite = CL_MEM_READ_WRITE,
+		WriteOnly = CL_MEM_WRITE_ONLY,
 		CopyHostPtr = CL_MEM_COPY_HOST_PTR
 	};
 
 
-	class WrapperException : public std::exception
+	class Exception : public std::exception
 	{
 	public:
-		WrapperException(cl_int error, const std::string& message)
+		Exception(cl_int error, const std::string& message)
 			: m_error(error)
 			, m_message(message)
 		{}
 
 		const char* what() const override
+		{
+			return (m_message + " [" + getErrorString(m_error) + "]").c_str();
+		}
+
+		const std::string getMessage() const
 		{
 			return (m_message + " [" + getErrorString(m_error) + "]").c_str();
 		}
@@ -120,6 +126,13 @@ namespace oclw
 	class MemoryObject
 	{
 	public:
+		MemoryObject(cl_mem buffer = nullptr, uint64_t element_count = 0u, uint64_t element_size = 0u)
+			: m_memory_object(buffer)
+			, m_element_count(element_count)
+			, m_total_size(element_count * element_size)
+		{
+		}
+
 		template<typename T>
 		MemoryObject(cl_context context, std::vector<T>& data, int32_t mode)
 			: m_element_count(data.size())
@@ -133,15 +146,6 @@ namespace oclw
 			, m_total_size(element_size * element_count)
 		{
 			initialize(context, mode, m_total_size, NULL);
-		}
-
-		void initialize(cl_context context, int32_t mode, uint64_t total_size, void* data)
-		{
-			cl_int err_num;
-			m_memory_object = clCreateBuffer(context, mode, m_total_size, data, &err_num);
-			if (checkError(err_num)) {
-				throw WrapperException(err_num, "Cannot create memory object");
-			}
 		}
 
 		operator bool() const
@@ -163,6 +167,13 @@ namespace oclw
 		cl_mem m_memory_object;
 		const std::size_t m_element_count;
 		const std::size_t m_total_size;
+
+		void initialize(cl_context context, int32_t mode, uint64_t total_size, void* data)
+		{
+			cl_int err_num;
+			m_memory_object = clCreateBuffer(context, mode, m_total_size, data, &err_num);
+			checkError(err_num, "Cannot create memory object");
+		}
 	};
 
 
@@ -180,17 +191,20 @@ namespace oclw
 		{
 			cl_int err_num;
 			m_kernel = clCreateKernel(program, name.c_str(), &err_num);
-			if (checkError(err_num)) {
-				throw WrapperException(err_num, "Cannot create kernel '" + name + "'");
-			}
+			checkError(err_num, "Cannot create kernel '" + name + "'");
 		}
 
 		void setArgument(uint32_t arg_num, MemoryObject& object)
 		{
 			int32_t err_num = clSetKernelArg(m_kernel, arg_num, sizeof(cl_mem), &(object.getRaw()));
-			if (checkError(err_num)) {
-				throw WrapperException(err_num, "Cannot set argument of kernel '" + m_name + "'");
-			}
+			checkError(err_num, "Cannot set argument of kernel '" + m_name + "'");
+		}
+
+		void setArgument(uint32_t arg_num, uint32_t x, uint32_t y)
+		{
+			cl_uint2 v = { x, y };
+			int32_t err_num = clSetKernelArg(m_kernel, arg_num, sizeof(cl_uint2), &v);
+			checkError(err_num, "Cannot set argument of kernel '" + m_name + "'");
 		}
 
 		cl_kernel& getRaw()
@@ -222,9 +236,7 @@ namespace oclw
 			int32_t err_num;
 			const char *src_str = source.c_str();
 			m_program = clCreateProgramWithSource(context, 1, (const char**)&src_str, NULL, &err_num);
-			if (checkError(err_num)) {
-				throw WrapperException(err_num, "Cannot create program");
-			}
+			checkError(err_num, "Cannot create program");
 
 			err_num = clBuildProgram(m_program, 0, NULL, NULL, NULL, NULL);
 			if (err_num != CL_SUCCESS) {
@@ -232,7 +244,7 @@ namespace oclw
 				char buildLog[16384];
 				clGetProgramBuildInfo(m_program, device, CL_PROGRAM_BUILD_LOG, sizeof(buildLog), buildLog, NULL);
 				clReleaseProgram(m_program);
-				throw WrapperException(err_num, "Cannot build program: '" + std::string(buildLog) + "'");
+				throw Exception(err_num, "Cannot build program: '" + std::string(buildLog) + "'");
 			}
 		}
 
@@ -263,9 +275,7 @@ namespace oclw
 		{
 			cl_int err_num;
 			m_command_queue = clCreateCommandQueue(context, device, 0, &err_num);
-			if (checkError(err_num)) {
-				throw WrapperException(err_num, "Cannot create command queue");
-			}
+			checkError(err_num, "Cannot create command queue");
 		}
 
 		operator bool() const
@@ -275,19 +285,15 @@ namespace oclw
 
 		void addKernel(Kernel& kernel, uint32_t work_dimension, const std::size_t* global_work_offset, const size_t* global_work_size, const size_t* local_work_size)
 		{
-			int32_t err_num = clEnqueueNDRangeKernel(m_command_queue, kernel.getRaw(), work_dimension, global_work_offset, global_work_size, local_work_size, 0, NULL, NULL);
-			if (err_num != CL_SUCCESS) {
-				throw WrapperException(err_num, "Cannot add kernel '" + kernel.getName() + "' to command queue");
-			}
+			int32_t err_num = clEnqueueNDRangeKernel(m_command_queue, kernel.getRaw(), work_dimension, global_work_offset, global_work_size, local_work_size, 0, 0, 0);
+			checkError(err_num, "Cannot add kernel '" + kernel.getName() + "' to command queue");
 		}
 
 		template<typename T>
 		void readMemoryObject(MemoryObject& object, bool blocking_read, std::vector<T>& result)
 		{
 			int32_t err_num = clEnqueueReadBuffer(m_command_queue, object.getRaw(), blocking_read ? CL_TRUE : CL_FALSE, 0, object.getBytesSize(), result.data(), 0, NULL, NULL);
-			if (err_num != CL_SUCCESS) {
-				throw WrapperException(err_num, "Cannot read from buffer");
-			}
+			checkError(err_num, "Cannot read from buffer");
 		}
 
 	private:
@@ -315,9 +321,8 @@ namespace oclw
 			};
 
 			m_context = clCreateContextFromType(contextProperties, type, NULL, NULL, &err_num);
-			if (checkError(err_num)) {
-				throw WrapperException(err_num, "Cannot create context");
-			}
+
+			checkError(err_num, "Cannot create context");
 		}
 
 		const std::vector<cl_device_id>& getDevices()
@@ -326,16 +331,20 @@ namespace oclw
 			cl_int err_num;
 			std::size_t device_buffer_size = 0;
 			err_num = clGetContextInfo(m_context, CL_CONTEXT_DEVICES, 0, NULL, &device_buffer_size);
-			// Check everything is OK
-			if (checkError(err_num) || device_buffer_size <= 0) {
-				throw WrapperException(err_num, "Cannot get devices");
-			}
+			checkError(err_num, "Cannot get devices");
 			
 			const uint64_t devices_count = device_buffer_size / sizeof(cl_device_id);
 			m_devices.resize(devices_count);
 			err_num = clGetContextInfo(m_context, CL_CONTEXT_DEVICES, device_buffer_size, m_devices.data(), NULL);
-			if (checkError(err_num)) {
-				throw WrapperException(err_num, "Cannot get devices");
+			checkError(err_num, "Cannot get devices");
+
+			for (cl_device_id id : m_devices) {
+				uint64_t value_size;
+				clGetDeviceInfo(id, CL_DEVICE_NAME, 0, NULL, &value_size);
+				char* value = (char*)malloc(value_size);
+				clGetDeviceInfo(id, CL_DEVICE_NAME, value_size, value, NULL);
+				printf("Device: %s\n", value);
+				free(value);
 			}
 
 			return m_devices;
@@ -350,7 +359,7 @@ namespace oclw
 		{
 			std::ifstream kernel_file(source_filename, std::ios::in);
 			if (!kernel_file.is_open()) {
-				throw WrapperException(-1, "Cannot open source file '" + source_filename + "'");
+				throw Exception(-1, "Cannot open source file '" + source_filename + "'");
 			}
 			std::ostringstream oss;
 			oss << kernel_file.rdbuf();
@@ -368,6 +377,17 @@ namespace oclw
 		MemoryObject createMemoryObject(uint64_t element_count, int32_t mode = ReadOnly)
 		{
 			return MemoryObject(m_context, sizeof(T), element_count, mode);
+		}
+
+		MemoryObject createImage2D(uint32_t width, uint32_t height, void* data, int32_t mode)
+		{
+			cl_image_format image_format;
+			image_format.image_channel_order = CL_RGBA;
+			image_format.image_channel_data_type = CL_UNSIGNED_INT8;
+			cl_int err_num;
+			cl_mem image = clCreateImage2D(m_context, mode, &image_format, width, height, 0, data, &err_num);
+			checkError(err_num, "Cannot create image");
+			return MemoryObject(image, width * height, 4u);
 		}
 
 	private:
@@ -388,9 +408,7 @@ namespace oclw
 		{
 			m_platforms.resize(num);
 			cl_int err_num = clGetPlatformIDs(num, m_platforms.data(), &m_platforms_count);
-			if (checkError(err_num)) {
-				throw WrapperException(err_num, "Cannot fetch platforms");
-			}
+			checkError(err_num, "Cannot fetch platforms");
 		}
 
 		uint32_t getPlatformCount() const
