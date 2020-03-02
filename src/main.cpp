@@ -43,10 +43,12 @@ int main()
 		oclw::MemoryObject buff_result = context.createMemoryObject<uint8_t>(result.size(), oclw::WriteOnly);
 
 		oclw::MemoryObject buff_image_top = context.createImage2D(image_top.getSize().x, image_top.getSize().y, (void*)image_top.getPixelsPtr(), oclw::ReadOnly | oclw::CopyHostPtr);
+		oclw::MemoryObject buff_image_side = context.createImage2D(image_side.getSize().x, image_side.getSize().y, (void*)image_side.getPixelsPtr(), oclw::ReadOnly | oclw::CopyHostPtr);
 
 		kernel.setArgument(0, svo_data);
 		kernel.setArgument(1, buff_result);
 		kernel.setArgument(4, buff_image_top);
+		kernel.setArgument(5, buff_image_side);
 
 
 		// Problem dimensions

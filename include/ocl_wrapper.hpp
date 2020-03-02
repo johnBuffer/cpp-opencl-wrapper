@@ -242,7 +242,7 @@ namespace oclw
 			err_num = clBuildProgram(m_program, 0, NULL, NULL, NULL, NULL);
 			if (err_num != CL_SUCCESS) {
 				// Determine the reason for the error
-				char buildLog[16384];
+				char buildLog[32000];
 				clGetProgramBuildInfo(m_program, device, CL_PROGRAM_BUILD_LOG, sizeof(buildLog), buildLog, NULL);
 				clReleaseProgram(m_program);
 				throw Exception(err_num, "Cannot build program: '" + std::string(buildLog) + "'");

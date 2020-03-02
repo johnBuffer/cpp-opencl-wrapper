@@ -5,8 +5,9 @@ typedef int            int32_t;
 typedef unsigned int   uint32_t;
 
 // Const values
-__constant uint8_t MAX_DEPTH = 9u;
+__constant uint8_t MAX_DEPTH = 23u;
 __constant uint8_t SVO_MAX_DEPTH = 23u;
+__constant sampler_t tex_sampler = CLK_NORMALIZED_COORDS_TRUE | CLK_FILTER_NEAREST;
 
 
 // Structs declaration
@@ -29,6 +30,7 @@ typedef struct HitPoint
 	char     hit; // Could be removed because normal can do this
 	float3   position;
 	float2   tex_coords;
+	float    distance;
 	char3    normal;
 	uint16_t complexity;
 } HitPoint;
@@ -42,6 +44,12 @@ float3 mult_vec3_mat3(float3 v, __constant float* mat)
 		v.x * mat[3] + v.y * mat[4] + v.z * mat[5],
 		v.x * mat[6] + v.y * mat[7] + v.z * mat[8]
 	);
+}
+
+
+float frac(float x)
+{
+	return fmin(x - floor(x), 0x1.fffffep-1f);
 }
 
 
@@ -105,6 +113,23 @@ HitPoint cast_ray(__global Node* svo_data, float3 position, float3 d)
 					result.hit = 1;
 					// Could use mirror mask
 					result.normal = -convert_char3(sign(d)) * (char3)(normal & 1u, normal & 2u, normal & 4u);
+
+					result.distance = t_min;
+					result.position = position + t_min * d;
+					//result.position.x = fmin(fmax(position.x + t_min * d.x, pos.x + EPS), pos.x + scale_f - EPS);
+					//result.position.y = fmin(fmax(position.y + t_min * d.y, pos.y + EPS), pos.y + scale_f - EPS);
+					//result.position.z = fmin(fmax(position.z + t_min * d.z, pos.z + EPS), pos.z + scale_f - EPS);
+
+					const float tex_scale = (float)(1 << (SVO_MAX_DEPTH - scale));
+					if (result.normal.x) {
+						result.tex_coords = (float2)(frac(result.position.z * tex_scale), frac(result.position.y * tex_scale));
+					}
+					else if (result.normal.y) {
+						result.tex_coords = (float2)(frac(result.position.x * tex_scale), frac(result.position.z * tex_scale));
+					}
+					else if (result.normal.z) {
+						result.tex_coords = (float2)(frac(result.position.x * tex_scale), frac(result.position.y * tex_scale));
+					}
 					break;
 				}
 				// Eventually add parent to the stack
@@ -176,13 +201,14 @@ char3 getColorFromNormal(char3 normal)
 }
 
 
-
+// Kernel's main
 __kernel void raytracer(
     __global Node* svo_data,
     __global uint8_t* result,
 	float3 position,
 	__constant float* view_matrix,
-	image2d_t top_image
+	image2d_t top_image,
+	image2d_t side_image
 ) 
 {
 	const int2 gid = (int2)(get_global_id(0), get_global_id(1));
@@ -197,9 +223,19 @@ __kernel void raytracer(
 	// Color output
 	const unsigned int index = gid.x + gid.y * get_global_size(0);
 	char3 color = (char3)0;
-	if (intersection.hit)
+	if (intersection.normal.y)
 	{
-		color = getColorFromNormal(intersection.normal);
+		//color = getColorFromNormal(intersection.normal);
+		color = convert_char3(read_imagei(top_image, tex_sampler, intersection.tex_coords).xyz);
+		//color.x = (char)(intersection.tex_coords.x * 255);
+		//color.y = (char)(intersection.tex_coords.y * 255);
+	}
+	else if (intersection.normal.x || intersection.normal.z)
+	{
+		//color = getColorFromNormal(intersection.normal);
+		color = convert_char3(read_imagei(side_image, tex_sampler, intersection.tex_coords).xyz);
+		//color.x = (char)(intersection.tex_coords.x * 255);
+		//color.y = (char)(intersection.tex_coords.y * 255);
 	}
 
 	result[4 * index + 0] = color.x;
