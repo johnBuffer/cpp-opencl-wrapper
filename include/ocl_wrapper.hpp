@@ -4,6 +4,7 @@
 #include <vector>
 #include <fstream>
 #include <sstream>
+#include <iostream>
 
 
 namespace oclw
@@ -131,6 +132,7 @@ namespace oclw
 			, m_element_count(element_count)
 			, m_total_size(element_count * element_size)
 		{
+			std::cout << "ok " << m_total_size << " bytes " << m_memory_object << std::endl;
 		}
 
 		template<typename T>
@@ -294,6 +296,13 @@ namespace oclw
 		{
 			int32_t err_num = clEnqueueReadBuffer(m_command_queue, object.getRaw(), blocking_read ? CL_TRUE : CL_FALSE, 0, object.getBytesSize(), result.data(), 0, NULL, NULL);
 			checkError(err_num, "Cannot read from buffer");
+		}
+
+		template<typename T>
+		void writeInMemoryObject(MemoryObject& object, bool blocking_write, const T* data)
+		{
+			int32_t err_num = clEnqueueWriteBuffer(m_command_queue, object.getRaw(), blocking_write ? CL_TRUE : CL_FALSE, 0, object.getBytesSize(), data, 0, NULL, NULL);
+			checkError(err_num, "Cannot write in buffer");
 		}
 
 	private:

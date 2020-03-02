@@ -23,19 +23,32 @@ typedef struct OctreeStack
 } OctreeStack;
 
 
+float3 mult_vec3_mat3(float3 v, __constant float* mat)
+{
+	return (float3)(
+		v.x * mat[0] + v.y * mat[1] + v.z * mat[2],
+		v.x * mat[3] + v.y * mat[4] + v.z * mat[5],
+		v.x * mat[6] + v.y * mat[7] + v.z * mat[8]
+	);
+}
+
+
 __kernel void raytracer(
     __global Node* svo_data,
     __global uint8_t* result,
-	float3 position
-)
+	float3 position,
+	__constant float* view_matrix,
+	image2d_t top_image
+) 
 {
 	const float SVO_SIZE = 1 << MAX_DEPTH;
 	const float EPS = 1.0f / (float)(1 << SVO_MAX_DEPTH);
 	const int2 gid = (int2)(get_global_id(0), get_global_id(1));
 	const int2 screen_size = (int2)(get_global_size(0), get_global_size(1));
-	const float3 screen_position = (float3)(gid.x / (float)screen_size.x - 0.5f, 0.0f, gid.y / (float)screen_size.y - 0.5f);
+	const float screen_ratio = (float)(screen_size.x) / (float)(screen_size.y);
+	const float3 screen_position = (float3)(gid.x / (float)screen_size.x - 0.5f, gid.y / (float)screen_size.x - 0.5f / screen_ratio, 1.0f);
 
-	float3 d = normalize((float3)(0.0f, 1.0f, 0.0f) + screen_position);
+	float3 d = normalize(mult_vec3_mat3(screen_position, view_matrix));
 	// Initialize stack
 	OctreeStack stack[23];
 	// Check octant mask and modify ray accordingly
@@ -141,8 +154,9 @@ __kernel void raytracer(
 	
 	// Color output
 	const unsigned int index = gid.x + gid.y * get_global_size(0);
-	result[4 * index + 0] = complexity;
-	result[4 * index + 1] = complexity;
-	result[4 * index + 2] = complexity;
+	const uint8_t color = min((uint32_t)255, complexity);
+	result[4 * index + 0] = color;
+	result[4 * index + 1] = color;
+	result[4 * index + 2] = color;
 	result[4 * index + 3] = 255;
 }

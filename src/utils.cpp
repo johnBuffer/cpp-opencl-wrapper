@@ -53,10 +53,14 @@ std::vector<LSVONode> generateSVO()
 		}
 	}
 
-	return compileSVO(*volume_raw);
+	auto result = compileSVO(*volume_raw);
+
+	delete volume_raw;
+
+	return result;
 }
 
-glm::mat3 generateRotationMatrix(const glm::vec2 & angle)
+glm::mat3 generateRotationMatrix(const glm::vec2& angle)
 {
 	const glm::mat4 rx = glm::rotate(glm::mat4(1.0f), -angle.x, glm::vec3(0.0f, 1.0f, 0.0f));
 	const glm::mat4 ry = glm::rotate(glm::mat4(1.0f), -angle.y, glm::vec3(1.0f, 0.0f, 0.0f));
