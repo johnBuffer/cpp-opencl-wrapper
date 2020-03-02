@@ -8,7 +8,9 @@ typedef unsigned int   uint32_t;
 __constant uint8_t MAX_DEPTH = 9u;
 __constant uint8_t SVO_MAX_DEPTH = 23u;
 
-typedef struct LSVONode
+
+// Structs declaration
+typedef struct Node
 {
     uint8_t  child_mask;
 	uint8_t  leaf_mask;
@@ -22,7 +24,17 @@ typedef struct OctreeStack
 	float t_max;
 } OctreeStack;
 
+typedef struct HitPoint
+{
+	char     hit; // Could be removed because normal can do this
+	float3   position;
+	float2   tex_coords;
+	char3    normal;
+	uint16_t complexity;
+} HitPoint;
 
+
+// Utils functions
 float3 mult_vec3_mat3(float3 v, __constant float* mat)
 {
 	return (float3)(
@@ -33,22 +45,15 @@ float3 mult_vec3_mat3(float3 v, __constant float* mat)
 }
 
 
-__kernel void raytracer(
-    __global Node* svo_data,
-    __global uint8_t* result,
-	float3 position,
-	__constant float* view_matrix,
-	image2d_t top_image
-) 
+HitPoint cast_ray(__global Node* svo_data, float3 position, float3 d)
 {
+	HitPoint result;
+	result.hit = 0;
+	result.complexity = 0;
+
 	const float SVO_SIZE = 1 << MAX_DEPTH;
 	const float EPS = 1.0f / (float)(1 << SVO_MAX_DEPTH);
-	const int2 gid = (int2)(get_global_id(0), get_global_id(1));
-	const int2 screen_size = (int2)(get_global_size(0), get_global_size(1));
-	const float screen_ratio = (float)(screen_size.x) / (float)(screen_size.y);
-	const float3 screen_position = (float3)(gid.x / (float)screen_size.x - 0.5f, gid.y / (float)screen_size.x - 0.5f / screen_ratio, 1.0f);
-
-	float3 d = normalize(mult_vec3_mat3(screen_position, view_matrix));
+	
 	// Initialize stack
 	OctreeStack stack[23];
 	// Check octant mask and modify ray accordingly
@@ -79,10 +84,9 @@ __kernel void raytracer(
 	if (1.5f * t_coef.z - t_offset.z > t_min) { child_offset ^= 4u, pos.z = 1.5f; }
 	uint8_t normal = 0u;
 	uint16_t child_infos = 0u;
-	uint32_t complexity = 0u;
 	// Explore octree
 	while (scale < SVO_MAX_DEPTH) {
-		++complexity;
+		++result.complexity;
 		const Node parent_ref = svo_data[parent_id];
 		// Compute new T span
 		const float3 t_corner = (float3)(pos.x * t_coef.x - t_offset.x, pos.y * t_coef.y - t_offset.y, pos.z * t_coef.z - t_offset.z);
@@ -98,6 +102,9 @@ __kernel void raytracer(
 				const uint8_t leaf_mask = parent_ref.leaf_mask >> child_shift;
 				// We hit a leaf
 				if (leaf_mask & 1u) {
+					result.hit = 1;
+					// Could use mirror mask
+					result.normal = -convert_char3(sign(d)) * (char3)(normal & 1u, normal & 2u, normal & 4u);
 					break;
 				}
 				// Eventually add parent to the stack
@@ -151,12 +158,52 @@ __kernel void raytracer(
 			h = 0.0f;
 		}
 	}
+
+	return result;
+}
+
+char3 getColorFromNormal(char3 normal)
+{
+	if (normal.x) {
+		return (char3)(255, 0, 0);
+	}
+	if (normal.y) {
+		return (char3)(0, 255, 0);
+	}
+	if (normal.z) {
+		return (char3)(0, 0, 255);
+	}
+}
+
+
+
+__kernel void raytracer(
+    __global Node* svo_data,
+    __global uint8_t* result,
+	float3 position,
+	__constant float* view_matrix,
+	image2d_t top_image
+) 
+{
+	const int2 gid = (int2)(get_global_id(0), get_global_id(1));
+	const int2 screen_size = (int2)(get_global_size(0), get_global_size(1));
+	const float screen_ratio = (float)(screen_size.x) / (float)(screen_size.y);
+	const float3 screen_position = (float3)(gid.x / (float)screen_size.x - 0.5f, gid.y / (float)screen_size.x - 0.5f / screen_ratio, 1.0f);
+
+	float3 d = normalize(mult_vec3_mat3(screen_position, view_matrix));
+
+	HitPoint intersection = cast_ray(svo_data, position, d);
 	
 	// Color output
 	const unsigned int index = gid.x + gid.y * get_global_size(0);
-	const uint8_t color = min((uint32_t)255, complexity);
-	result[4 * index + 0] = color;
-	result[4 * index + 1] = color;
-	result[4 * index + 2] = color;
+	char3 color = (char3)0;
+	if (intersection.hit)
+	{
+		color = getColorFromNormal(intersection.normal);
+	}
+
+	result[4 * index + 0] = color.x;
+	result[4 * index + 1] = color.y;
+	result[4 * index + 2] = color.z;
 	result[4 * index + 3] = 255;
 }

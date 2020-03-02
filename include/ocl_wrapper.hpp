@@ -132,7 +132,6 @@ namespace oclw
 			, m_element_count(element_count)
 			, m_total_size(element_count * element_size)
 		{
-			std::cout << "ok " << m_total_size << " bytes " << m_memory_object << std::endl;
 		}
 
 		template<typename T>
