@@ -29,7 +29,7 @@ oclw::Context createDefaultContext(oclw::Wrapper& wrapper)
 
 std::vector<LSVONode> generateSVO()
 {
-	constexpr uint8_t max_depth = 9;
+	constexpr uint8_t max_depth = 10;
 	constexpr int32_t size = 1 << max_depth;
 	constexpr int32_t grid_size_x = size;
 	constexpr int32_t grid_size_y = size;

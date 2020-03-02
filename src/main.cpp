@@ -30,7 +30,6 @@ int main()
 		// Create OpenCL kernel
 		oclw::Kernel kernel = program.createKernel("raytracer");
 
-
 		// Create memory objects that will be used as arguments to kernel
 		sf::Image image_side, image_top;
 		image_side.loadFromFile("../res/grass_side_16x16.bmp");
@@ -76,7 +75,7 @@ int main()
 		camera.view_angle = glm::vec2(0.0f);
 		camera.fov = 1.0f;
 
-		const float scale = 1.0f / 512.0f;
+		const float scale = 1.0f / 1024.0f;
 
 		FlyController controller;
 

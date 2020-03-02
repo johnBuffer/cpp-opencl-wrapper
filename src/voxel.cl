@@ -5,9 +5,10 @@ typedef int            int32_t;
 typedef unsigned int   uint32_t;
 
 // Const values
-__constant uint8_t MAX_DEPTH = 23u;
 __constant uint8_t SVO_MAX_DEPTH = 23u;
 __constant sampler_t tex_sampler = CLK_NORMALIZED_COORDS_TRUE | CLK_FILTER_NEAREST;
+__constant float3 light_position = (float3)(0.0f, 1.0f, 0.0f);
+__constant float EPS = 0x1.fffffep-1f;
 
 
 // Structs declaration
@@ -46,12 +47,10 @@ float3 mult_vec3_mat3(float3 v, __constant float* mat)
 	);
 }
 
-
 float frac(float x)
 {
-	return fmin(x - floor(x), 0x1.fffffep-1f);
+	return fmin(x - floor(x), EPS);
 }
-
 
 HitPoint cast_ray(__global Node* svo_data, float3 position, float3 d)
 {
@@ -59,7 +58,6 @@ HitPoint cast_ray(__global Node* svo_data, float3 position, float3 d)
 	result.hit = 0;
 	result.complexity = 0;
 
-	const float SVO_SIZE = 1 << MAX_DEPTH;
 	const float EPS = 1.0f / (float)(1 << SVO_MAX_DEPTH);
 	
 	// Initialize stack
@@ -115,10 +113,14 @@ HitPoint cast_ray(__global Node* svo_data, float3 position, float3 d)
 					result.normal = -convert_char3(sign(d)) * (char3)(normal & 1u, normal & 2u, normal & 4u);
 
 					result.distance = t_min;
-					result.position = position + t_min * d;
-					//result.position.x = fmin(fmax(position.x + t_min * d.x, pos.x + EPS), pos.x + scale_f - EPS);
-					//result.position.y = fmin(fmax(position.y + t_min * d.y, pos.y + EPS), pos.y + scale_f - EPS);
-					//result.position.z = fmin(fmax(position.z + t_min * d.z, pos.z + EPS), pos.z + scale_f - EPS);
+					//result.position = position + t_min * d;
+					
+					if ((mirror_mask & 1) == 0) pos.x = 3.0f - scale_f - pos.x;
+					if ((mirror_mask & 2) == 0) pos.y = 3.0f - scale_f - pos.y;
+					if ((mirror_mask & 4) == 0) pos.z = 3.0f - scale_f - pos.z;
+					result.position.x = fmin(fmax(position.x + t_min * d.x, pos.x + EPS), pos.x + scale_f - EPS);
+					result.position.y = fmin(fmax(position.y + t_min * d.y, pos.y + EPS), pos.y + scale_f - EPS);
+					result.position.z = fmin(fmax(position.z + t_min * d.z, pos.z + EPS), pos.z + scale_f - EPS);
 
 					const float tex_scale = (float)(1 << (SVO_MAX_DEPTH - scale));
 					if (result.normal.x) {
@@ -219,27 +221,39 @@ __kernel void raytracer(
 	float3 d = normalize(mult_vec3_mat3(screen_position, view_matrix));
 
 	HitPoint intersection = cast_ray(svo_data, position, d);
-	
+
+	float light_intensity = 1.0f;
+	if (intersection.hit)
+	{
+		const float3 normal = normalize(convert_float3(intersection.normal));
+		const float3 shadow_start = intersection.position + 0.125f * normal;
+		const float3 shadow_ray   = normalize(light_position - shadow_start);
+		const HitPoint light_intersection = cast_ray(svo_data, shadow_start, shadow_ray);
+		if (light_intersection.hit) {
+			light_intensity = 0.25f;
+		}
+		else {
+			light_intensity = fmax(0.25f, dot(normal, shadow_ray));
+		}
+	}
+
 	// Color output
 	const unsigned int index = gid.x + gid.y * get_global_size(0);
-	char3 color = (char3)0;
+	float3 color = (float3)0.0f;
 	if (intersection.normal.y)
 	{
-		//color = getColorFromNormal(intersection.normal);
-		color = convert_char3(read_imagei(top_image, tex_sampler, intersection.tex_coords).xyz);
-		//color.x = (char)(intersection.tex_coords.x * 255);
-		//color.y = (char)(intersection.tex_coords.y * 255);
+		color = convert_float3(read_imagei(top_image, tex_sampler, intersection.tex_coords).xyz);
 	}
 	else if (intersection.normal.x || intersection.normal.z)
 	{
-		//color = getColorFromNormal(intersection.normal);
-		color = convert_char3(read_imagei(side_image, tex_sampler, intersection.tex_coords).xyz);
-		//color.x = (char)(intersection.tex_coords.x * 255);
-		//color.y = (char)(intersection.tex_coords.y * 255);
+		color = convert_float3(read_imagei(side_image, tex_sampler, intersection.tex_coords).xyz);
 	}
 
-	result[4 * index + 0] = color.x;
-	result[4 * index + 1] = color.y;
-	result[4 * index + 2] = color.z;
+	color *= light_intensity;
+
+	const char3 final_color = convert_char3(color);
+	result[4 * index + 0] = final_color.x;
+	result[4 * index + 1] = final_color.y;
+	result[4 * index + 2] = final_color.z;
 	result[4 * index + 3] = 255;
 }
