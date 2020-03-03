@@ -52,7 +52,7 @@ int main()
 
 		// Problem dimensions
 		size_t globalWorkSize[] = { WIN_WIDTH, WIN_HEIGHT };
-		size_t localWorkSize[] = { 20, 20 };
+		size_t localWorkSize[] = { 24, 24 };
 
 		const float speed = 0.01f;
 
@@ -75,9 +75,16 @@ int main()
 		camera.view_angle = glm::vec2(0.0f);
 		camera.fov = 1.0f;
 
-		const float scale = 1.0f / 1024.0f;
+		const float scale = 1.0f / 512.0f;
 
 		FlyController controller;
+
+		std::vector<int32_t> seed(WIN_HEIGHT * WIN_WIDTH);
+		for (int32_t& s : seed) {
+			s = rand();
+		}
+		oclw::MemoryObject buff_seed = context.createMemoryObject(seed, oclw::ReadWrite | oclw::CopyHostPtr);
+		kernel.setArgument(6, buff_seed);
 
 		while (window.isOpen())
 		{

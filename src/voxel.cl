@@ -9,6 +9,7 @@ __constant uint8_t SVO_MAX_DEPTH = 23u;
 __constant sampler_t tex_sampler = CLK_NORMALIZED_COORDS_TRUE | CLK_FILTER_NEAREST;
 __constant float3 light_position = (float3)(0.0f, 1.0f, 0.0f);
 __constant float EPS = 0x1.fffffep-1f;
+__constant float NORMAL_EPS = 0.0078125f * 0.0078125f * 0.0078125f;
 
 
 // Structs declaration
@@ -52,6 +53,16 @@ float frac(float x)
 	return fmin(x - floor(x), EPS);
 }
 
+float rand(__global int32_t* seed, int32_t index)
+{
+    const int32_t a = 16807;
+    const int32_t m = 2147483647;
+
+    seed[index] = ((long)(seed[index] * a))%m;
+    return seed[index] / (float)m;
+}
+
+// Raytracing functions
 HitPoint cast_ray(__global Node* svo_data, float3 position, float3 d)
 {
 	HitPoint result;
@@ -202,6 +213,35 @@ char3 getColorFromNormal(char3 normal)
 	}
 }
 
+float get_ambient_occlusion(__global Node* svo_data, const float3 position, const float3 normal, __global int32_t* seed, int32_t index)
+{
+	float acc = 1.0f;
+	const float range = 1.0f;
+	const uint32_t ray_count = 8u;
+	const float ray_contrib = 1.0f / (float)ray_count;
+	for (uint32_t i = ray_count; i--;) {
+		float3 noise_normal;
+		const float coord_1 = range * (rand(seed, index) - 0.5f);
+		const float coord_2 = range * (rand(seed, index) - 0.5f);
+		if (normal.x) {
+			noise_normal = (float3)(normal.x, coord_1, coord_2);
+		}
+		else if (normal.y) {
+			noise_normal = (float3)(coord_1, normal.y, coord_2);
+		}
+		else if (normal.z) {
+			noise_normal = (float3)(coord_1, coord_2, normal.z);
+		}
+
+		const HitPoint ao_intersection = cast_ray(svo_data, position, normalize(noise_normal));
+		if (ao_intersection.hit) {
+			acc -= ray_contrib;
+		}
+	}
+	
+	return acc;
+}
+
 
 // Kernel's main
 __kernel void raytracer(
@@ -210,10 +250,12 @@ __kernel void raytracer(
 	float3 position,
 	__constant float* view_matrix,
 	image2d_t top_image,
-	image2d_t side_image
+	image2d_t side_image,
+	__global int32_t* rand_seed
 ) 
 {
 	const int2 gid = (int2)(get_global_id(0), get_global_id(1));
+	const uint32_t index = gid.x + gid.y * get_global_size(0);
 	const int2 screen_size = (int2)(get_global_size(0), get_global_size(1));
 	const float screen_ratio = (float)(screen_size.x) / (float)(screen_size.y);
 	const float3 screen_position = (float3)(gid.x / (float)screen_size.x - 0.5f, gid.y / (float)screen_size.x - 0.5f / screen_ratio, 1.0f);
@@ -226,19 +268,21 @@ __kernel void raytracer(
 	if (intersection.hit)
 	{
 		const float3 normal = normalize(convert_float3(intersection.normal));
-		const float3 shadow_start = intersection.position + 0.125f * normal;
-		const float3 shadow_ray   = normalize(light_position - shadow_start);
-		const HitPoint light_intersection = cast_ray(svo_data, shadow_start, shadow_ray);
+		const float3 hit_start = intersection.position + NORMAL_EPS * normal;
+		const float3 shadow_ray   = normalize(light_position - hit_start);
+		const HitPoint light_intersection = cast_ray(svo_data, hit_start, shadow_ray);
 		if (light_intersection.hit) {
-			light_intensity = 0.25f;
+			light_intensity = 0.5f;
 		}
 		else {
-			light_intensity = fmax(0.25f, dot(normal, shadow_ray));
+			light_intensity = fmax(0.5f, dot(normal, shadow_ray));
 		}
+
+		const float ao = get_ambient_occlusion(svo_data, hit_start, normal, rand_seed, index);
+		light_intensity *= ao;
 	}
 
 	// Color output
-	const unsigned int index = gid.x + gid.y * get_global_size(0);
 	float3 color = (float3)0.0f;
 	if (intersection.normal.y)
 	{
