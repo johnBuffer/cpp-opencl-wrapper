@@ -166,8 +166,8 @@ namespace oclw
 
 	private:
 		cl_mem m_memory_object;
-		const std::size_t m_element_count;
-		const std::size_t m_total_size;
+		std::size_t m_element_count;
+		std::size_t m_total_size;
 
 		void initialize(cl_context context, int32_t mode, uint64_t total_size, void* data)
 		{
@@ -198,7 +198,9 @@ namespace oclw
 		void setArgument(uint32_t arg_num, MemoryObject& object)
 		{
 			int32_t err_num = clSetKernelArg(m_kernel, arg_num, sizeof(cl_mem), &(object.getRaw()));
-			checkError(err_num, "Cannot set argument of kernel '" + m_name + "'");
+			std::stringstream ssx;
+			ssx << "Cannot set argument [" << arg_num << "] of kernel '" << m_name << "'";
+			checkError(err_num, ssx.str());
 		}
 
 		template<typename T>
@@ -220,7 +222,7 @@ namespace oclw
 
 	private:
 		cl_kernel m_kernel;
-		const std::string m_name;
+		std::string m_name;
 	};
 
 

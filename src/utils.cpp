@@ -27,20 +27,19 @@ oclw::Context createDefaultContext(oclw::Wrapper& wrapper)
 	return context;
 }
 
-std::vector<LSVONode> generateSVO()
+std::vector<LSVONode> generateSVO(uint8_t max_depth)
 {
-	constexpr uint8_t max_depth = 9;
-	constexpr int32_t size = 1 << max_depth;
-	constexpr int32_t grid_size_x = size;
-	constexpr int32_t grid_size_y = size;
-	constexpr int32_t grid_size_z = size;
-	using Volume = SVO<max_depth>;
-	Volume* volume_raw = new Volume();
+	const uint32_t size = 1 << max_depth;
+	const uint32_t grid_size_x = size;
+	const uint32_t grid_size_y = size;
+	const uint32_t grid_size_z = size;
+	using Volume = SVO;
+	Volume* volume_raw = new Volume(max_depth);
 
 	FastNoise myNoise;
 	myNoise.SetNoiseType(FastNoise::SimplexFractal);
-	for (uint32_t x = 0; x < grid_size_x; x++) {
-		for (uint32_t z = 0; z < grid_size_z; z++) {
+	for (uint32_t x = 1; x < grid_size_x - 1; x++) {
+		for (uint32_t z = 1; z < grid_size_z - 1; z++) {
 			int32_t max_height = grid_size_y;
 			float amp_x = x - grid_size_x * 0.5f;
 			float amp_z = z - grid_size_z * 0.5f;

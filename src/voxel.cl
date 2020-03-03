@@ -10,6 +10,7 @@ __constant sampler_t tex_sampler = CLK_NORMALIZED_COORDS_TRUE | CLK_FILTER_NEARE
 __constant float3 light_position = (float3)(0.0f, 1.0f, 0.0f);
 __constant float EPS = 0x1.fffffep-1f;
 __constant float NORMAL_EPS = 0.0078125f * 0.0078125f * 0.0078125f;
+__constant float AMBIENT = 0.25f;
 
 
 // Structs declaration
@@ -111,11 +112,11 @@ HitPoint cast_ray(__global Node* svo_data, float3 position, float3 d)
 		// Check if child exists here
 		const uint8_t child_shift = child_offset ^ mirror_mask;
 		const uint8_t child_mask = parent_ref.child_mask >> child_shift;
-		if ((child_mask & 1u) && t_min <= t_max) {
+		if ((child_mask & 1u) && (t_min <= t_max || true)) {
 			const float tv_max = fmin(t_max, tc_max);
 			const float half_scale = scale_f * 0.5f;
 			const float3 t_half = half_scale * t_coef + t_corner;
-			if (t_min <= tv_max) {
+			if (t_min <= tv_max || true) {
 				const uint8_t leaf_mask = parent_ref.leaf_mask >> child_shift;
 				// We hit a leaf
 				if (leaf_mask & 1u) {
@@ -200,16 +201,16 @@ HitPoint cast_ray(__global Node* svo_data, float3 position, float3 d)
 	return result;
 }
 
-char3 getColorFromNormal(char3 normal)
+float3 getColorFromNormal(char3 normal)
 {
 	if (normal.x) {
-		return (char3)(255, 0, 0);
+		return (float3)(255.0f, 0.0f, 0.0f);
 	}
 	if (normal.y) {
-		return (char3)(0, 255, 0);
+		return (float3)(0.0f, 255.0f, 0.0f);
 	}
 	if (normal.z) {
-		return (char3)(0, 0, 255);
+		return (float3)(0.0f, 0.0f, 255.0f);
 	}
 }
 
@@ -217,7 +218,7 @@ float get_ambient_occlusion(__global Node* svo_data, const float3 position, cons
 {
 	float acc = 1.0f;
 	const float range = 1.0f;
-	const uint32_t ray_count = 8u;
+	const uint32_t ray_count = 2u;
 	const float ray_contrib = 1.0f / (float)ray_count;
 	for (uint32_t i = ray_count; i--;) {
 		float3 noise_normal;
@@ -243,15 +244,14 @@ float get_ambient_occlusion(__global Node* svo_data, const float3 position, cons
 }
 
 
-// Kernel's main
-__kernel void raytracer(
+// Kernels
+__kernel void albedo(
     __global Node* svo_data,
     __global uint8_t* result,
 	float3 position,
 	__constant float* view_matrix,
 	image2d_t top_image,
-	image2d_t side_image,
-	__global int32_t* rand_seed
+	image2d_t side_image
 ) 
 {
 	const int2 gid = (int2)(get_global_id(0), get_global_id(1));
@@ -264,6 +264,58 @@ __kernel void raytracer(
 
 	HitPoint intersection = cast_ray(svo_data, position, d);
 
+	float3 color = (float3)(0.0f);
+	float light_intensity = 1.0f;
+
+	if (intersection.hit) {
+		color = getColorFromNormal(intersection.normal);
+
+		const float3 normal = normalize(convert_float3(intersection.normal));
+		const float3 hit_start = intersection.position + NORMAL_EPS * normal;
+		const float3 shadow_ray   = normalize(light_position - hit_start);
+		const HitPoint light_intersection = cast_ray(svo_data, hit_start, shadow_ray);
+		if (light_intersection.hit) {
+			light_intensity = AMBIENT;
+		}
+		else {
+			//light_intensity = fmax(AMBIENT, dot(normal, shadow_ray));
+		}
+	}
+
+	/*if (intersection.normal.y) {
+		color = convert_float3(read_imagei(top_image, tex_sampler, intersection.tex_coords).xyz);
+	}
+	else if (intersection.normal.x || intersection.normal.z) {
+		color = convert_float3(read_imagei(side_image, tex_sampler, intersection.tex_coords).xyz);
+	}*/
+
+	// Color output
+	const char3 final_color = convert_char3(color * light_intensity);
+	result[4 * index + 0] = final_color.x;
+	result[4 * index + 1] = final_color.y;
+	result[4 * index + 2] = final_color.z;
+	result[4 * index + 3] = 255;
+}
+
+
+__kernel void lighting(
+    __global Node* svo_data,
+    __global uint8_t* result,
+	float3 position,
+	__constant float* view_matrix,
+	__global int32_t* rand_seed
+) 
+{
+	const int2 gid = (int2)(get_global_id(0), get_global_id(1));
+	const uint32_t index = gid.x + gid.y * get_global_size(0);
+	const int2 screen_size = (int2)(get_global_size(0), get_global_size(1));
+	const float screen_ratio = (float)(screen_size.x) / (float)(screen_size.y);
+	const float3 screen_position = (float3)(gid.x / (float)screen_size.x - 0.5f, gid.y / (float)screen_size.x - 0.5f / screen_ratio, 1.0f);
+
+	float3 d = normalize(mult_vec3_mat3(screen_position, view_matrix));
+
+	HitPoint intersection = cast_ray(svo_data, position, d);
+	float3 color = (float3)255.0f;
 	float light_intensity = 1.0f;
 	if (intersection.hit)
 	{
@@ -272,10 +324,10 @@ __kernel void raytracer(
 		const float3 shadow_ray   = normalize(light_position - hit_start);
 		const HitPoint light_intersection = cast_ray(svo_data, hit_start, shadow_ray);
 		if (light_intersection.hit) {
-			light_intensity = 0.5f;
+			light_intensity = AMBIENT;
 		}
 		else {
-			light_intensity = fmax(0.5f, dot(normal, shadow_ray));
+			light_intensity = fmax(AMBIENT, dot(normal, shadow_ray));
 		}
 
 		const float ao = get_ambient_occlusion(svo_data, hit_start, normal, rand_seed, index);
@@ -283,18 +335,7 @@ __kernel void raytracer(
 	}
 
 	// Color output
-	float3 color = (float3)0.0f;
-	if (intersection.normal.y)
-	{
-		color = convert_float3(read_imagei(top_image, tex_sampler, intersection.tex_coords).xyz);
-	}
-	else if (intersection.normal.x || intersection.normal.z)
-	{
-		color = convert_float3(read_imagei(side_image, tex_sampler, intersection.tex_coords).xyz);
-	}
-
 	color *= light_intensity;
-
 	const char3 final_color = convert_char3(color);
 	result[4 * index + 0] = final_color.x;
 	result[4 * index + 1] = final_color.y;

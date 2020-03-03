@@ -104,7 +104,7 @@ struct EventManager
 			}
 		}
 
-		const float boost_value = 4.0f;
+		const float boost_value = 10.0f;
 		const float movement_speed = controller.movement_speed;
 		float current_movement_speed = boost ? movement_speed * boost_value : movement_speed;
 		if (forward) {

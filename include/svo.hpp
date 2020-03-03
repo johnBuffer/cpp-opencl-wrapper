@@ -23,14 +23,14 @@ struct Node
 };
 
 
-template<uint8_t N>
 class SVO
 {
 public:
 	template<uint8_t>
 	friend struct LSVO;
 
-	SVO()
+	SVO(uint8_t max_depth)
+		: m_max_depth(max_depth)
 	{
 		m_root = new Node();
 	}
@@ -59,13 +59,14 @@ public:
 
 	void setCell(Cell::Type type, Cell::Texture texture, uint32_t x, uint32_t y, uint32_t z)
 	{
-		const uint32_t max_size = uint32_t(std::pow(2, N));
+		const uint32_t max_size = uint32_t(std::pow(2, m_max_depth));
 		rec_setCell(type, texture, x, y, z, m_root, max_size);
 	}
 
 	Node* m_root;
 
 private:
+	const uint8_t m_max_depth;
 	void rec_setCell(Cell::Type type, Cell::Texture texture, uint32_t x, uint32_t y, uint32_t z, Node* node, uint32_t size)
 	{
 		if (!node) {

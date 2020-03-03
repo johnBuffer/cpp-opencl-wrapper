@@ -48,5 +48,15 @@ void compileSVO_rec(const Node* node, std::vector<LSVONode>& data, const uint32_
 	}
 }
 
+std::vector<LSVONode> compileSVO(const SVO & svo)
+{
+	std::vector<LSVONode> data;
+	data.push_back(LSVONode());
+
+	uint32_t max_offset = 0U;
+	compileSVO_rec(svo.m_root, data, 0, max_offset);
+
+	return data;
+}
 
 
