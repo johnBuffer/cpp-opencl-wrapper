@@ -18,7 +18,7 @@ int main()
 
 	try
 	{
-		const float lighting_quality = 0.75f;
+		const float lighting_quality = 0.5f;
 		Raytracer raytracer(WIN_WIDTH, WIN_HEIGHT, 9, lighting_quality);
 
 		// Main loop
@@ -64,7 +64,7 @@ int main()
 			tex_albedo.loadFromImage(raytracer.getAlbedo());
 
 			// Add some persistence to reduce the noise
-			const float old_value_conservation = 0.25f;
+			const float old_value_conservation = 0.5f;
 			const float c1 = 255 * old_value_conservation;
 			const float c2 = 255 * (1.0f - old_value_conservation);
 			sf::RectangleShape cache1(sf::Vector2f(WIN_WIDTH * lighting_quality, WIN_HEIGHT * lighting_quality));
@@ -77,9 +77,8 @@ int main()
 			lighting_render2.display();
 
 			lighting_render.draw(sf::Sprite(tex_lighting));
-			lighting_render.display();
 			lighting_render.draw(cache2, sf::BlendMultiply);
-			lighting_render.draw(blur.apply(lighting_render2.getTexture(), 1), sf::BlendAdd);
+			lighting_render.draw(sf::Sprite(lighting_render2.getTexture()), sf::BlendAdd);
 			lighting_render.display();
 
 			sf::Sprite lighting_sprite(lighting_render.getTexture());
@@ -88,6 +87,8 @@ int main()
 
 			window.draw(albedo_sprite);
 			window.draw(lighting_sprite, sf::BlendMultiply);
+			//window.draw(lighting_sprite);
+
 
 			window.display();
 		}
