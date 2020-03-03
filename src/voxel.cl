@@ -7,7 +7,7 @@ typedef unsigned int   uint32_t;
 // Const values
 __constant uint8_t SVO_MAX_DEPTH = 23u;
 __constant sampler_t tex_sampler = CLK_NORMALIZED_COORDS_TRUE | CLK_FILTER_NEAREST;
-__constant float3 light_position = (float3)(0.0f, 1.0f, 0.0f);
+//__constant float3 light_position = (float3)(0.0f, 1.0f, 0.0f);
 __constant float EPS = 0x1.fffffep-1f;
 __constant float NORMAL_EPS = 0.0078125f * 0.0078125f * 0.0078125f;
 __constant float AMBIENT = 0.25f;
@@ -218,12 +218,12 @@ float get_ambient_occlusion(__global Node* svo_data, const float3 position, cons
 {
 	float acc = 1.0f;
 	const float range = 1.0f;
-	const uint32_t ray_count = 2u;
+	const uint32_t ray_count = 4u;
 	const float ray_contrib = 1.0f / (float)ray_count;
 	for (uint32_t i = ray_count; i--;) {
 		float3 noise_normal;
-		const float coord_1 = range * (rand(seed, index) - 0.5f);
-		const float coord_2 = range * (rand(seed, index) - 0.5f);
+		const float coord_1 = range * (rand(seed, index) - 0.0f);
+		const float coord_2 = range * (rand(seed, index) - 0.0f);
 		if (normal.x) {
 			noise_normal = (float3)(normal.x, coord_1, coord_2);
 		}
@@ -265,32 +265,18 @@ __kernel void albedo(
 	HitPoint intersection = cast_ray(svo_data, position, d);
 
 	float3 color = (float3)(0.0f);
-	float light_intensity = 1.0f;
 
 	if (intersection.hit) {
-		color = getColorFromNormal(intersection.normal);
-
-		const float3 normal = normalize(convert_float3(intersection.normal));
-		const float3 hit_start = intersection.position + NORMAL_EPS * normal;
-		const float3 shadow_ray   = normalize(light_position - hit_start);
-		const HitPoint light_intersection = cast_ray(svo_data, hit_start, shadow_ray);
-		if (light_intersection.hit) {
-			light_intensity = AMBIENT;
+		if (intersection.normal.y) {
+			color = convert_float3(read_imagei(top_image, tex_sampler, intersection.tex_coords).xyz);
 		}
-		else {
-			//light_intensity = fmax(AMBIENT, dot(normal, shadow_ray));
+		else if (intersection.normal.x || intersection.normal.z) {
+			color = convert_float3(read_imagei(side_image, tex_sampler, intersection.tex_coords).xyz);
 		}
 	}
-
-	/*if (intersection.normal.y) {
-		color = convert_float3(read_imagei(top_image, tex_sampler, intersection.tex_coords).xyz);
-	}
-	else if (intersection.normal.x || intersection.normal.z) {
-		color = convert_float3(read_imagei(side_image, tex_sampler, intersection.tex_coords).xyz);
-	}*/
 
 	// Color output
-	const char3 final_color = convert_char3(color * light_intensity);
+	const char3 final_color = convert_char3(color);
 	result[4 * index + 0] = final_color.x;
 	result[4 * index + 1] = final_color.y;
 	result[4 * index + 2] = final_color.z;
@@ -303,7 +289,8 @@ __kernel void lighting(
     __global uint8_t* result,
 	float3 position,
 	__constant float* view_matrix,
-	__global int32_t* rand_seed
+	__global int32_t* rand_seed,
+	float time
 ) 
 {
 	const int2 gid = (int2)(get_global_id(0), get_global_id(1));
@@ -311,6 +298,8 @@ __kernel void lighting(
 	const int2 screen_size = (int2)(get_global_size(0), get_global_size(1));
 	const float screen_ratio = (float)(screen_size.x) / (float)(screen_size.y);
 	const float3 screen_position = (float3)(gid.x / (float)screen_size.x - 0.5f, gid.y / (float)screen_size.x - 0.5f / screen_ratio, 1.0f);
+
+	float3 light_position = (float3)(cos(time) + 1.5f, 1.0f, sin(time) + 1.5f);
 
 	float3 d = normalize(mult_vec3_mat3(screen_position, view_matrix));
 
@@ -336,7 +325,7 @@ __kernel void lighting(
 
 	// Color output
 	color *= light_intensity;
-	const char3 final_color = convert_char3(color);
+	const char3 final_color = convert_char3(1.0f * color);
 	result[4 * index + 0] = final_color.x;
 	result[4 * index + 1] = final_color.y;
 	result[4 * index + 2] = final_color.z;

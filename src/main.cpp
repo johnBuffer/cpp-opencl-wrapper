@@ -8,6 +8,7 @@
 #include "utils.hpp"
 #include "fly_controller.hpp"
 #include "ocl_raytracer.hpp"
+#include "dynamic_blur.hpp"
 
 
 int main()
@@ -17,22 +18,21 @@ int main()
 
 	try
 	{
-		Raytracer raytracer(WIN_WIDTH, WIN_HEIGHT, 11, 1.0f);
-
-		const float speed = 0.01f;
+		const float lighting_quality = 0.75f;
+		Raytracer raytracer(WIN_WIDTH, WIN_HEIGHT, 9, lighting_quality);
 
 		// Main loop
-		sf::RenderWindow window(sf::VideoMode(WIN_WIDTH, WIN_HEIGHT), "OpenCL and SFML");
+		sf::RenderWindow window(sf::VideoMode(WIN_WIDTH, WIN_HEIGHT), "OpenCL and SFML", sf::Style::Fullscreen);
 		window.setMouseCursorVisible(false);
-		const uint32_t thread_count = 16U;
-		const uint32_t area_count = uint32_t(sqrt(thread_count));
-		swrm::Swarm swarm(thread_count);
 
 		EventManager event_manager(window);
 
-		sf::Texture tex;
-		sf::Image ocl_result;
-		ocl_result.create(WIN_WIDTH, WIN_HEIGHT);
+		sf::Texture tex_lighting;
+		sf::Texture tex_albedo;
+		sf::RenderTexture lighting_render, lighting_render2;
+		lighting_render.create(WIN_WIDTH * lighting_quality, WIN_HEIGHT * lighting_quality);
+		lighting_render2.create(WIN_WIDTH * lighting_quality, WIN_HEIGHT * lighting_quality);
+		Blur blur(WIN_WIDTH * lighting_quality, WIN_HEIGHT * lighting_quality, 1.0f);
 
 		// Camera
 		Camera camera;
@@ -43,13 +43,6 @@ int main()
 		const float scale = 1.0f / 1024.0f;
 
 		FlyController controller;
-
-		/*std::vector<int32_t> seed(WIN_HEIGHT * WIN_WIDTH);
-		for (int32_t& s : seed) {
-			s = rand();
-		}
-		oclw::MemoryObject buff_seed = context.createMemoryObject(seed, oclw::ReadWrite | oclw::CopyHostPtr);
-		kernel_albedo.setArgument(6, buff_seed);*/
 
 		while (window.isOpen())
 		{
@@ -65,32 +58,36 @@ int main()
 			raytracer.updateKernelArgs(camera);
 			raytracer.render();
 
-			const auto& result = raytracer.getResult();
-			// Computing some constants, could be done outside main loop
-			const uint32_t area_width = WIN_WIDTH / area_count;
-			const uint32_t area_height = WIN_HEIGHT / area_count;
-			auto group = swarm.execute([&](uint32_t thread_id, uint32_t max_thread) {
-				const uint32_t start_x = thread_id % 4;
-				const uint32_t start_y = thread_id / 4;
-				for (uint32_t x(start_x * area_width); x < (start_x + 1) * area_width; ++x) {
-					for (uint32_t y(start_y * area_height); y < (start_y + 1) * area_height; ++y) {
-						// Computing ray coordinates in 'lens' space ie in normalized screen space
-						uint32_t index = 4 * (x + y * WIN_WIDTH);
-						uint8_t r = result[index + 0];
-						uint8_t g = result[index + 1];
-						uint8_t b = result[index + 2];
-						uint8_t a = result[index + 3];
-						ocl_result.setPixel(x, y, sf::Color(r, g, b, a));
-					}
-				}
-			});
-			// Wait for threads to terminate
-			group.waitExecutionDone();
-
 			window.clear();
 
-			tex.loadFromImage(ocl_result);
-			window.draw(sf::Sprite(tex));
+			tex_lighting.loadFromImage(raytracer.getLighting());
+			tex_albedo.loadFromImage(raytracer.getAlbedo());
+
+			// Add some persistence to reduce the noise
+			const float old_value_conservation = 0.25f;
+			const float c1 = 255 * old_value_conservation;
+			const float c2 = 255 * (1.0f - old_value_conservation);
+			sf::RectangleShape cache1(sf::Vector2f(WIN_WIDTH * lighting_quality, WIN_HEIGHT * lighting_quality));
+			cache1.setFillColor(sf::Color(c1, c1, c1, 255));
+			sf::RectangleShape cache2 = cache1;
+			cache2.setFillColor(sf::Color(c2, c2, c2, 255));
+			// Draw image to final render texture
+			lighting_render2.draw(sf::Sprite(lighting_render.getTexture()));
+			lighting_render2.draw(cache1, sf::BlendMultiply);
+			lighting_render2.display();
+
+			lighting_render.draw(sf::Sprite(tex_lighting));
+			lighting_render.display();
+			lighting_render.draw(cache2, sf::BlendMultiply);
+			lighting_render.draw(blur.apply(lighting_render2.getTexture(), 1), sf::BlendAdd);
+			lighting_render.display();
+
+			sf::Sprite lighting_sprite(lighting_render.getTexture());
+			sf::Sprite albedo_sprite(tex_albedo);
+			lighting_sprite.setScale(1.0f / lighting_quality, 1.0f / lighting_quality);
+
+			window.draw(albedo_sprite);
+			window.draw(lighting_sprite, sf::BlendMultiply);
 
 			window.display();
 		}

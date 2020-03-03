@@ -207,7 +207,9 @@ namespace oclw
 		void setArgument(uint32_t arg_num, const T& arg_value)
 		{
 			int32_t err_num = clSetKernelArg(m_kernel, arg_num, sizeof(T), &arg_value);
-			checkError(err_num, "Cannot set argument of kernel '" + m_name + "'");
+			std::stringstream ssx;
+			ssx << "Cannot set argument [" << arg_num << "] of kernel '" << m_name << "'";
+			checkError(err_num, ssx.str());
 		}
 
 		cl_kernel& getRaw()
