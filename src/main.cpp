@@ -34,9 +34,12 @@ int main()
 		lighting_render2.create(WIN_WIDTH * lighting_quality, WIN_HEIGHT * lighting_quality);
 		Blur blur(WIN_WIDTH * lighting_quality, WIN_HEIGHT * lighting_quality, 1.0f);
 
+		sf::Shader median; 
+		median.loadFromFile("../res/median.frag", sf::Shader::Fragment);
+
 		// Camera
 		Camera camera;
-		camera.position = glm::vec3(256, 200, 256);
+		camera.position = glm::vec3(250, 250, 250);
 		camera.view_angle = glm::vec2(0.0f);
 		camera.fov = 1.0f;
 
@@ -64,7 +67,7 @@ int main()
 			tex_albedo.loadFromImage(raytracer.getAlbedo());
 
 			// Add some persistence to reduce the noise
-			const float old_value_conservation = 0.5f;
+			const float old_value_conservation = 0.95f;
 			const float c1 = 255 * old_value_conservation;
 			const float c2 = 255 * (1.0f - old_value_conservation);
 			sf::RectangleShape cache1(sf::Vector2f(WIN_WIDTH * lighting_quality, WIN_HEIGHT * lighting_quality));
@@ -85,9 +88,9 @@ int main()
 			sf::Sprite albedo_sprite(tex_albedo);
 			lighting_sprite.setScale(1.0f / lighting_quality, 1.0f / lighting_quality);
 
-			window.draw(albedo_sprite);
-			window.draw(lighting_sprite, sf::BlendMultiply);
-			//window.draw(lighting_sprite);
+			//window.draw(albedo_sprite);
+			//window.draw(lighting_sprite, sf::BlendMultiply);
+			window.draw(lighting_sprite);
 
 
 			window.display();

@@ -54,6 +54,41 @@ std::vector<LSVONode> generateSVO(uint8_t max_depth)
 		}
 	}
 
+	uint32_t b_start_x = 200;
+	uint32_t b_start_y = 1;
+	uint32_t b_start_z = 200;
+
+	uint32_t b_size = 20;
+
+	for (uint32_t x = 0; x < b_size; x++) {
+		for (uint32_t y = 0; y < b_size; y++) {
+			for (uint32_t z = 0; z < b_size; z++) {
+				if (x == 0 && y == b_size / 2 && z == b_size / 2) {
+					continue;
+				}
+				if (x == b_size / 2 && y == b_size-1 && z == b_size / 2) {
+					continue;
+				}
+				if (x == b_size / 2 -1 && y == b_size - 1 && z == b_size / 2) {
+					continue;
+				}
+				if (x == b_size / 2 + 1 && y == b_size - 1 && z == b_size / 2) {
+					continue;
+				}
+				if (x == b_size / 2 + 1 && y == b_size - 1 && z == b_size / 2 + 1) {
+					continue;
+				}
+				if (x == b_size / 2 && y == b_size - 1 && z == b_size / 2 + 1) {
+					continue;
+				}
+				if (x == 0 || x == b_size - 1 ||
+					y == 0 || y == b_size - 1 ||
+					z == 0 || z == b_size - 1 )
+				volume_raw->setCell(Cell::Solid, Cell::Grass, x + b_start_x, y + b_start_y, z + b_start_z);
+			}
+		}
+	}
+
 	auto result = compileSVO(*volume_raw);
 
 	delete volume_raw;
