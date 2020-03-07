@@ -20,7 +20,8 @@ typedef struct Node
     uint8_t  child_mask;
 	uint8_t  leaf_mask;
 	uint32_t child_offset;
-	uint16_t padding;
+	uint8_t reflective_mask;
+	uint8_t padding;
 } Node;
 
 typedef struct OctreeStack
@@ -277,7 +278,7 @@ __kernel void albedo(
 	__constant float* view_matrix,
 	image2d_t top_image,
 	image2d_t side_image
-) 
+)
 {
 	const int2 gid = (int2)(get_global_id(0), get_global_id(1));
 	const uint32_t index = gid.x + gid.y * get_global_size(0);
