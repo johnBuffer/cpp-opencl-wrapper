@@ -1,13 +1,13 @@
 #include "lsvo_utils.hpp"
 
 
-void compileSVO_rec(const Node* node, std::vector<LSVONode>& data, const uint32_t node_index, uint32_t& max_offset)
+void compileSVO_rec(const Node* node, std::vector<LSVONode>& data, const uint64_t node_index, uint64_t& max_offset)
 {
 	if (node) {
-		const uint32_t child_pos = data.size();
-		const uint32_t offset = child_pos - node_index;
+		const uint64_t child_pos = data.size();
+		const uint64_t offset = child_pos - node_index;
 		max_offset = offset > max_offset ? offset : max_offset;
-		data[node_index].child_offset = offset;
+		data[node_index].child_offset = static_cast<uint32_t>(offset);
 
 		bool empty = true;
 		for (uint8_t x(0U); x < 2; ++x) {
@@ -53,7 +53,7 @@ std::vector<LSVONode> compileSVO(const SVO & svo)
 	std::vector<LSVONode> data;
 	data.push_back(LSVONode());
 
-	uint32_t max_offset = 0U;
+	uint64_t max_offset = 0U;
 	compileSVO_rec(svo.m_root, data, 0, max_offset);
 
 	return data;

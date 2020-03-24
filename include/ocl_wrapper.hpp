@@ -132,6 +132,7 @@ namespace oclw
 			, m_element_count(element_count)
 			, m_total_size(element_count * element_size)
 		{
+			initializeRefCounting();
 		}
 
 		template<typename T>
@@ -147,6 +148,26 @@ namespace oclw
 			, m_total_size(element_size * element_count)
 		{
 			initialize(context, mode, m_total_size, NULL);
+		}
+
+		MemoryObject& operator=(const MemoryObject& other)
+		{
+			m_element_count = other.m_element_count;
+			m_memory_object = other.m_memory_object;
+			m_total_size = other.m_total_size;
+			m_ref_count = other.m_ref_count;
+			++(*m_ref_count);
+
+			return *this;
+		}
+
+		~MemoryObject()
+		{
+			if (!--(*m_ref_count)) {
+				delete m_ref_count;
+
+				// Clean cl buffer here
+			}
 		}
 
 		operator bool() const
@@ -165,15 +186,24 @@ namespace oclw
 		}
 
 	private:
+		uint64_t* m_ref_count;
+
 		cl_mem m_memory_object;
 		std::size_t m_element_count;
 		std::size_t m_total_size;
+
+		void initializeRefCounting()
+		{
+			m_ref_count = new uint64_t;
+			*m_ref_count = 1u;
+		}
 
 		void initialize(cl_context context, int32_t mode, uint64_t total_size, void* data)
 		{
 			cl_int err_num;
 			m_memory_object = clCreateBuffer(context, mode, m_total_size, data, &err_num);
 			checkError(err_num, "Cannot create memory object");
+			initializeRefCounting();
 		}
 	};
 

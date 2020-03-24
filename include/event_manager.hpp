@@ -14,11 +14,12 @@ struct EventManager
 		, up(false)
 		, backward(false)
 		, mouse_control(true)
+		, boost(false)
 	{
 
 	}
 
-	void processEvents(CameraController& controller, Camera& camera)
+	void processEvents(CameraController& controller, Camera& camera, LSVO& svo)
 	{
 		glm::vec3 move = glm::vec3(0.0f);
 		sf::Event event;
@@ -47,6 +48,7 @@ struct EventManager
 					break;
 				case sf::Keyboard::Space:
 					up = true;
+					controller.jump();
 					break;
 				case sf::Keyboard::E:
 					mouse_control = !mouse_control;
@@ -105,29 +107,28 @@ struct EventManager
 		}
 
 		const float boost_value = 10.0f;
-		const float movement_speed = controller.movement_speed;
-		float current_movement_speed = boost ? movement_speed * boost_value : movement_speed;
 		if (forward) {
-			move += camera.camera_vec * current_movement_speed;
+			move += camera.camera_vec;
 		}
 		else if (backward) {
-			move -= camera.camera_vec * current_movement_speed;
+			move -= camera.camera_vec;
 		}
 
 		if (left) {
-			move += glm::vec3(-camera.camera_vec.z, 0.0f, camera.camera_vec.x) * current_movement_speed;
+			move += glm::vec3(-camera.camera_vec.z, 0.0f, camera.camera_vec.x);
 		}
 		else if (right) {
-			move -= glm::vec3(-camera.camera_vec.z, 0.0f, camera.camera_vec.x) * current_movement_speed;
+			move -= glm::vec3(-camera.camera_vec.z, 0.0f, camera.camera_vec.x);
 		}
 
 		if (up) {
-			move += glm::vec3(0.0f, -1.0f, 0.0f) * current_movement_speed;
+			move += glm::vec3(0.0f, -1.0f, 0.0f);
 		}
 
-		controller.move(move, camera);
+		controller.move(move, camera, svo);
 	}
 
+	sf::Clock clock;
 	bool forward, left, right, up, backward, boost, mouse_control;
 
 private:

@@ -22,7 +22,14 @@ struct LSVONode
 };
 
 
-void compileSVO_rec(const Node* node, std::vector<LSVONode>& data, const uint32_t node_index, uint32_t& max_offset);
+struct OctreeStack
+{
+	uint32_t parent_index;
+	float t_max;
+};
+
+
+void compileSVO_rec(const Node* node, std::vector<LSVONode>& data, const uint64_t node_index, uint64_t& max_offset);
 
 
 std::vector<LSVONode> compileSVO(const SVO& svo);

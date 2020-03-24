@@ -2,6 +2,7 @@
 
 #include <glm/glm.hpp>
 #include "utils.hpp"
+#include "lsvo.hpp"
 
 
 constexpr float PI = 3.141592653f;
@@ -70,7 +71,10 @@ struct CameraController
 		camera.setViewAngle(new_angle);
 	}
 
-	virtual void move(const glm::vec3& move_vector, Camera& camera) = 0;
+	virtual void move(const glm::vec3& move_vector, Camera& camera, const LSVO& svo) = 0;
+
+	virtual void forward() = 0;
+	virtual void jump() = 0;
 
 	float movement_speed = 0.25f;
 };

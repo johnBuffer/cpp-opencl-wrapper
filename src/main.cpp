@@ -7,22 +7,30 @@
 
 #include "utils.hpp"
 #include "fly_controller.hpp"
+#include "fps_controller.hpp"
 #include "ocl_raytracer.hpp"
 #include "dynamic_blur.hpp"
+#include "lsvo.hpp"
 
 
 int main()
 {
-	constexpr uint32_t WIN_WIDTH = 1920u;
-	constexpr uint32_t WIN_HEIGHT = 1080u;
+	constexpr uint32_t WIN_WIDTH = 1280;
+	constexpr uint32_t WIN_HEIGHT = 720;
 
 	try
 	{
 		const float lighting_quality = 0.5f;
-		Raytracer raytracer(WIN_WIDTH, WIN_HEIGHT, 9, lighting_quality);
+
+		const uint8_t max_depth = 9;
+		SVO* builder = new SVO(max_depth);
+		generateSVO(max_depth, *builder);
+		LSVO svo(*builder, max_depth);
+
+		Raytracer raytracer(WIN_WIDTH, WIN_HEIGHT, 9, svo.data, lighting_quality);
 
 		// Main loop
-		sf::RenderWindow window(sf::VideoMode(WIN_WIDTH, WIN_HEIGHT), "OpenCL and SFML", sf::Style::Fullscreen);
+		sf::RenderWindow window(sf::VideoMode(WIN_WIDTH, WIN_HEIGHT), "OpenCL and SFML", sf::Style::Default);
 		window.setMouseCursorVisible(false);
 
 		EventManager event_manager(window);
@@ -39,18 +47,18 @@ int main()
 
 		// Camera
 		Camera camera;
-		camera.position = glm::vec3(250, 250, 250);
+		camera.position = glm::vec3(250, 500, 250);
 		camera.view_angle = glm::vec2(0.0f);
 		camera.fov = 1.0f;
 
 		const float scale = 1.0f / 1024.0f;
 
-		FlyController controller;
+		FpsController controller;
 
 		while (window.isOpen())
 		{
 			sf::Vector2i mouse_pos = sf::Mouse::getPosition(window);
-			event_manager.processEvents(controller, camera);
+			event_manager.processEvents(controller, camera, svo);
 
 			if (event_manager.mouse_control) {
 				sf::Mouse::setPosition(sf::Vector2i(WIN_WIDTH / 2, WIN_HEIGHT / 2), window);
@@ -66,31 +74,13 @@ int main()
 			tex_lighting.loadFromImage(raytracer.getLighting());
 			tex_albedo.loadFromImage(raytracer.getAlbedo());
 
-			// Add some persistence to reduce the noise
-			const float old_value_conservation = 0.95f;
-			const float c1 = 255 * old_value_conservation;
-			const float c2 = 255 * (1.0f - old_value_conservation);
-			sf::RectangleShape cache1(sf::Vector2f(WIN_WIDTH * lighting_quality, WIN_HEIGHT * lighting_quality));
-			cache1.setFillColor(sf::Color(c1, c1, c1, 255));
-			sf::RectangleShape cache2 = cache1;
-			cache2.setFillColor(sf::Color(c2, c2, c2, 255));
-			// Draw image to final render texture
-			lighting_render2.draw(sf::Sprite(lighting_render.getTexture()));
-			lighting_render2.draw(cache1, sf::BlendMultiply);
-			lighting_render2.display();
-
-			lighting_render.draw(sf::Sprite(tex_lighting));
-			lighting_render.draw(cache2, sf::BlendMultiply);
-			lighting_render.draw(sf::Sprite(lighting_render2.getTexture()), sf::BlendAdd);
-			lighting_render.display();
-
-			sf::Sprite lighting_sprite(lighting_render.getTexture());
+			sf::Sprite lighting_sprite(tex_lighting);
 			sf::Sprite albedo_sprite(tex_albedo);
 			lighting_sprite.setScale(1.0f / lighting_quality, 1.0f / lighting_quality);
 
-			//window.draw(albedo_sprite);
-			//window.draw(lighting_sprite, sf::BlendMultiply);
-			window.draw(lighting_sprite);
+			window.draw(albedo_sprite);
+			window.draw(lighting_sprite, sf::BlendMultiply);
+			//window.draw(lighting_sprite);
 
 
 			window.display();

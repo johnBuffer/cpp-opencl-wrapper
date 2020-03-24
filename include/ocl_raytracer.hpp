@@ -11,7 +11,7 @@ constexpr uint32_t CPU_THREADS = 16u;
 class Raytracer
 {
 public:
-	Raytracer(uint32_t render_width, uint32_t render_height, uint8_t max_depth, float lighting_quality = 1.0f)
+	Raytracer(uint32_t render_width, uint32_t render_height, uint8_t max_depth, std::vector<LSVONode>& svo_data, float lighting_quality = 1.0f)
 		: m_render_dimension(render_width, render_height)
 		, m_lighting_quality(lighting_quality)
 		, m_wrapper()
@@ -20,7 +20,7 @@ public:
 		, m_time(0.0f)
 	{
 		m_context = createDefaultContext(m_wrapper);
-		initialize(max_depth);
+		initialize(max_depth, svo_data);
 	}
 
 	void updateKernelArgs(const Camera& camera)
@@ -40,7 +40,7 @@ public:
 
 	void render()
 	{
-		const uint32_t area_count = sqrt(CPU_THREADS);
+		const uint32_t area_count = static_cast<uint32_t>(sqrt(CPU_THREADS));
 		const uint32_t area_width = m_render_dimension.x / area_count;
 		const uint32_t area_height = m_render_dimension.y / area_count;
 		// Run albedo kernel
@@ -62,18 +62,21 @@ public:
 		group_albedo.waitExecutionDone();
 		// Run lighting kernel
 		renderLighting();
-		const uint32_t light_area_width = area_width * m_lighting_quality;
-		const uint32_t light_area_height = area_height * m_lighting_quality;
+		const uint32_t light_area_width = static_cast<uint32_t>(area_width * m_lighting_quality);
+		const uint32_t light_area_height = static_cast<uint32_t>(area_height * m_lighting_quality);
 		auto group_lighting = m_swarm.execute([&](uint32_t thread_id, uint32_t max_thread) {
 			const uint32_t start_x = thread_id % 4;
 			const uint32_t start_y = thread_id / 4;
 			for (uint32_t x(start_x * light_area_width); x < (start_x + 1) * light_area_width; ++x) {
 				for (uint32_t y(start_y * light_area_height); y < (start_y + 1) * light_area_height; ++y) {
 					// Computing ray coordinates in 'lens' space ie in normalized screen space
-					const uint32_t index = 4 * (x + y * m_render_dimension.x * m_lighting_quality);
-					uint8_t r = m_result_lighting[index + 0];
-					uint8_t g = m_result_lighting[index + 1];
-					uint8_t b = m_result_lighting[index + 2];
+					const uint32_t index = (x + y * static_cast<uint32_t>(m_render_dimension.x * m_lighting_quality));
+					const uint8_t c = static_cast<uint8_t>(m_result_lighting[4 * index]);
+					//if (x == 0 && y == 0)
+					//std::cout << m_result_depth[index] << std::endl;
+					uint8_t r = c;
+					uint8_t g = c;
+					uint8_t b = c;
 					m_output_lighting.setPixel(x, y, sf::Color(r, g, b, 255));
 				}
 			}
@@ -92,10 +95,13 @@ public:
 
 	void renderLighting()
 	{
-		const size_t globalWorkSize[2] = { m_render_dimension.x * m_lighting_quality, m_render_dimension.y * m_lighting_quality };
+		const size_t work_gorup_width = static_cast<size_t>(m_render_dimension.x * m_lighting_quality);
+		const size_t work_gorup_height = static_cast<size_t>(m_render_dimension.y * m_lighting_quality);
+		const size_t globalWorkSize[2] = { work_gorup_width, work_gorup_height };
 		const size_t localWorkSize[2] = { 10, 10 };
 		m_command_queue.addKernel(m_lighting, 2, NULL, globalWorkSize, localWorkSize);
 		m_command_queue.readMemoryObject(m_buff_result_lighting, true, m_result_lighting);
+		m_command_queue.readMemoryObject(m_buff_result_depth, true, m_result_depth);
 	}
 
 	const sf::Image& getAlbedo() const
@@ -128,12 +134,14 @@ private:
 	oclw::MemoryObject m_buff_view_matrix;
 	oclw::MemoryObject m_buff_result_albedo;
 	oclw::MemoryObject m_buff_result_lighting;
+	oclw::MemoryObject m_buff_result_depth;
 	oclw::MemoryObject m_buff_image_top;
 	oclw::MemoryObject m_buff_image_side;
 	oclw::MemoryObject m_buff_seeds;
 
 	std::vector<uint8_t> m_result_albedo;
-	std::vector<uint8_t> m_result_lighting;
+	std::vector<float> m_result_lighting;
+	std::vector<float> m_result_depth;
 	std::vector<int32_t> m_seeds;
 	// Ouput images
 	swrm::Swarm m_swarm;
@@ -141,7 +149,7 @@ private:
 	sf::Image m_output_lighting;
 
 private:
-	void initialize(uint8_t max_depth)
+	void initialize(uint8_t max_depth, std::vector<LSVONode>& svo)
 	{
 		// Get devices
 		auto& devices_list = m_context.getDevices();
@@ -152,17 +160,20 @@ private:
 		m_program = m_context.createProgram(device, "../src/voxel.cl");
 		// Create memory objects that will be used as arguments to kernel
 		loadImagesToDevice();
-		std::vector<LSVONode> svo = generateSVO(max_depth);
 		m_buff_svo = m_context.createMemoryObject(svo, oclw::ReadOnly | oclw::CopyHostPtr);
 		m_buff_view_matrix = m_context.createMemoryObject<float>(9, oclw::ReadOnly);
 		initializeSeeds();
 		m_buff_seeds = m_context.createMemoryObject(m_seeds, oclw::ReadWrite | oclw::CopyHostPtr);
 		// Create output buffers
 		initializeOutputImages();
-		m_result_albedo.resize(m_render_dimension.x * m_render_dimension.y * 4);
+		const uint64_t albedo_render_pxl_count = m_render_dimension.x * m_render_dimension.y;
+		const uint64_t light_render_pxl_count = albedo_render_pxl_count * m_lighting_quality;
+		m_result_albedo.resize(albedo_render_pxl_count * 4);
 		m_buff_result_albedo = m_context.createMemoryObject<uint8_t>(m_result_albedo.size(), oclw::WriteOnly);
-		m_result_lighting.resize(m_render_dimension.x * m_render_dimension.y * m_lighting_quality * 4);
-		m_buff_result_lighting = m_context.createMemoryObject<uint8_t>(m_result_lighting.size(), oclw::WriteOnly);
+		m_result_lighting.resize(light_render_pxl_count * 4);
+		m_buff_result_lighting = m_context.createMemoryObject<float>(m_result_lighting.size(), oclw::WriteOnly);
+		m_result_depth.resize(light_render_pxl_count);
+		m_buff_result_depth = m_context.createMemoryObject<float>(m_result_depth.size(), oclw::WriteOnly);
 		// Kernels initialization
 		m_albedo = m_program.createKernel("albedo");
 		m_albedo.setArgument(0, m_buff_svo);
@@ -174,6 +185,7 @@ private:
 		m_lighting.setArgument(0, m_buff_svo);
 		m_lighting.setArgument(1, m_buff_result_lighting);
 		m_lighting.setArgument(4, m_buff_seeds);
+		m_lighting.setArgument(6, m_buff_result_depth);
 	}
 
 	void loadImagesToDevice()

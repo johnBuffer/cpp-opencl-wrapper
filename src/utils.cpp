@@ -27,14 +27,14 @@ oclw::Context createDefaultContext(oclw::Wrapper& wrapper)
 	return context;
 }
 
-std::vector<LSVONode> generateSVO(uint8_t max_depth)
+void generateSVO(uint8_t max_depth, SVO& svo)
 {
 	const uint32_t size = 1 << max_depth;
 	const uint32_t grid_size_x = size;
 	const uint32_t grid_size_y = size;
 	const uint32_t grid_size_z = size;
 	using Volume = SVO;
-	Volume* volume_raw = new Volume(max_depth);
+	Volume* volume_raw = &svo;
 
 	FastNoise myNoise;
 	myNoise.SetNoiseType(FastNoise::SimplexFractal);
@@ -49,7 +49,7 @@ std::vector<LSVONode> generateSVO(uint8_t max_depth)
 			volume_raw->setCell(Cell::Solid, Cell::Grass, x, 0, z);
 
 			for (int y(1); y < std::min(max_height, height); ++y) {
-				volume_raw->setCell(Cell::Solid, Cell::Grass, x, y, z);
+				//volume_raw->setCell(Cell::Solid, Cell::Grass, x, y, z);
 			}
 		}
 	}
@@ -89,11 +89,20 @@ std::vector<LSVONode> generateSVO(uint8_t max_depth)
 		}
 	}
 
-	auto result = compileSVO(*volume_raw);
+	for (uint32_t x = 0; x < b_size + 10; x++) {
+		for (uint32_t y = 0; y < b_size + 20; y++) {
+			volume_raw->setCell(Cell::Solid, Cell::Grass, x + b_start_x - 5, y + b_start_y, b_start_z - 5);
+		}
+	}
 
-	delete volume_raw;
+	for (uint32_t x = 220; x < 230; x++) {
+		volume_raw->setCell(Cell::Solid, Cell::Grass, x, 1, 250);
+	}
 
-	return result;
+	for (uint32_t x = 220; x < 230; x++) {
+		volume_raw->setCell(Cell::Solid, Cell::Grass, x, 1, 240);
+		volume_raw->setCell(Cell::Solid, Cell::Grass, x, 2, 240);
+	}
 }
 
 glm::mat3 generateRotationMatrix(const glm::vec2& angle)
@@ -102,4 +111,23 @@ glm::mat3 generateRotationMatrix(const glm::vec2& angle)
 	const glm::mat4 ry = glm::rotate(glm::mat4(1.0f), -angle.y, glm::vec3(1.0f, 0.0f, 0.0f));
 
 	return ry * rx;
+}
+
+
+float frac(float f)
+{
+	float whole;
+	return std::modf(f, &whole);
+}
+
+
+uint32_t floatAsInt(const float f)
+{
+	return *(uint32_t*)(&f);
+}
+
+
+float intAsFloat(const uint32_t i)
+{
+	return *(float*)(&i);
 }

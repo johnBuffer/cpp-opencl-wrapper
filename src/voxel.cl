@@ -10,8 +10,8 @@ __constant sampler_t tex_sampler = CLK_NORMALIZED_COORDS_TRUE | CLK_FILTER_NEARE
 //__constant float3 light_position = (float3)(0.0f, 1.0f, 0.0f);
 __constant float EPS = 0x1.fffffep-1f;
 __constant float NORMAL_EPS = 0.0078125f * 0.0078125f * 0.0078125f;
-__constant float AMBIENT = 0.0f;
-__constant float SUN_INTENSITY = 1.0f;
+__constant float AMBIENT = 0.5f;
+__constant float SUN_INTENSITY = 1000.0f;
 
 
 // Structs declaration
@@ -106,7 +106,7 @@ HitPoint castRay(__global Node* svo_data, float3 position, float3 d)
 	if (d.z > 0.0f) { mirror_mask ^= 4u, t_offset.z = 3.0f * t_coef.z - t_offset.z; }
 	// Initialize t_span
 	float t_min = fmax(2.0f * t_coef.x - t_offset.x, fmax(2.0f * t_coef.y - t_offset.y, 2.0f * t_coef.z - t_offset.z));
-	float t_max = fmin(t_coef.x - t_offset.x, fmin(t_coef.y - t_offset.y, t_coef.z - t_offset.z));
+	float t_max = fmin(       t_coef.x - t_offset.x, fmin(       t_coef.y - t_offset.y,        t_coef.z - t_offset.z));
 	float h = t_max;
 	t_min = fmax(0.0f, t_min);
 	t_max = fmin(1.0f, t_max);
@@ -140,10 +140,9 @@ HitPoint castRay(__global Node* svo_data, float3 position, float3 d)
 				const uint8_t leaf_mask = parent_ref.leaf_mask >> child_shift;
 				// We hit a leaf
 				if (leaf_mask & 1u) {
-					result.hit = 1;
+					result.hit = 1u;
 					// Could use mirror mask
 					result.normal = -convert_char3(sign(d)) * (char3)(normal & 1u, normal & 2u, normal & 4u);
-
 					result.distance = t_min;
 					//result.position = position + t_min * d;
 					
@@ -237,7 +236,7 @@ float3 getColorFromNormal(char3 normal)
 float getGlobalIllumination(__global Node* svo_data, const float3 position, const float3 normal, float3 light_position, __global int32_t* seed, int32_t index)
 {
 	float gi_add = 0.0f;
-	const float range = 1.0f;
+	const float range = 100.0f;
 	const uint32_t ray_count = 1u;
 	const float ray_contrib = 1.0f / (float)ray_count;
 	for (uint32_t i = ray_count; i--;) {
@@ -270,6 +269,23 @@ float getGlobalIllumination(__global Node* svo_data, const float3 position, cons
 	return gi_add;
 }
 
+float get_ambient_occlusion(__global Node* svo_data, const float3 position, const float3 normal, __global int32_t* seed, int32_t index)
+{
+	float acc = 1.0f;
+	const float range = 1.0f;
+	const uint32_t ray_count = 4u;
+	const float ray_contrib = 1.0f / (float)ray_count;
+	for (uint32_t i = ray_count; i--;) {
+		const float3 noise_normal = getRandomizedNormal(normal, seed, index);
+		const HitPoint ao_intersection = castRay(svo_data, position, noise_normal);
+		if (ao_intersection.hit) {
+			acc -= ray_contrib;
+		}
+	}
+	
+	return acc;
+}
+
 // Kernels
 __kernel void albedo(
     __global Node* svo_data,
@@ -284,13 +300,13 @@ __kernel void albedo(
 	const uint32_t index = gid.x + gid.y * get_global_size(0);
 	const int2 screen_size = (int2)(get_global_size(0), get_global_size(1));
 	const float screen_ratio = (float)(screen_size.x) / (float)(screen_size.y);
-	const float3 screen_position = (float3)(gid.x / (float)screen_size.x - 0.5f, gid.y / (float)screen_size.x - 0.5f / screen_ratio, 1.0f);
+	const float3 screen_position = (float3)(gid.x / (float)screen_size.x - 0.5f, gid.y / (float)screen_size.x - 0.5f / screen_ratio, 0.8f);
 
 	float3 d = normalize(multVec3Mat3(screen_position, view_matrix));
 
 	HitPoint intersection = castRay(svo_data, position, d);
 
-	float3 color = (float3)(255.0f);
+	float3 color = (float3)(0.0f);
 
 	if (intersection.hit) {
 		if (intersection.normal.y) {
@@ -312,29 +328,32 @@ __kernel void albedo(
 
 __kernel void lighting(
     __global Node* svo_data,
-    __global uint8_t* result,
+    __global float* result,
 	float3 position,
 	__constant float* view_matrix,
 	__global int32_t* rand_seed,
-	float time
+	float time,
+	__global float* depth
+
 ) 
 {
 	const int2 gid = (int2)(get_global_id(0), get_global_id(1));
 	const uint32_t index = gid.x + gid.y * get_global_size(0);
 	const int2 screen_size = (int2)(get_global_size(0), get_global_size(1));
 	const float screen_ratio = (float)(screen_size.x) / (float)(screen_size.y);
-	const float3 screen_position = (float3)(gid.x / (float)screen_size.x - 0.5f, gid.y / (float)screen_size.x - 0.5f / screen_ratio, 1.0f);
+	const float3 screen_position = (float3)(gid.x / (float)screen_size.x - 0.5f, gid.y / (float)screen_size.x - 0.5f / screen_ratio, 0.8f);
 
 	const float time_su = 0.0f;
 	const float light_radius = 6.0f;
-	float3 light_position = (float3)(light_radius * cos(time_su * time) + 1.5f, -1.0f, light_radius * sin(time_su * time) + 1.5f);
+	const float3 light_position = (float3)(light_radius * cos(time_su * time + 0.2f) + 1.5f, -1.0f, light_radius * sin(time_su * time + 0.2f) + 1.5f);
 
 	const float3 d = normalize(multVec3Mat3(screen_position, view_matrix));
 
 	const HitPoint intersection = castRay(svo_data, position, d);
 	float3 color = (float3)255.0f;
-	float light_intensity = 1.0f;
+	float light_intensity = 0.0f;
 	if (intersection.hit) {
+		depth[index] = intersection.distance;
 		const float3 normal = normalize(convert_float3(intersection.normal));
 		const float3 hit_start = intersection.position + NORMAL_EPS * normal;
 		const float3 shadow_ray = normalize(light_position - hit_start);
@@ -345,15 +364,22 @@ __kernel void lighting(
 			light_intensity = SUN_INTENSITY * fmax(AMBIENT, dot(normal, shadow_ray));
 		}
 
-		const float gi = getGlobalIllumination(svo_data, hit_start, normal, light_position, rand_seed, index);
-		light_intensity += gi;
+		//const float gi = getGlobalIllumination(svo_data, hit_start, normal, light_position, rand_seed, index);
+		//light_intensity += gi;
+		light_intensity *= fmin(1.0f, get_ambient_occlusion(svo_data, hit_start, normal, rand_seed, index));
+
+	} else {
+		depth[index] = 0.0f;
 	}
 
+	const float conservation_coef = 0.65f;
+	const float new_contribution_coef = 1.0f - conservation_coef;
+
 	// Color output
-	color *= fmin(1.0f, light_intensity);
-	const uchar3 final_color = convert_uchar3(color);
-	result[4 * index + 0] = final_color.x;
-	result[4 * index + 1] = final_color.y;
-	result[4 * index + 2] = final_color.z;
+	color *= light_intensity;
+	const float final_color = fmin(255.0f, color.x) * new_contribution_coef + result[4 * index ] * conservation_coef;
+	result[4 * index + 0] = final_color;
+	result[4 * index + 1] = final_color;
+	result[4 * index + 2] = final_color;
 	result[4 * index + 3] = 255;
 }

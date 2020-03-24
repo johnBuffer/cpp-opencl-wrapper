@@ -26,7 +26,6 @@ struct Node
 class SVO
 {
 public:
-	template<uint8_t>
 	friend struct LSVO;
 
 	SVO(uint8_t max_depth)
