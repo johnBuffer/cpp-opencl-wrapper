@@ -43,13 +43,16 @@ void generateSVO(uint8_t max_depth, SVO& svo)
 			int32_t max_height = grid_size_y;
 			float amp_x = x - grid_size_x * 0.5f;
 			float amp_z = z - grid_size_z * 0.5f;
-			float ratio = std::pow(1.0f - sqrt(amp_x * amp_x + amp_z * amp_z) / (10.0f * grid_size_x), 256.0f);
-			int32_t height = int32_t(128.0f * myNoise.GetNoise(float(0.5f * x), float(0.5f * z)) + 32);
+			float ratio = sqrt(amp_x * amp_x + amp_z * amp_z) / (grid_size_x) * grid_size_x * 0.25f;
+			const float noise_factor = 1.0f;
+			int32_t height = int32_t(64.0f * myNoise.GetNoise(float(noise_factor * x), float(noise_factor * z)) + 32);
 
 			volume_raw->setCell(Cell::Solid, Cell::Grass, x, 0, z);
 
+			//volume_raw->setCell(Cell::Solid, Cell::Grass, x, x/100, z);
+
 			for (int y(1); y < std::min(max_height, height); ++y) {
-				//volume_raw->setCell(Cell::Solid, Cell::Grass, x, y, z);
+				volume_raw->setCell(Cell::Solid, Cell::Grass, x, y, z);
 			}
 		}
 	}

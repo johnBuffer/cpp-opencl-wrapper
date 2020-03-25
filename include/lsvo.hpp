@@ -30,8 +30,8 @@ struct LSVO : public Volumetric
 
 	HitPoint castRay(const glm::vec3& world_space_position, glm::vec3 d, const float ray_size_coef = 0.0f, const float ray_size_bias = 0.0f) const override
 	{
-		const float world_size = 1 << max_depth;
-		const glm::vec3 position = world_space_position / world_size + 1.0f;
+		const float world_size = (1 << max_depth);
+		const glm::vec3 position = world_space_position / world_size + glm::vec3(1.0f);
 		HitPoint result;
 		// Const values
 		constexpr uint8_t SVO_MAX_DEPTH = 23u;
@@ -155,7 +155,7 @@ struct LSVO : public Volumetric
 			result.position.y = std::min(std::max(position.y + t_min * d.y, pos.y + EPS), pos.y + scale_f - EPS);
 			result.position.z = std::min(std::max(position.z + t_min * d.z, pos.z + EPS), pos.z + scale_f - EPS);
 
-			result.position = (result.position - 1.0f) * world_size;
+			result.position = (result.position - glm::vec3(1.0f)) * world_size;
 		}
 
 		return result;

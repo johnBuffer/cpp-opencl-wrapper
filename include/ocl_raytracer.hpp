@@ -33,6 +33,8 @@ public:
 		m_albedo.setArgument(2, camera_position);
 		m_albedo.setArgument(3, m_buff_view_matrix);
 
+		m_albedo.setArgument(6, render_mode);
+
 		m_lighting.setArgument(2, camera_position);
 		m_lighting.setArgument(3, m_buff_view_matrix);
 		m_lighting.setArgument(5, m_time);
@@ -72,8 +74,6 @@ public:
 					// Computing ray coordinates in 'lens' space ie in normalized screen space
 					const uint32_t index = (x + y * static_cast<uint32_t>(m_render_dimension.x * m_lighting_quality));
 					const uint8_t c = static_cast<uint8_t>(m_result_lighting[4 * index]);
-					//if (x == 0 && y == 0)
-					//std::cout << m_result_depth[index] << std::endl;
 					uint8_t r = c;
 					uint8_t g = c;
 					uint8_t b = c;
@@ -114,6 +114,8 @@ public:
 		return m_output_lighting;
 	}
 
+	uint8_t render_mode = 1;
+
 private:
 	// Conf
 	sf::Vector2u m_render_dimension;
@@ -139,7 +141,7 @@ private:
 	oclw::MemoryObject m_buff_image_side;
 	oclw::MemoryObject m_buff_seeds;
 
-	std::vector<uint8_t> m_result_albedo;
+	std::vector<float> m_result_albedo;
 	std::vector<float> m_result_lighting;
 	std::vector<float> m_result_depth;
 	std::vector<int32_t> m_seeds;
@@ -169,7 +171,7 @@ private:
 		const uint64_t albedo_render_pxl_count = m_render_dimension.x * m_render_dimension.y;
 		const uint64_t light_render_pxl_count = albedo_render_pxl_count * m_lighting_quality;
 		m_result_albedo.resize(albedo_render_pxl_count * 4);
-		m_buff_result_albedo = m_context.createMemoryObject<uint8_t>(m_result_albedo.size(), oclw::WriteOnly);
+		m_buff_result_albedo = m_context.createMemoryObject<float>(m_result_albedo.size(), oclw::WriteOnly);
 		m_result_lighting.resize(light_render_pxl_count * 4);
 		m_buff_result_lighting = m_context.createMemoryObject<float>(m_result_lighting.size(), oclw::WriteOnly);
 		m_result_depth.resize(light_render_pxl_count);

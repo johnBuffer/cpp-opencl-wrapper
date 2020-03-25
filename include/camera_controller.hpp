@@ -53,11 +53,11 @@ struct Camera
 		return v * rot_mat;
 	}
 
-	HitPoint getClosestPoint(const Volumetric& volume) const
+	/*HitPoint getClosestPoint(const Volumetric& volume) const
 	{
 		constexpr float scale = 1.0f / 512.0f;
 		return volume.castRay(position * scale + glm::vec3(1.0f), camera_vec, 0.0f, 0.0f);
-	}
+	}*/
 };
 
 

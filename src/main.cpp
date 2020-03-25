@@ -22,12 +22,13 @@ int main()
 	{
 		const float lighting_quality = 0.5f;
 
-		const uint8_t max_depth = 9;
+		const uint8_t max_depth = 8;
 		SVO* builder = new SVO(max_depth);
 		generateSVO(max_depth, *builder);
 		LSVO svo(*builder, max_depth);
+		delete builder;
 
-		Raytracer raytracer(WIN_WIDTH, WIN_HEIGHT, 9, svo.data, lighting_quality);
+		Raytracer raytracer(WIN_WIDTH, WIN_HEIGHT, max_depth, svo.data, lighting_quality);
 
 		// Main loop
 		sf::RenderWindow window(sf::VideoMode(WIN_WIDTH, WIN_HEIGHT), "OpenCL and SFML", sf::Style::Default);
@@ -37,28 +38,26 @@ int main()
 
 		sf::Texture tex_lighting;
 		sf::Texture tex_albedo;
-		sf::RenderTexture lighting_render, lighting_render2;
+		sf::RenderTexture lighting_render, tex_lighting_upscale;
 		lighting_render.create(WIN_WIDTH * lighting_quality, WIN_HEIGHT * lighting_quality);
-		lighting_render2.create(WIN_WIDTH * lighting_quality, WIN_HEIGHT * lighting_quality);
-		Blur blur(WIN_WIDTH * lighting_quality, WIN_HEIGHT * lighting_quality, 1.0f);
+		tex_lighting_upscale.create(WIN_WIDTH, WIN_HEIGHT);
+		Blur blur(WIN_WIDTH, WIN_HEIGHT, 1.0f);
 
 		sf::Shader median; 
 		median.loadFromFile("../res/median.frag", sf::Shader::Fragment);
 
 		// Camera
 		Camera camera;
-		camera.position = glm::vec3(250, 500, 250);
+		camera.position = glm::vec3(100, 20, 100);
 		camera.view_angle = glm::vec2(0.0f);
 		camera.fov = 1.0f;
-
-		const float scale = 1.0f / 1024.0f;
 
 		FpsController controller;
 
 		while (window.isOpen())
 		{
 			sf::Vector2i mouse_pos = sf::Mouse::getPosition(window);
-			event_manager.processEvents(controller, camera, svo);
+			event_manager.processEvents(controller, camera, svo, raytracer.render_mode);
 
 			if (event_manager.mouse_control) {
 				sf::Mouse::setPosition(sf::Vector2i(WIN_WIDTH / 2, WIN_HEIGHT / 2), window);
@@ -75,12 +74,18 @@ int main()
 			tex_albedo.loadFromImage(raytracer.getAlbedo());
 
 			sf::Sprite lighting_sprite(tex_lighting);
-			sf::Sprite albedo_sprite(tex_albedo);
 			lighting_sprite.setScale(1.0f / lighting_quality, 1.0f / lighting_quality);
+			tex_lighting_upscale.draw(lighting_sprite);
+			tex_lighting_upscale.display();
+			sf::Sprite lighting_sprite_upscale(blur.apply(tex_lighting_upscale.getTexture(), 1));
+
+			sf::Sprite albedo_sprite(tex_albedo);
 
 			window.draw(albedo_sprite);
-			window.draw(lighting_sprite, sf::BlendMultiply);
-			//window.draw(lighting_sprite);
+			if (raytracer.render_mode == 1) {
+				window.draw(lighting_sprite_upscale, sf::BlendMultiply);
+			}
+			//window.draw(lighting_sprite_upscale);
 
 
 			window.display();

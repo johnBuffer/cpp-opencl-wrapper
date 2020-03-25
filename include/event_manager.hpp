@@ -2,6 +2,7 @@
 
 #include <SFML/Graphics.hpp>
 #include "camera_controller.hpp"
+//#include "ocl_raytracer.hpp"
 
 
 struct EventManager
@@ -16,10 +17,9 @@ struct EventManager
 		, mouse_control(true)
 		, boost(false)
 	{
-
 	}
 
-	void processEvents(CameraController& controller, Camera& camera, LSVO& svo)
+	void processEvents(CameraController& controller, Camera& camera, LSVO& svo, uint8_t& render_mode)
 	{
 		glm::vec3 move = glm::vec3(0.0f);
 		sf::Event event;
@@ -45,6 +45,7 @@ struct EventManager
 					right = true;
 					break;
 				case sf::Keyboard::O:
+					render_mode = !render_mode;
 					break;
 				case sf::Keyboard::Space:
 					up = true;

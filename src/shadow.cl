@@ -287,7 +287,7 @@ float get_ambient_occlusion(__global Node* svo_data, const float3 position, cons
 }
 
 
-void colorToResultBuffer(float3 color, uint32_t index, __global float* buffer)
+void colorToResultBuffer(float4 color, uint32_t index, __global float* buffer)
 {
     buffer[4 * index + 0] = color.x;
 	buffer[4 * index + 1] = color.y;
@@ -314,27 +314,32 @@ __kernel void albedo(
 	const float screen_ratio = (float)(screen_size.x) / (float)(screen_size.y);
 	const float3 screen_position = (float3)(gid.x / (float)screen_size.x - 0.5f, gid.y / (float)screen_size.x - 0.5f / screen_ratio, 0.8f);
 
-	const float3 d = normalize(multVec3Mat3(screen_position, view_matrix));
+	float3 d = normalize(multVec3Mat3(screen_position, view_matrix));
 
 	HitPoint intersection = castRay(svo_data, position, d);
 
-	float3 color = (float3)(255.0f);
+	float4 color = (float3)(255.0f);
+
 	if (intersection.hit) {
 		if (intersection.normal.y) {
-			color = convert_float3(read_imagei(top_image, tex_sampler, intersection.tex_coords).xyz);
+			color = convert_float4(read_imagei(top_image, tex_sampler, intersection.tex_coords).xyz, 255.0f);
 		}
 		else if (intersection.normal.x || intersection.normal.z) {
-			color = convert_float3(read_imagei(side_image, tex_sampler, intersection.tex_coords).xyz);
+			color = convert_float4(read_imagei(side_image, tex_sampler, intersection.tex_coords).xyz, 255.0f);
 		}
 	}
 
 	// Color output
-	if (mode == 0) {
+	/*if (mode == 0) {
 	    const uint16_t complexity = intersection.complexity > 255 ? 255 : intersection.complexity;
-		color = convert_float3(complexity);
-	}
+		color = convert_float4((float3)complexity, 255.0f);
+	}*/
 
-    colorToResultBuffer(color, index, albedo_result);
+    albedo_result[4 * index + 0] = color.x;
+	albedo_result[4 * index + 1] = color.y;
+	albedo_result[4 * index + 2] = color.z;
+	albedo_result[4 * index + 3] = 255.0f;
+    //colorToResultBuffer(final_color, index, albedo_result);
 }
 
 
@@ -364,24 +369,34 @@ __kernel void lighting(
 
 	const HitPoint intersection = castRay(svo_data, position, d);
 	float3 color = (float3)255.0f;
-	float light_intensity = 1.0f;
+	float light_intensity = 0.0f;
 	if (intersection.hit) {
-	
+		depth[index] = intersection.distance;
 		const float3 normal = normalize(convert_float3(intersection.normal));
 		const float3 hit_start = intersection.position + NORMAL_EPS * normal;
 		const float3 shadow_ray = normalize(light_position - hit_start);
 		const HitPoint light_intersection = castRay(svo_data, hit_start, shadow_ray);
-		
+		if (light_intersection.hit) {
+			light_intensity = AMBIENT;
+		} else {
+			light_intensity = SUN_INTENSITY * fmax(AMBIENT, dot(normal, shadow_ray));
+		}
+		//const float gi = getGlobalIllumination(svo_data, hit_start, normal, light_position, rand_seed, index);
+		//light_intensity += gi;
 		light_intensity *= fmin(1.0f, get_ambient_occlusion(svo_data, hit_start, normal, rand_seed, index));
 		
 		color *= light_intensity;
 
+	} else {
+		//const float sun = dot(normalize(light_position - position), d);
+		//color = 255.0f * pow(fmax(sun, 0.0f), 256.0f);
 	}
 
-	const float conservation_coef = 0.95f;
+	const float conservation_coef = 0.5f;
 	const float new_contribution_coef = 1.0f - conservation_coef;
 
 	// Color output
+	
 	const float final_color = fmin(255.0f, color.x) * new_contribution_coef + result[4 * index ] * conservation_coef;
 	result[4 * index + 0] = final_color;
 	result[4 * index + 1] = final_color;
