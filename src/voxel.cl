@@ -37,6 +37,7 @@ typedef struct HitPoint
 	float2   tex_coords;
 	float    distance;
 	char3    normal;
+	bool     water;
 	uint16_t complexity;
 } HitPoint;
 
@@ -144,8 +145,8 @@ HitPoint castRay(__global Node* svo_data, float3 position, float3 d)
 					// Could use mirror mask
 					result.normal = -convert_char3(sign(d)) * (char3)(normal & 1u, normal & 2u, normal & 4u);
 					result.distance = t_min;
-					//result.position = position + t_min * d;
-					
+					result.water = (parent_ref.reflective_mask >> child_shift) & 1u;
+
 					if ((mirror_mask & 1) == 0) pos.x = 3.0f - scale_f - pos.x;
 					if ((mirror_mask & 2) == 0) pos.y = 3.0f - scale_f - pos.y;
 					if ((mirror_mask & 4) == 0) pos.z = 3.0f - scale_f - pos.z;
@@ -286,6 +287,9 @@ float get_ambient_occlusion(__global Node* svo_data, const float3 position, cons
 	return acc;
 }
 
+float3 reflect(float3 v, float3 normal){
+	return v - 2.0f * dot(v, normal) * normal;
+}
 
 void colorToResultBuffer(float3 color, uint32_t index, __global float* buffer)
 {
@@ -293,6 +297,18 @@ void colorToResultBuffer(float3 color, uint32_t index, __global float* buffer)
 	buffer[4 * index + 1] = color.y;
 	buffer[4 * index + 2] = color.z;
 	buffer[4 * index + 3] = 255.0f;
+}
+
+
+float3 getColorFromIntersection(HitPoint intersection, image2d_t top_image, image2d_t side_image)
+{
+	if (intersection.normal.y) {
+		return convert_float3(read_imagei(top_image, tex_sampler, intersection.tex_coords).xyz);
+	}
+	else if (intersection.normal.x || intersection.normal.z) {
+		return convert_float3(read_imagei(side_image, tex_sampler, intersection.tex_coords).xyz);
+	}
+	return (float3)255.0f;
 }
 
 
@@ -320,11 +336,19 @@ __kernel void albedo(
 
 	float3 color = (float3)(255.0f);
 	if (intersection.hit) {
-		if (intersection.normal.y) {
-			color = convert_float3(read_imagei(top_image, tex_sampler, intersection.tex_coords).xyz);
+		if (intersection.water) {
+			const float3 normal = normalize(convert_float3(intersection.normal));
+			const float3 reflection_start = intersection.position + NORMAL_EPS * normal;
+			HitPoint reflection = castRay(svo_data, reflection_start, reflect(d, normal));
+			if (reflection.hit) {
+				color = 0.5f * getColorFromIntersection(reflection, top_image, side_image);
+			}
+			else {
+				color = (float3)(0.5f * 255.0f);
+			}
 		}
-		else if (intersection.normal.x || intersection.normal.z) {
-			color = convert_float3(read_imagei(side_image, tex_sampler, intersection.tex_coords).xyz);
+		else {
+			color = getColorFromIntersection(intersection, top_image, side_image);
 		}
 	}
 

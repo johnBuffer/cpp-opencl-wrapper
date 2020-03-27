@@ -44,10 +44,10 @@ void generateSVO(uint8_t max_depth, SVO& svo)
 			float amp_x = x - grid_size_x * 0.5f;
 			float amp_z = z - grid_size_z * 0.5f;
 			float ratio = sqrt(amp_x * amp_x + amp_z * amp_z) / (grid_size_x) * grid_size_x * 0.25f;
-			const float noise_factor = 1.0f;
-			int32_t height = int32_t(64.0f * myNoise.GetNoise(float(noise_factor * x), float(noise_factor * z)) + 32);
+			const float noise_factor = 0.5f;
+			int32_t height = int32_t(32.0f * myNoise.GetNoise(float(noise_factor * x), float(noise_factor * z)));
 
-			volume_raw->setCell(Cell::Solid, Cell::Grass, x, 0, z);
+			volume_raw->setCell(Cell::Mirror, Cell::Grass, x, 0, z);
 
 			//volume_raw->setCell(Cell::Solid, Cell::Grass, x, x/100, z);
 

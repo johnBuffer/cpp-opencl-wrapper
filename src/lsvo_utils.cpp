@@ -39,6 +39,9 @@ void compileSVO_rec(const Node* node, std::vector<LSVONode>& data, const uint64_
 							}
 							else {
 								data[node_index].leaf_mask |= (1U << sub_index);
+								if (sub_node->cell.type == Cell::Mirror) {
+									data[node_index].reflective_mask |= (1U << sub_index);
+								}
 							}
 						}
 					}

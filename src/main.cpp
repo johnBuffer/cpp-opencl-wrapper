@@ -83,7 +83,7 @@ int main()
 
 			window.draw(albedo_sprite);
 			if (raytracer.render_mode == 1) {
-				window.draw(lighting_sprite_upscale, sf::BlendMultiply);
+				//window.draw(lighting_sprite_upscale, sf::BlendMultiply);
 			}
 			//window.draw(lighting_sprite_upscale);
 
