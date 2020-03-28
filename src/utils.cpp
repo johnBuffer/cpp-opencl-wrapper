@@ -43,13 +43,15 @@ void generateSVO(uint8_t max_depth, SVO& svo)
 			int32_t max_height = grid_size_y;
 			float amp_x = x - grid_size_x * 0.5f;
 			float amp_z = z - grid_size_z * 0.5f;
-			float ratio = sqrt(amp_x * amp_x + amp_z * amp_z) / (grid_size_x) * grid_size_x * 0.25f;
+			float ratio = sqrt(amp_x * amp_x + amp_z * amp_z) / (grid_size_x) * grid_size_x * 0.5f;
 			const float noise_factor = 0.5f;
-			int32_t height = int32_t(ratio * myNoise.GetNoise(float(noise_factor * x), float(noise_factor * z)));
+			int32_t height = int32_t(128.0f * myNoise.GetNoise(float(noise_factor * x), float(noise_factor * z)));
 
-			volume_raw->setCell(Cell::Mirror, Cell::Grass, x, 0, z);
+			volume_raw->setCell(Cell::Solid, Cell::Grass, x, 0, z);
 
-			//volume_raw->setCell(Cell::Solid, Cell::Grass, x, x/100, z);
+			for (uint32_t u(1); u < 10; ++u) {
+				volume_raw->setCell(Cell::Mirror, Cell::Grass, x, u, z);
+			}
 
 			for (int y(1); y < std::min(max_height, height); ++y) {
 				volume_raw->setCell(Cell::Solid, Cell::Grass, x, y, z);
@@ -63,7 +65,7 @@ void generateSVO(uint8_t max_depth, SVO& svo)
 
 	uint32_t b_size = 20;
 
-	for (uint32_t x = 0; x < b_size + 10; x++) {
+	/*for (uint32_t x = 0; x < b_size + 10; x++) {
 		for (uint32_t y = 0; y < b_size + 20; y++) {
 			if (x > 0 && y > 0 && x < b_size + 9 && y < b_size + 19)
 				volume_raw->setCell(Cell::Mirror, Cell::Grass, x + b_start_x - 5, y + b_start_y, b_start_z - 5);
@@ -79,7 +81,7 @@ void generateSVO(uint8_t max_depth, SVO& svo)
 	for (uint32_t x = 220; x < 230; x++) {
 		volume_raw->setCell(Cell::Solid, Cell::Grass, x, 1, 240);
 		volume_raw->setCell(Cell::Solid, Cell::Grass, x, 2, 240);
-	}
+	}*/
 }
 
 glm::mat3 generateRotationMatrix(const glm::vec2& angle)

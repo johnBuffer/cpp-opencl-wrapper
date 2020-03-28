@@ -10,10 +10,13 @@ __constant sampler_t tex_sampler = CLK_NORMALIZED_COORDS_TRUE | CLK_FILTER_NEARE
 //__constant float3 light_position = (float3)(0.0f, 1.0f, 0.0f);
 __constant float EPS = 0x1.fffffep-1f;
 __constant float NORMAL_EPS = 0.0078125f * 0.0078125f * 0.0078125f;
-__constant float AMBIENT = 0.05f;
+__constant float AMBIENT = 0.5f;
 __constant float SUN_INTENSITY = 10.0f;
 __constant float3 SKY_COLOR = (float3)(51.0f, 204.0f, 255.0f);
-__constant float3 WATER_COLOR = (float3)(0.0f, 100.0f / 255.0f, 150.0f / 255.0f);
+__constant float3 WATER_COLOR = (float3)(28.0f / 255.0f, 194.0f / 255.0f, 255.0f / 255.0f);
+__constant float REFRACTION_COEF = 0.4f;
+__constant float REFLECTION_COEF = 0.6f;
+__constant float R0 = 0.0204f;
 
 
 // Structs declaration
@@ -38,7 +41,7 @@ typedef struct HitPoint
 	float3   position;
 	float2   tex_coords;
 	float    distance;
-	char3    normal;
+	float3   normal;
 	bool     water;
 	uint16_t complexity;
 } HitPoint;
@@ -87,7 +90,7 @@ float3 getRandomizedNormal(float3 normal, __global int32_t* seed, int32_t index)
 }
 
 // Raytracing functions
-HitPoint castRay(__global Node* svo_data, float3 position, float3 d)
+HitPoint castRay(__global Node* svo_data, float3 position, float3 d, bool in_water)
 {
 	HitPoint result;
 	result.hit = 0;
@@ -134,57 +137,57 @@ HitPoint castRay(__global Node* svo_data, float3 position, float3 d)
 		const float tc_max = fmin(t_corner.x, fmin(t_corner.y, t_corner.z));
 		// Check if child exists here
 		const uint8_t child_shift = child_offset ^ mirror_mask;
-		const uint8_t child_mask = parent_ref.child_mask >> child_shift;
-		if ((child_mask & 1u) && (t_min <= t_max || true)) {
+		const uint8_t child_mask = (parent_ref.child_mask >> child_shift) & 1u;
+		if (child_mask) {
 			const float tv_max = fmin(t_max, tc_max);
 			const float half_scale = scale_f * 0.5f;
 			const float3 t_half = half_scale * t_coef + t_corner;
-			if (t_min <= tv_max || true) {
-				const uint8_t leaf_mask = parent_ref.leaf_mask >> child_shift;
-				// We hit a leaf
-				if (leaf_mask & 1u) {
-					result.hit = 1u;
-					// Could use mirror mask
-					result.normal = -convert_char3(sign(d)) * (char3)(normal & 1u, normal & 2u, normal & 4u);
-					result.distance = t_min;
-					result.water = (parent_ref.reflective_mask >> child_shift) & 1u;
+			const uint8_t leaf_mask = (parent_ref.leaf_mask >> child_shift) & 1u;
+			const uint8_t watr_mask = (parent_ref.reflective_mask >> child_shift) & 1u;
+			// We hit a leaf
+			if (leaf_mask && (!watr_mask || (watr_mask != in_water))) {
+				result.hit = 1u;
+				// Could use mirror mask
+				result.normal = -sign(d) * (float3)(normal & 1u, normal & 2u, normal & 4u);
+				result.distance = t_min;
+				result.water = watr_mask;
 
-					if ((mirror_mask & 1) == 0) pos.x = 3.0f - scale_f - pos.x;
-					if ((mirror_mask & 2) == 0) pos.y = 3.0f - scale_f - pos.y;
-					if ((mirror_mask & 4) == 0) pos.z = 3.0f - scale_f - pos.z;
-					result.position.x = fmin(fmax(position.x + t_min * d.x, pos.x + EPS), pos.x + scale_f - EPS);
-					result.position.y = fmin(fmax(position.y + t_min * d.y, pos.y + EPS), pos.y + scale_f - EPS);
-					result.position.z = fmin(fmax(position.z + t_min * d.z, pos.z + EPS), pos.z + scale_f - EPS);
+				if ((mirror_mask & 1) == 0) pos.x = 3.0f - scale_f - pos.x;
+				if ((mirror_mask & 2) == 0) pos.y = 3.0f - scale_f - pos.y;
+				if ((mirror_mask & 4) == 0) pos.z = 3.0f - scale_f - pos.z;
+				result.position.x = fmin(fmax(position.x + t_min * d.x, pos.x + EPS), pos.x + scale_f - EPS);
+				result.position.y = fmin(fmax(position.y + t_min * d.y, pos.y + EPS), pos.y + scale_f - EPS);
+				result.position.z = fmin(fmax(position.z + t_min * d.z, pos.z + EPS), pos.z + scale_f - EPS);
 
-					const float tex_scale = (float)(1 << (SVO_MAX_DEPTH - scale));
-					if (result.normal.x) {
-						result.tex_coords = (float2)(frac(result.position.z * tex_scale), frac(result.position.y * tex_scale));
-					}
-					else if (result.normal.y) {
-						result.tex_coords = (float2)(frac(result.position.x * tex_scale), frac(result.position.z * tex_scale));
-					}
-					else if (result.normal.z) {
-						result.tex_coords = (float2)(frac(result.position.x * tex_scale), frac(result.position.y * tex_scale));
-					}
-					break;
+				const float tex_scale = (float)(1 << (SVO_MAX_DEPTH - scale));
+				if (result.normal.x) {
+					result.tex_coords = (float2)(frac(result.position.z * tex_scale), frac(result.position.y * tex_scale));
 				}
-				// Eventually add parent to the stack
-				if (tc_max < h) {
-					stack[scale].parent_index = parent_id;
-					stack[scale].t_max = t_max;
+				else if (result.normal.y) {
+					result.tex_coords = (float2)(frac(result.position.x * tex_scale), frac(result.position.z * tex_scale));
 				}
-				h = tc_max;
-				// Update current voxel
-				parent_id += parent_ref.child_offset + child_shift;
-				child_offset = 0u;
-				--scale;
-				scale_f = half_scale;
-				if (t_half.x > t_min) { child_offset ^= 1u, pos.x += scale_f; }
-				if (t_half.y > t_min) { child_offset ^= 2u, pos.y += scale_f; }
-				if (t_half.z > t_min) { child_offset ^= 4u, pos.z += scale_f; }
-				t_max = tv_max;
-				continue;
+				else if (result.normal.z) {
+					result.tex_coords = (float2)(frac(result.position.x * tex_scale), frac(result.position.y * tex_scale));
+				}
+				break;
 			}
+			// Eventually add parent to the stack
+			if (tc_max < h) {
+				stack[scale].parent_index = parent_id;
+				stack[scale].t_max = t_max;
+			}
+			h = tc_max;
+			// Update current voxel
+			parent_id += parent_ref.child_offset + child_shift;
+			child_offset = 0u;
+			--scale;
+			scale_f = half_scale;
+			if (t_half.x > t_min) { child_offset ^= 1u, pos.x += scale_f; }
+			if (t_half.y > t_min) { child_offset ^= 2u, pos.y += scale_f; }
+			if (t_half.z > t_min) { child_offset ^= 4u, pos.z += scale_f; }
+			t_max = tv_max;
+			continue;
+			
 		} // End of depth exploration
 
 		uint32_t step_mask = 0u;
@@ -245,12 +248,12 @@ float getGlobalIllumination(__global Node* svo_data, const float3 position, cons
 	for (uint32_t i = ray_count; i--;) {
 		// First bounce
 		const float3 noise_normal = getRandomizedNormal(normal, seed, index);
-		const HitPoint gi_intersection = castRay(svo_data, position, noise_normal);
+		const HitPoint gi_intersection = castRay(svo_data, position, noise_normal, false);
 		if (gi_intersection.hit) {
 			const float3 gi_normal = convert_float3(gi_intersection.normal);
 			const float3 gi_light_start = gi_intersection.position + NORMAL_EPS * gi_normal;
 			const float3 gi_light_direction = normalize(light_position - gi_light_start);
-			const HitPoint gi_light_intersection = castRay(svo_data, gi_light_start, gi_light_direction);
+			const HitPoint gi_light_intersection = castRay(svo_data, gi_light_start, gi_light_direction, false);
 			if (!gi_light_intersection.hit) {
 				gi_add += SUN_INTENSITY * fmax(AMBIENT, dot(gi_normal, gi_light_direction)) * ray_contrib;
 			}
@@ -272,7 +275,7 @@ float getGlobalIllumination(__global Node* svo_data, const float3 position, cons
 	return gi_add;
 }
 
-float get_ambient_occlusion(__global Node* svo_data, const float3 position, const float3 normal, __global int32_t* seed, int32_t index)
+float getAmbientOcclusion(__global Node* svo_data, const float3 position, const float3 normal, __global int32_t* seed, int32_t index)
 {
 	float acc = 1.0f;
 	const float range = 1.0f;
@@ -280,7 +283,7 @@ float get_ambient_occlusion(__global Node* svo_data, const float3 position, cons
 	const float ray_contrib = 1.0f / (float)ray_count;
 	for (uint32_t i = ray_count; i--;) {
 		const float3 noise_normal = getRandomizedNormal(normal, seed, index);
-		const HitPoint ao_intersection = castRay(svo_data, position, noise_normal);
+		const HitPoint ao_intersection = castRay(svo_data, position, noise_normal, false);
 		if (ao_intersection.hit) {
 			acc -= ray_contrib;
 		}
@@ -309,6 +312,17 @@ void colorToResultBuffer(float3 color, uint32_t index, __global float* buffer)
 }
 
 
+float getLightIntensity(float3 position, __global Node* svo_data, float3 light_position, bool under_water)
+{
+	const float3 shadow_ray = normalize(light_position - position);
+	const HitPoint light_intersection = castRay(svo_data, position, shadow_ray, under_water);
+	if (light_intersection.hit) {
+		return AMBIENT; 
+	}
+	return 1.0f;
+}
+
+
 float3 getColorFromIntersection(HitPoint intersection, image2d_t top_image, image2d_t side_image)
 {
 	float3 color = SKY_COLOR;
@@ -319,10 +333,12 @@ float3 getColorFromIntersection(HitPoint intersection, image2d_t top_image, imag
 		color = convert_float3(read_imagei(side_image, tex_sampler, intersection.tex_coords).xyz);
 	}
 
-	//const float3 light_start = intersection.position + intersection.normal * NORMAL_EPS;
-	//const HitPoint light_intersection = castRay(svo_data, light_start, )
-
 	return color;
+}
+
+float3 getColorAndLightFromIntersection(HitPoint intersection, image2d_t top_image, image2d_t side_image, __global Node* svo_data, float3 light_position, bool under_water)
+{
+	return getColorFromIntersection(intersection, top_image, side_image) * getLightIntensity(intersection.position + intersection.normal * NORMAL_EPS, svo_data, light_position, under_water);
 }
 
 
@@ -339,15 +355,21 @@ __kernel void albedo(
 	float time
 )
 {
+	// Initialization
 	const int2 gid = (int2)(get_global_id(0), get_global_id(1));
 	const uint32_t index = gid.x + gid.y * get_global_size(0);
 	const int2 screen_size = (int2)(get_global_size(0), get_global_size(1));
 	const float screen_ratio = (float)(screen_size.x) / (float)(screen_size.y);
-	const float3 screen_position = (float3)(gid.x / (float)screen_size.x - 0.5f, gid.y / (float)screen_size.x - 0.5f / screen_ratio, 0.8f);
+	const float3 screen_position = (float3)(gid.x / (float)screen_size.x - 0.5f, gid.y / (float)screen_size.x - 0.5f / screen_ratio, 0.5f);
+	// Light
+	const float time_su = 1.5f;
+	const float time_of = -1.5f;
+	const float light_radius = 6.0f;
+	const float3 light_position = (float3)(light_radius * cos(time_su * time + time_of) + 1.5f, -2.0f, light_radius * sin(time_su * time + time_of) + 1.5f);
 
 	const float3 d = normalize(multVec3Mat3(screen_position, view_matrix));
 
-	HitPoint intersection = castRay(svo_data, position, d);
+	HitPoint intersection = castRay(svo_data, position, d, false);
 
 	float3 color = SKY_COLOR;
 	if (intersection.hit) {
@@ -355,40 +377,40 @@ __kernel void albedo(
 			const float distortion_strength = 0.01f;
 			float3 normal_distortion = (float3)(0.0f);
 			float3 mirror_color = (float3)(1.0f);
+			const float wave_speed = 0.05f;
 			if (intersection.normal.y) {
-				normal_distortion = (float3)(distortion_strength * sin((intersection.position.z + 0.01f * time) * 2400.0f), 0.0f, distortion_strength * sin((intersection.position.x + 0.01f * time) * 2400.0f));
+				normal_distortion = (float3)(distortion_strength * sin((intersection.position.z + wave_speed * time) * 2400.0f), 0.0f, distortion_strength * cos((intersection.position.x + wave_speed * time) * 2400.0f));
 				mirror_color = WATER_COLOR;
 			}
-			const float3 normal = normalize(convert_float3(intersection.normal) + normal_distortion);
+			const float3 normal = normalize(intersection.normal + normal_distortion);
+			const float cos_i = -dot(normal, d);
+			const float transmitted = R0 + (1.0f - R0)*pow(1.0f - cos_i, 5.0f);
+			// Reflection
 			const float3 reflection_start = intersection.position + NORMAL_EPS * normal;
 			const float3 reflection_d = reflect(d, normal);
-			HitPoint reflection = castRay(svo_data, reflection_start, reflection_d);
-			if (reflection.hit) {
-				if (reflection.water) {
-					float3 normal_distortion_2 = (float3)(0.0f);
-					if (reflection.normal.y) {
-						normal_distortion = (float3)(distortion_strength * sin((intersection.position.z + 0.1f * time) * 600.0f), 0.0f, distortion_strength * sin((intersection.position.x + 0.1f * time) * 600.0f));
-					}
-					const float3 normal_2 = normalize(convert_float3(reflection.normal) + normal_distortion);
-					const float3 reflection_start_2 = reflection.position + NORMAL_EPS * normal_2;
-					HitPoint reflection_2 = castRay(svo_data, reflection_start_2, reflect(reflection_d, normal_2));
-					if (reflection_2.hit) {
-						color =  mirror_color * WATER_COLOR * getColorFromIntersection(reflection_2, top_image, side_image);
-					}
-					else {
-						color *= WATER_COLOR * WATER_COLOR;
-					}
-				}
-				else {
-					color = mirror_color * getColorFromIntersection(reflection, top_image, side_image);
-				}
+			const HitPoint reflection_ray = castRay(svo_data, reflection_start, reflection_d, false);
+			if (reflection_ray.hit) {
+				color = transmitted * (mirror_color * getColorAndLightFromIntersection(reflection_ray, top_image, side_image, svo_data, light_position, false));
 			}
 			else {
-				color *= WATER_COLOR;
+				color *= transmitted * mirror_color;
+			}
+			color *= getLightIntensity(reflection_start, svo_data, light_position, false);
+
+			// Refraction
+			const float refraction_intensity = (1.0f - transmitted);
+			if (refraction_intensity > 0.05f) {
+				const float3 refraction_start = intersection.position - NORMAL_EPS * normal;
+				const float3 refraction_d = normalize(refract(d, normal, 1.0f / 1.33333f));
+				const HitPoint refraction_ray = castRay(svo_data, refraction_start, refraction_d, true);
+				if (refraction_ray.hit) {
+					const float deep_coef = 1.0f / (1.0f + refraction_ray.distance * 512.0f);
+					color += deep_coef * refraction_intensity * (mirror_color * getColorFromIntersection(refraction_ray, top_image, side_image));
+				}
 			}
 		}
 		else {
-			color = getColorFromIntersection(intersection, top_image, side_image);
+			color = getColorAndLightFromIntersection(intersection, top_image, side_image, svo_data, light_position, false);
 		}
 	}
 
@@ -402,7 +424,7 @@ __kernel void albedo(
 }
 
 
-__kernel void lighting(
+/*__kernel void lighting(
     __global Node* svo_data,
     __global float* result,
 	float3 position,
@@ -443,7 +465,7 @@ __kernel void lighting(
 		}
 
 		if (!intersection.water) {
-			light_intensity *= fmax(0.3f, fmin(1.0f, get_ambient_occlusion(svo_data, hit_start, normal, rand_seed, index)));
+			light_intensity *= fmax(0.3f, fmin(1.0f, getAmbientOcclusion(svo_data, hit_start, normal, rand_seed, index)));
 		}
 		
 		color *= light_intensity;
@@ -458,4 +480,4 @@ __kernel void lighting(
 	result[4 * index + 1] = final_color;
 	result[4 * index + 2] = final_color;
 	result[4 * index + 3] = 255;
-}
+}*/

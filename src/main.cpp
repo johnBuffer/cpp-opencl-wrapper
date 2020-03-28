@@ -15,14 +15,14 @@
 
 int main()
 {
-	constexpr uint32_t WIN_WIDTH = 1600;
-	constexpr uint32_t WIN_HEIGHT = 900;
+	constexpr uint32_t WIN_WIDTH = 1920;
+	constexpr uint32_t WIN_HEIGHT = 1080;
 
 	try
 	{
 		const float lighting_quality = 0.5f;
 
-		const uint8_t max_depth = 10;
+		const uint8_t max_depth = 9;
 		SVO* builder = new SVO(max_depth);
 		generateSVO(max_depth, *builder);
 		LSVO svo(*builder, max_depth);
@@ -50,14 +50,18 @@ int main()
 
 		// Camera
 		Camera camera;
-		camera.position = glm::vec3(100, 200, 100);
-		camera.view_angle = glm::vec2(0.0f);
+		camera.position = glm::vec3(68.7249f, 490.2f, 211.236);
+		camera.view_angle = glm::vec2(0.395287f, 0.00f);
 		camera.fov = 1.0f;
 
+
+		sf::Mouse::setPosition(sf::Vector2i(WIN_WIDTH / 2, WIN_HEIGHT / 2), window);
 		FpsController controller;
+		controller.updateCameraView(glm::vec2(0.0f), camera);
 
 		while (window.isOpen())
 		{
+			//std::cout << camera.camera_vec.x << " " << camera.camera_vec.y << " " << camera.position.z << std::endl;
 			sf::Vector2i mouse_pos = sf::Mouse::getPosition(window);
 			event_manager.processEvents(controller, camera, svo, raytracer.render_mode);
 
@@ -85,7 +89,7 @@ int main()
 
 			window.draw(albedo_sprite);
 			if (raytracer.render_mode == 1) {
-				window.draw(lighting_sprite_upscale, sf::BlendMultiply);
+				//window.draw(lighting_sprite_upscale, sf::BlendMultiply);
 			}
 			//window.draw(lighting_sprite_upscale);
 
