@@ -71,7 +71,7 @@ struct CameraController
 		camera.setViewAngle(new_angle);
 	}
 
-	virtual void move(const glm::vec3& move_vector, Camera& camera, const LSVO& svo) = 0;
+	virtual void move(const glm::vec3& move_vector, Camera& camera, const LSVO& svo, bool boost) = 0;
 
 	virtual void forward() = 0;
 	virtual void jump() = 0;

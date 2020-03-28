@@ -45,7 +45,7 @@ void generateSVO(uint8_t max_depth, SVO& svo)
 			float amp_z = z - grid_size_z * 0.5f;
 			float ratio = sqrt(amp_x * amp_x + amp_z * amp_z) / (grid_size_x) * grid_size_x * 0.25f;
 			const float noise_factor = 0.5f;
-			int32_t height = int32_t(32.0f * myNoise.GetNoise(float(noise_factor * x), float(noise_factor * z)));
+			int32_t height = int32_t(ratio * myNoise.GetNoise(float(noise_factor * x), float(noise_factor * z)));
 
 			volume_raw->setCell(Cell::Mirror, Cell::Grass, x, 0, z);
 
@@ -63,38 +63,12 @@ void generateSVO(uint8_t max_depth, SVO& svo)
 
 	uint32_t b_size = 20;
 
-	for (uint32_t x = 0; x < b_size; x++) {
-		for (uint32_t y = 0; y < b_size; y++) {
-			for (uint32_t z = 0; z < b_size; z++) {
-				if (x == 0 && y == b_size / 2 && z == b_size / 2) {
-					continue;
-				}
-				if (x == b_size / 2 && y == b_size-1 && z == b_size / 2) {
-					continue;
-				}
-				if (x == b_size / 2 -1 && y == b_size - 1 && z == b_size / 2) {
-					continue;
-				}
-				if (x == b_size / 2 + 1 && y == b_size - 1 && z == b_size / 2) {
-					continue;
-				}
-				if (x == b_size / 2 + 1 && y == b_size - 1 && z == b_size / 2 + 1) {
-					continue;
-				}
-				if (x == b_size / 2 && y == b_size - 1 && z == b_size / 2 + 1) {
-					continue;
-				}
-				if (x == 0 || x == b_size - 1 ||
-					y == 0 || y == b_size - 1 ||
-					z == 0 || z == b_size - 1 )
-				volume_raw->setCell(Cell::Solid, Cell::Grass, x + b_start_x, y + b_start_y, z + b_start_z);
-			}
-		}
-	}
-
 	for (uint32_t x = 0; x < b_size + 10; x++) {
 		for (uint32_t y = 0; y < b_size + 20; y++) {
-			volume_raw->setCell(Cell::Solid, Cell::Grass, x + b_start_x - 5, y + b_start_y, b_start_z - 5);
+			if (x > 0 && y > 0 && x < b_size + 9 && y < b_size + 19)
+				volume_raw->setCell(Cell::Mirror, Cell::Grass, x + b_start_x - 5, y + b_start_y, b_start_z - 5);
+			else
+				volume_raw->setCell(Cell::Solid, Cell::Grass, x + b_start_x - 5, y + b_start_y, b_start_z - 5);
 		}
 	}
 

@@ -107,7 +107,7 @@ struct EventManager
 			}
 		}
 
-		const float boost_value = 10.0f;
+		const float boost_value = boost ? 10.0f : 1.0f;
 		if (forward) {
 			move += camera.camera_vec;
 		}
@@ -126,7 +126,7 @@ struct EventManager
 			move += glm::vec3(0.0f, -1.0f, 0.0f);
 		}
 
-		controller.move(move, camera, svo);
+		controller.move(move, camera, svo, boost);
 	}
 
 	sf::Clock clock;

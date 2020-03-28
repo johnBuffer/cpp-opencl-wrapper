@@ -34,6 +34,7 @@ public:
 		m_albedo.setArgument(3, m_buff_view_matrix);
 
 		m_albedo.setArgument(6, render_mode);
+		m_albedo.setArgument(7, m_time);
 
 		m_lighting.setArgument(2, camera_position);
 		m_lighting.setArgument(3, m_buff_view_matrix);

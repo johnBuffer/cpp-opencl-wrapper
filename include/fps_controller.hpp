@@ -19,16 +19,23 @@ struct FpsController : public CameraController
 		start_jump = SoundPlayer::registerSound("../res/Sounds/jump.flac");
 	}
 
-	void move(const glm::vec3& move_vector, Camera& camera, const LSVO& svo) override
+	void move(const glm::vec3& move_vector, Camera& camera, const LSVO& svo, bool boost) override
 	{
 		const float body_height = 1.8f;
 		const float body_radius = 0.2f;
 		const float feet_eps = 0.05f;
 
 		const float elapsed_time = clock.restart().asSeconds();
-		v += elapsed_time * g;
-		camera.position += glm::vec3(move_vector.x, 0.0f, move_vector.z) * movement_speed * elapsed_time;
-		camera.position.y += v * elapsed_time;
+		
+
+		if (boost) {
+			camera.position += 10.0f * move_vector * movement_speed * elapsed_time;
+		}
+		else {
+			v += elapsed_time * g;
+			camera.position += glm::vec3(move_vector.x, 0.0f, move_vector.z) * movement_speed * elapsed_time;
+			camera.position.y += v * elapsed_time;
+		}
 
 		// Ground check
 		const HitPoint yp_ray = svo.castRay(camera.position, glm::vec3(0.0f, 1.0f, 0.0f));
