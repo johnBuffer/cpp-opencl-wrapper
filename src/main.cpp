@@ -2,100 +2,80 @@
 #include <CL/opencl.h>
 #include <ocl_wrapper.hpp>
 #include <SFML/Graphics.hpp>
-#include "event_manager.hpp"
-#include <swarm.hpp>
 
-#include "utils.hpp"
-#include "fly_controller.hpp"
-#include "fps_controller.hpp"
-#include "ocl_raytracer.hpp"
-#include "dynamic_blur.hpp"
-#include "lsvo.hpp"
+
+oclw::Context createDefaultContext(oclw::Wrapper& wrapper)
+{
+	auto platforms = wrapper.getPlatforms();
+	if (platforms.empty()) {
+		return nullptr;
+	}
+	// Trying to create GPU context
+	std::cout << "Creating context on GPU..." << std::endl;
+	oclw::Context context = wrapper.createContext(platforms.front(), oclw::GPU);
+	if (!context) {
+		// If not available try on CPU
+		std::cout << "Creating context on CPU..." << std::endl;
+		context = wrapper.createContext(platforms.front(), oclw::CPU);
+		if (!context) {
+			std::cout << "Cannot create context." << std::endl;
+			return nullptr;
+		}
+	}
+	std::cout << "Done." << std::endl;
+	return context;
+}
+
+
+template<typename T>
+void print(const std::vector<T>& vec)
+{
+	for (const T& obj : vec) {
+		std::cout << obj << " ";
+	}
+	std::cout << std::endl;
+}
+
+
+template<typename T>
+float mean(const std::vector<T>& vec)
+{
+	T sum = 0.0;
+	for (const T& obj : vec) {
+		sum += obj;
+	}
+	return sum / (double)(vec.size());
+}
+
 
 
 int main()
 {
-	constexpr uint32_t WIN_WIDTH = 1280;
-	constexpr uint32_t WIN_HEIGHT = 720;
-
 	try
 	{
-		const float lighting_quality = 0.5f;
+		srand(time(NULL));
+		oclw::Wrapper wrapper;
+		oclw::Context context = createDefaultContext(wrapper);
+		auto& devices_list = context.getDevices();
+		cl_device_id device = devices_list.front();
+		// Create command queue
+		oclw::CommandQueue command_queue = context.createQueue(device);
+		// Create OpenCL program from HelloWorld.cl kernel source
+		oclw::Program program = context.createProgram(device, "../src/image_output.cl");
+		oclw::Kernel kernel = program.createKernel("work_id_output");
 
-		const uint8_t max_depth = 9;
-		SVO* builder = new SVO(max_depth);
-		generateSVO(max_depth, *builder);
-		LSVO svo(*builder, max_depth);
-		delete builder;
+		constexpr uint8_t thread_count(256);
+		std::vector<float> result(thread_count);
 
-		Raytracer raytracer(WIN_WIDTH, WIN_HEIGHT, max_depth, svo.data, lighting_quality);
+		oclw::MemoryObject results_buff = context.createMemoryObject<float>(thread_count, oclw::MemoryObjectReadMode::WriteOnly);
 
-		// Main loop
-		sf::RenderWindow window(sf::VideoMode(WIN_WIDTH, WIN_HEIGHT), "OpenCL and SFML", sf::Style::Default);
-		window.setMouseCursorVisible(false);
+		const size_t globalWorkSize = thread_count;
+		const size_t localWorkSize = 1;
+		kernel.setArgument(0, results_buff);
+		command_queue.addKernel(kernel, 1, NULL, &globalWorkSize, &localWorkSize);
+		command_queue.readMemoryObject(results_buff, true, result);
 
-		EventManager event_manager(window);
-
-		sf::Texture tex_lighting;
-		sf::Texture tex_albedo;
-		sf::RenderTexture lighting_render, tex_lighting_upscale;
-		lighting_render.create(WIN_WIDTH * lighting_quality, WIN_HEIGHT * lighting_quality);
-		lighting_render.setSmooth(true);
-		tex_lighting_upscale.create(WIN_WIDTH, WIN_HEIGHT);
-		tex_lighting_upscale.setSmooth(true);
-		Blur blur(WIN_WIDTH, WIN_HEIGHT, 1.0f);
-
-		sf::Shader median; 
-		median.loadFromFile("../res/median.frag", sf::Shader::Fragment);
-
-		// Camera
-		Camera camera;
-		camera.position = glm::vec3(68.7249f, 490.2f, 211.236);
-		camera.view_angle = glm::vec2(0.395287f, 0.00f);
-		camera.fov = 1.0f;
-
-
-		sf::Mouse::setPosition(sf::Vector2i(WIN_WIDTH / 2, WIN_HEIGHT / 2), window);
-		FpsController controller;
-		controller.updateCameraView(glm::vec2(0.0f), camera);
-
-		while (window.isOpen())
-		{
-			//std::cout << camera.camera_vec.x << " " << camera.camera_vec.y << " " << camera.position.z << std::endl;
-			sf::Vector2i mouse_pos = sf::Mouse::getPosition(window);
-			event_manager.processEvents(controller, camera, svo, raytracer.render_mode);
-
-			if (event_manager.mouse_control) {
-				sf::Mouse::setPosition(sf::Vector2i(WIN_WIDTH / 2, WIN_HEIGHT / 2), window);
-				const float mouse_sensitivity = 0.0015f;
-				controller.updateCameraView(mouse_sensitivity * glm::vec2(mouse_pos.x - WIN_WIDTH * 0.5f, (WIN_HEIGHT  * 0.5f) - mouse_pos.y), camera);
-			}
-
-			raytracer.updateKernelArgs(camera);
-			raytracer.render();
-
-			window.clear();
-
-			tex_lighting.loadFromImage(raytracer.getLighting());
-			tex_albedo.loadFromImage(raytracer.getAlbedo());
-
-			sf::Sprite lighting_sprite(tex_lighting);
-			lighting_sprite.setScale(1.0f / lighting_quality, 1.0f / lighting_quality);
-			tex_lighting_upscale.draw(lighting_sprite);
-			tex_lighting_upscale.display();
-			sf::Sprite lighting_sprite_upscale(tex_lighting_upscale.getTexture());
-
-			sf::Sprite albedo_sprite(tex_albedo);
-
-			window.draw(albedo_sprite);
-			if (raytracer.render_mode == 1) {
-				window.draw(lighting_sprite_upscale, sf::BlendAdd);
-			}
-			//window.draw(lighting_sprite_upscale);
-
-
-			window.display();
-		}
+		std::cout << mean(result) << std::endl;
 	}
 	catch (const oclw::Exception& error)
 	{
