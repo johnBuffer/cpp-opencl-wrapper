@@ -36,9 +36,9 @@ public:
 		m_albedo.setArgument(6, render_mode);
 		m_albedo.setArgument(7, m_time);
 
-		/*m_lighting.setArgument(2, camera_position);
+		m_lighting.setArgument(2, camera_position);
 		m_lighting.setArgument(3, m_buff_view_matrix);
-		m_lighting.setArgument(5, m_time);*/
+		m_lighting.setArgument(5, m_time);
 	}
 
 	void render()
@@ -64,7 +64,7 @@ public:
 		});
 		group_albedo.waitExecutionDone();
 		// Run lighting kernel
-		/*renderLighting();
+		renderLighting();
 		const uint32_t light_area_width = static_cast<uint32_t>(area_width * m_lighting_quality);
 		const uint32_t light_area_height = static_cast<uint32_t>(area_height * m_lighting_quality);
 		auto group_lighting = m_swarm.execute([&](uint32_t thread_id, uint32_t max_thread) {
@@ -83,7 +83,7 @@ public:
 			}
 		});
 		// Wait for threads to terminate
-		group_lighting.waitExecutionDone();*/
+		group_lighting.waitExecutionDone();
 	}
 
 	void renderAlbedo()
@@ -96,13 +96,13 @@ public:
 
 	void renderLighting()
 	{
-		/*const size_t work_gorup_width = static_cast<size_t>(m_render_dimension.x * m_lighting_quality);
+		const size_t work_gorup_width = static_cast<size_t>(m_render_dimension.x * m_lighting_quality);
 		const size_t work_gorup_height = static_cast<size_t>(m_render_dimension.y * m_lighting_quality);
 		const size_t globalWorkSize[2] = { work_gorup_width, work_gorup_height };
 		const size_t localWorkSize[2] = { 10, 10 };
 		m_command_queue.addKernel(m_lighting, 2, NULL, globalWorkSize, localWorkSize);
 		m_command_queue.readMemoryObject(m_buff_result_lighting, true, m_result_lighting);
-		m_command_queue.readMemoryObject(m_buff_result_depth, true, m_result_depth);*/
+		m_command_queue.readMemoryObject(m_buff_result_depth, true, m_result_depth);
 	}
 
 	const sf::Image& getAlbedo() const
@@ -184,11 +184,11 @@ private:
 		m_albedo.setArgument(4, m_buff_image_top);
 		m_albedo.setArgument(5, m_buff_image_side);
 
-		/*m_lighting = m_program.createKernel("lighting");
+		m_lighting = m_program.createKernel("lighting");
 		m_lighting.setArgument(0, m_buff_svo);
 		m_lighting.setArgument(1, m_buff_result_lighting);
 		m_lighting.setArgument(4, m_buff_seeds);
-		m_lighting.setArgument(6, m_buff_result_depth);*/
+		m_lighting.setArgument(6, m_buff_result_depth);
 	}
 
 	void loadImagesToDevice()

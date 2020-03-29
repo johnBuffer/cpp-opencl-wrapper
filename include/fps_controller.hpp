@@ -39,11 +39,11 @@ struct FpsController : public CameraController
 
 		// Ground check
 		const HitPoint yp_ray = svo.castRay(camera.position, glm::vec3(0.0f, 1.0f, 0.0f));
-		if (yp_ray.cell) {
+		if (yp_ray.hit) {
 			if (yp_ray.distance < body_height) {
 				can_jump = true;
 				camera.position.y = yp_ray.position.y - body_height;
-				if (v * elapsed_time > 0.1f) {
+				if (v * elapsed_time > 0.1f && yp_ray.cell.type != Cell::Mirror) {
 					SoundPlayer::playInstanceOf(fall);
 				}
 				v = 0.0f;
@@ -52,7 +52,7 @@ struct FpsController : public CameraController
 
 		if (!v) {
 			const float dist = glm::distance(camera.position, last_position);
-			if (dist >= step_size) {
+			if (dist >= step_size && yp_ray.cell.type != Cell::Mirror) {
 				last_position = camera.position;
 				SoundPlayer::playInstanceOf(steps[rand() % steps.size()]);
 			}
@@ -62,28 +62,28 @@ struct FpsController : public CameraController
 		const glm::vec3 feet_position = camera.position + feet_offset;
 
 		const HitPoint xp_ray = svo.castRay(feet_position, glm::vec3(1.0f, 0.0f, 0.0f));
-		if (xp_ray.cell) {
+		if (xp_ray.hit) {
 			if (xp_ray.distance < body_radius) {
 				camera.position.x = xp_ray.position.x - body_radius;
 			}
 		}
 
 		const HitPoint xn_ray = svo.castRay(feet_position, glm::vec3(-1.0f, 0.0f, 0.0f));
-		if (xn_ray.cell) {
+		if (xn_ray.hit) {
 			if (xn_ray.distance < body_radius) {
 				camera.position.x = xn_ray.position.x + body_radius;
 			}
 		}
 
 		const HitPoint zp_ray = svo.castRay(feet_position, glm::vec3(0.0f, 0.0f, 1.0f));
-		if (zp_ray.cell) {
+		if (zp_ray.hit) {
 			if (zp_ray.distance < body_radius) {
 				camera.position.z = zp_ray.position.z - body_radius;
 			}
 		}
 
 		const HitPoint zn_ray = svo.castRay(feet_position, glm::vec3(0.0f, 0.0f, -1.0f));
-		if (zn_ray.cell) {
+		if (zn_ray.hit) {
 			if (zn_ray.distance < body_radius) {
 				camera.position.z = zn_ray.position.z + body_radius;
 			}

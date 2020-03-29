@@ -15,8 +15,8 @@
 
 int main()
 {
-	constexpr uint32_t WIN_WIDTH = 1920;
-	constexpr uint32_t WIN_HEIGHT = 1080;
+	constexpr uint32_t WIN_WIDTH = 1280;
+	constexpr uint32_t WIN_HEIGHT = 720;
 
 	try
 	{
@@ -31,7 +31,7 @@ int main()
 		Raytracer raytracer(WIN_WIDTH, WIN_HEIGHT, max_depth, svo.data, lighting_quality);
 
 		// Main loop
-		sf::RenderWindow window(sf::VideoMode(WIN_WIDTH, WIN_HEIGHT), "OpenCL and SFML", sf::Style::Fullscreen);
+		sf::RenderWindow window(sf::VideoMode(WIN_WIDTH, WIN_HEIGHT), "OpenCL and SFML", sf::Style::Default);
 		window.setMouseCursorVisible(false);
 
 		EventManager event_manager(window);
@@ -89,7 +89,7 @@ int main()
 
 			window.draw(albedo_sprite);
 			if (raytracer.render_mode == 1) {
-				//window.draw(lighting_sprite_upscale, sf::BlendMultiply);
+				window.draw(lighting_sprite_upscale, sf::BlendAdd);
 			}
 			//window.draw(lighting_sprite_upscale);
 

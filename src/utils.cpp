@@ -3,6 +3,7 @@
 #include "ocl_wrapper.hpp"
 #include <algorithm>
 #include <glm/gtc/matrix_transform.hpp>
+#include <SFML/Graphics.hpp>
 
 
 oclw::Context createDefaultContext(oclw::Wrapper& wrapper)
@@ -36,27 +37,31 @@ void generateSVO(uint8_t max_depth, SVO& svo)
 	using Volume = SVO;
 	Volume* volume_raw = &svo;
 
+	sf::Image terrain_height_map;
+	terrain_height_map.loadFromFile("../height_map_2.png");
+	//terrain_height_map.loadFromFile("../terrain_3.jpg");
+
 	FastNoise myNoise;
 	myNoise.SetNoiseType(FastNoise::SimplexFractal);
 	for (uint32_t x = 1; x < grid_size_x - 1; x++) {
 		for (uint32_t z = 1; z < grid_size_z - 1; z++) {
 			int32_t max_height = grid_size_y;
-			float amp_x = x - grid_size_x * 0.5f;
-			float amp_z = z - grid_size_z * 0.5f;
-			float ratio = sqrt(amp_x * amp_x + amp_z * amp_z) / (grid_size_x) * grid_size_x * 0.5f;
-			const float noise_factor = 0.5f;
-			int32_t height = int32_t(128.0f * myNoise.GetNoise(float(noise_factor * x), float(noise_factor * z)));
 
 			volume_raw->setCell(Cell::Solid, Cell::Grass, x, 0, z);
 
-			for (uint32_t u(1); u < 10; ++u) {
+			for (uint32_t u(1); u < 20; ++u) {
 				volume_raw->setCell(Cell::Mirror, Cell::Grass, x, u, z);
 			}
 
+			const int32_t height = float(terrain_height_map.getPixel(x, z).r / 255.0f) * 128.0f;
 			for (int y(1); y < std::min(max_height, height); ++y) {
 				volume_raw->setCell(Cell::Solid, Cell::Grass, x, y, z);
 			}
 		}
+	}
+
+	for (uint32_t u(1); u < grid_size_y; ++u) {
+		//volume_raw->setCell(Cell::Solid, Cell::Grass, 255, u, 255);
 	}
 
 	uint32_t b_start_x = 200;
