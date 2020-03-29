@@ -22,7 +22,7 @@ int main()
 	{
 		const float lighting_quality = 0.5f;
 
-		const uint8_t max_depth = 9;
+		const uint8_t max_depth = 8;
 		SVO* builder = new SVO(max_depth);
 		generateSVO(max_depth, *builder);
 		LSVO svo(*builder, max_depth);
@@ -50,7 +50,7 @@ int main()
 
 		// Camera
 		Camera camera;
-		camera.position = glm::vec3(68.7249f, 490.2f, 211.236);
+		camera.position = glm::vec3(68.7249f, 200.2f, 211.236);
 		camera.view_angle = glm::vec2(0.395287f, 0.00f);
 		camera.fov = 1.0f;
 

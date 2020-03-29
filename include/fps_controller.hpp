@@ -44,7 +44,7 @@ struct FpsController : public CameraController
 				can_jump = true;
 				camera.position.y = yp_ray.position.y - body_height;
 				if (v * elapsed_time > 0.1f && yp_ray.cell.type != Cell::Mirror) {
-					SoundPlayer::playInstanceOf(fall);
+					//SoundPlayer::playInstanceOf(fall);
 				}
 				v = 0.0f;
 			}
@@ -54,7 +54,7 @@ struct FpsController : public CameraController
 			const float dist = glm::distance(camera.position, last_position);
 			if (dist >= step_size && yp_ray.cell.type != Cell::Mirror) {
 				last_position = camera.position;
-				SoundPlayer::playInstanceOf(steps[rand() % steps.size()]);
+				//SoundPlayer::playInstanceOf(steps[rand() % steps.size()]);
 			}
 		}
 

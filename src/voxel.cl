@@ -5,6 +5,7 @@ typedef int            int32_t;
 typedef unsigned int   uint32_t;
 
 // Const values
+__constant float NORMALIZER = 1.0f / 4294967296.0f;
 __constant uint8_t SVO_MAX_DEPTH = 23u;
 __constant sampler_t tex_sampler = CLK_NORMALIZED_COORDS_TRUE | CLK_FILTER_NEAREST;
 //__constant float3 light_position = (float3)(0.0f, 1.0f, 0.0f);
@@ -63,18 +64,20 @@ float frac(float x)
 	return fmin(x - floor(x), EPS);
 }
 
-float rand(__global int32_t* seed, int32_t index)
+float rand(__global int32_t* state, uint32_t index)
 {
-    const int32_t a = 16807;
-    const int32_t m = 2147483647;
-
-    seed[index] = ((long)(seed[index] * a))%m;
-    return (seed[index] / (float)m);
+    // Xorshift algorithm from George Marsaglia's paper
+	int32_t s = state[index];
+    s ^= (s << 13);
+    s ^= (s >> 17);
+    s ^= (s << 5);
+	state[index] = s;
+    return (float)(s) * NORMALIZER;
 }
 
-float3 getRandomizedNormal(float3 normal, __global int32_t* seed, int32_t index)
+float3 getRandomizedNormal(float3 normal, __global int32_t* seed, uint32_t index)
 {
-	const float range = 1.0f;
+	const float range = 5.0f;
 	const float coord_1 = range * rand(seed, index);
 	const float coord_2 = range * rand(seed, index);
 	if (normal.x) {
@@ -241,10 +244,9 @@ float3 getColorFromNormal(char3 normal)
 	}
 }
 
-float getGlobalIllumination(__global Node* svo_data, const float3 position, const float3 normal, float3 light_position, __global int32_t* seed, int32_t index)
+float getGlobalIllumination(__global Node* svo_data, const float3 position, const float3 normal, const float3 light_position, __global int32_t* seed, int32_t index)
 {
 	float gi_add = 0.0f;
-	const float range = 100.0f;
 	const uint32_t ray_count = 1u;
 	const float ray_contrib = 1.0f / (float)ray_count;
 	for (uint32_t i = ray_count; i--;) {
@@ -252,13 +254,15 @@ float getGlobalIllumination(__global Node* svo_data, const float3 position, cons
 		const float3 noise_normal = getRandomizedNormal(normal, seed, index);
 		const HitPoint gi_intersection = castRay(svo_data, position, noise_normal, false);
 		if (gi_intersection.hit) {
-			const float3 gi_normal = convert_float3(gi_intersection.normal);
+			const float3 gi_normal = gi_intersection.normal;
 			const float3 gi_light_start = gi_intersection.position + NORMAL_EPS * gi_normal;
 			const float3 gi_light_direction = normalize(light_position - gi_light_start);
 			const HitPoint gi_light_intersection = castRay(svo_data, gi_light_start, gi_light_direction, false);
 			if (!gi_light_intersection.hit) {
-				gi_add += 2.0f * SUN_INTENSITY * fmax(AMBIENT, dot(gi_normal, gi_light_direction)) * ray_contrib;
+				gi_add += 10.0f * SUN_INTENSITY * fmax(AMBIENT, dot(gi_normal, gi_light_direction)) * ray_contrib;
 			}
+		} else {
+			gi_add += 2.0f;
 		}
 	}
 	
@@ -454,20 +458,17 @@ __kernel void lighting(
 
 	const HitPoint intersection = castRay(svo_data, position, d, false);
 	float3 color = (float3)0.0f;
-	float light_intensity = 1.0f;//SUN_INTENSITY;
+	float light_intensity = 0.0f;//SUN_INTENSITY;
 	if (intersection.hit) {
-		const float3 normal = normalize(convert_float3(intersection.normal));
+		const float3 normal = intersection.normal;
 		const float3 hit_start = intersection.position + NORMAL_EPS * normal;
-		const float3 shadow_ray = normalize(light_position - hit_start);
-
-		/*if (!intersection.water) {
-			light_intensity *= fmax(0.3f, fmin(1.0f, getAmbientOcclusion(svo_data, hit_start, normal, rand_seed, index)));
-		}*/
-		
-		color += getGlobalIllumination(svo_data, hit_start, normal, light_position, rand_seed, index);
+		if (!intersection.water) {
+			color += getGlobalIllumination(svo_data, hit_start, normal, light_position, rand_seed, index);
+			//color *= getAmbientOcclusion(svo_data, hit_start, normal, rand_seed, index);
+		}
 	}
 
-	const float conservation_coef = 0.99f;
+	const float conservation_coef = 0.95f;
 	const float new_contribution_coef = 1.0f - conservation_coef;
 
 	// Color output
