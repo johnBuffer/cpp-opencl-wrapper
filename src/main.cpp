@@ -15,14 +15,14 @@
 
 int main()
 {
-	constexpr uint32_t WIN_WIDTH = 1280;
-	constexpr uint32_t WIN_HEIGHT = 720;
+	constexpr uint32_t WIN_WIDTH = 1920;
+	constexpr uint32_t WIN_HEIGHT = 1080;
 
 	try
 	{
 		const float lighting_quality = 0.5f;
 
-		const uint8_t max_depth = 8;
+		const uint8_t max_depth = 10;
 		SVO* builder = new SVO(max_depth);
 		generateSVO(max_depth, *builder);
 		LSVO svo(*builder, max_depth);
@@ -31,7 +31,7 @@ int main()
 		Raytracer raytracer(WIN_WIDTH, WIN_HEIGHT, max_depth, svo.data, lighting_quality);
 
 		// Main loop
-		sf::RenderWindow window(sf::VideoMode(WIN_WIDTH, WIN_HEIGHT), "OpenCL and SFML", sf::Style::Default);
+		sf::RenderWindow window(sf::VideoMode(WIN_WIDTH, WIN_HEIGHT), "OpenCL and SFML", sf::Style::Fullscreen);
 		window.setMouseCursorVisible(false);
 
 		EventManager event_manager(window);
@@ -83,7 +83,8 @@ int main()
 			lighting_sprite.setScale(1.0f / lighting_quality, 1.0f / lighting_quality);
 			tex_lighting_upscale.draw(lighting_sprite);
 			tex_lighting_upscale.display();
-			sf::Sprite lighting_sprite_upscale(tex_lighting_upscale.getTexture());
+			sf::Sprite lighting_sprite_upscale(blur.apply(tex_lighting_upscale.getTexture(), 1));
+			//sf::Sprite lighting_sprite_upscale(tex_lighting_upscale.getTexture());
 
 			sf::Sprite albedo_sprite(tex_albedo);
 

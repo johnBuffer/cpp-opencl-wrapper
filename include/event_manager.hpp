@@ -107,7 +107,7 @@ struct EventManager
 			}
 		}
 
-		const float boost_value = boost ? 10.0f : 1.0f;
+		const float boost_value = boost ? 10.0f : 5.0f;
 		if (forward) {
 			move += camera.camera_vec;
 		}

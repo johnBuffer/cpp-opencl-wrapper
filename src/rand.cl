@@ -13,6 +13,7 @@ float rand(__global int32_t* seed, int32_t index)
     const int32_t a = 16807;
     const int32_t m = 2147483647;
 
+    seed[index] = ((long)(seed[index] * a))%m;
     return (seed[index] / (float)m);
 }
 

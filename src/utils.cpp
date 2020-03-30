@@ -38,7 +38,7 @@ void generateSVO(uint8_t max_depth, SVO& svo)
 	Volume* volume_raw = &svo;
 
 	sf::Image terrain_height_map;
-	terrain_height_map.loadFromFile("../height_map_2.png");
+	terrain_height_map.loadFromFile("../height_map_3.png");
 	//terrain_height_map.loadFromFile("../terrain_3.jpg");
 
 	FastNoise myNoise;
@@ -53,7 +53,7 @@ void generateSVO(uint8_t max_depth, SVO& svo)
 				volume_raw->setCell(Cell::Mirror, Cell::Grass, x, u, z);
 			}
 
-			const int32_t height = float(terrain_height_map.getPixel(x, z).r / 255.0f) * 128.0f;
+			const int32_t height = float(terrain_height_map.getPixel(x, z).r / 255.0f) * 256.0f;
 			for (int y(1); y < std::min(max_height, height); ++y) {
 				volume_raw->setCell(Cell::Solid, Cell::Grass, x, y, z);
 			}

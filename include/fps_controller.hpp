@@ -21,15 +21,16 @@ struct FpsController : public CameraController
 
 	void move(const glm::vec3& move_vector, Camera& camera, const LSVO& svo, bool boost) override
 	{
-		const float body_height = 1.8f;
+		const float body_height = 0.5f;
 		const float body_radius = 0.2f;
 		const float feet_eps = 0.05f;
 
 		const float elapsed_time = clock.restart().asSeconds();
 		
 
-		if (boost) {
-			camera.position += 10.0f * move_vector * movement_speed * elapsed_time;
+		if (boost || 1) {
+			const float speed = boost ? 10.0f : 1.0f;
+			camera.position += speed * move_vector * movement_speed * elapsed_time;
 		}
 		else {
 			v += elapsed_time * g;
