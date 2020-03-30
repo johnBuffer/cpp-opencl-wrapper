@@ -22,7 +22,7 @@ int main()
 	{
 		const float lighting_quality = 0.5f;
 
-		const uint8_t max_depth = 10;
+		const uint8_t max_depth = 9;
 		SVO* builder = new SVO(max_depth);
 		generateSVO(max_depth, *builder);
 		LSVO svo(*builder, max_depth);

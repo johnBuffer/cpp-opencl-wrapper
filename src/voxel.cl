@@ -374,7 +374,7 @@ float3 getColorAndLightFromIntersection(HitPoint intersection, image2d_t top_ima
 float godRay(__global Node* svo_data, const float3 position, const float3 direction, const float3 light_position)
 {
 	float acc = 0.0f;
-	const float step_size = 1.0f / 350.0f;
+	const float step_size = 1.0f / 128.0f;
 	float t_current = step_size;
 	const HitPoint max_ray = castRay(svo_data, position, direction, false);
 	const float t_max = max_ray.distance;
