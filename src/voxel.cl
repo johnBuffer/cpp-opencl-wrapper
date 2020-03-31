@@ -370,11 +370,10 @@ float3 getColorAndLightFromIntersection(HitPoint intersection, image2d_t top_ima
 	return getColorFromIntersection(intersection, top_image, side_image) * getLightIntensity(intersection, svo_data, light_position, under_water);
 }
 
-
 float godRay(__global Node* svo_data, const float3 position, const float3 direction, const float3 light_position)
 {
 	float acc = 0.0f;
-	const float step_size = 1.0f / 128.0f;
+	const float step_size = 1.0f / 256.0f;
 	float t_current = step_size;
 	const HitPoint max_ray = castRay(svo_data, position, direction, false);
 	const float t_max = max_ray.distance;
@@ -384,9 +383,9 @@ float godRay(__global Node* svo_data, const float3 position, const float3 direct
 		const float3 to_light = normalize(light_position - current_pos);
 		const HitPoint ray = castRay(svo_data, current_pos, to_light, false);
 		if (!ray.hit) {
-			acc += 255.0f * step_size;
+			acc += 100.0f * step_size;
 		} else {
-			acc -= 255.0f * step_size;
+			acc -= 100.0f * step_size;
 		}
 
 		t_current += step_size;
@@ -417,8 +416,8 @@ __kernel void albedo(
 	// Light
 	const float time_of = -1.5f;
 	const float light_radius = 6.0f;
-	const float3 light_position = (float3)(light_radius * cos(time_su * time + time_of) + 1.5f, -2.0f, light_radius * sin(time_su * time + time_of) + 1.5f);
-
+	const float3 light_position = (float3)(light_radius * cos(time_su * time + time_of) + 1.5f, -1.0f, light_radius * sin(time_su * time + time_of) + 1.5f);
+	
 	const float3 d = normalize(multVec3Mat3(screen_position, view_matrix));
 
 	HitPoint intersection = castRay(svo_data, position, d, false);

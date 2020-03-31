@@ -15,14 +15,14 @@
 
 int main()
 {
-	constexpr uint32_t WIN_WIDTH = 1920;
-	constexpr uint32_t WIN_HEIGHT = 1080;
+	constexpr uint32_t WIN_WIDTH = 1600;
+	constexpr uint32_t WIN_HEIGHT = 900;
 
 	try
 	{
 		const float lighting_quality = 0.5f;
 
-		const uint8_t max_depth = 9;
+		const uint8_t max_depth = 8;
 		SVO* builder = new SVO(max_depth);
 		generateSVO(max_depth, *builder);
 		LSVO svo(*builder, max_depth);
@@ -31,7 +31,7 @@ int main()
 		Raytracer raytracer(WIN_WIDTH, WIN_HEIGHT, max_depth, svo.data, lighting_quality);
 
 		// Main loop
-		sf::RenderWindow window(sf::VideoMode(WIN_WIDTH, WIN_HEIGHT), "OpenCL and SFML", sf::Style::Fullscreen);
+		sf::RenderWindow window(sf::VideoMode(WIN_WIDTH, WIN_HEIGHT), "OpenCL and SFML", sf::Style::Default);
 		window.setMouseCursorVisible(false);
 
 		EventManager event_manager(window);
@@ -46,7 +46,7 @@ int main()
 		Blur blur(WIN_WIDTH, WIN_HEIGHT, 1.0f);
 
 		sf::Shader median; 
-		median.loadFromFile("../res/median.frag", sf::Shader::Fragment);
+		median.loadFromFile("../res/median_3.frag", sf::Shader::Fragment);
 
 		// Camera
 		Camera camera;
@@ -88,9 +88,14 @@ int main()
 
 			sf::Sprite albedo_sprite(tex_albedo);
 
+			sf::RenderStates state;
+			state.blendMode = sf::BlendAdd;
+			state.shader = &median;
+
 			window.draw(albedo_sprite);
 			if (raytracer.render_mode == 1) {
-				window.draw(lighting_sprite_upscale, sf::BlendAdd);
+				window.draw(lighting_sprite_upscale, state);
+				//window.draw(lighting_sprite_upscale, sf::BlendMultiply);
 			}
 			//window.draw(lighting_sprite_upscale);
 
