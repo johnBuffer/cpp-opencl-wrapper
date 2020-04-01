@@ -3,9 +3,11 @@
 #include <glm/glm.hpp>
 #include "utils.hpp"
 #include "lsvo.hpp"
+#include <glm/gtx/transform.hpp>
 
 
 constexpr float PI = 3.141592653f;
+
 
 struct CameraRay
 {
@@ -33,17 +35,11 @@ struct Camera
 
 	CameraRay getRay(const glm::vec2& lens_position)
 	{
-		//constexpr float scale = 1.0f / 512.0f;
 		const glm::vec3 screen_position = glm::vec3(lens_position, fov);
-		/*const glm::vec3 ray_initial = screen_position;
-		const glm::vec3 focal_point = glm::normalize(ray_initial) * focal_length;
-		const glm::vec3 rand_vec = aperture * glm::vec3(getRand(), getRand(), 0.0f);
-		const glm::vec3 new_camera_origin = rand_vec;*/
 		const glm::vec3 ray = glm::normalize(screen_position);
 
 		CameraRay result;
 		result.ray = viewToWorld(ray);
-		//result.world_rand_offset = viewToWorld(rand_vec);
 
 		return result;
 	}
@@ -53,11 +49,14 @@ struct Camera
 		return v * rot_mat;
 	}
 
-	/*HitPoint getClosestPoint(const Volumetric& volume) const
+	const glm::mat4 getViewMatrix() const
 	{
-		constexpr float scale = 1.0f / 512.0f;
-		return volume.castRay(position * scale + glm::vec3(1.0f), camera_vec, 0.0f, 0.0f);
-	}*/
+		const glm::vec3 up_vector = glm::vec3(0, 1, 0);
+		glm::mat4 camera = glm::rotate(glm::mat4(), view_angle.x, up_vector);
+		const glm::vec3 pitch_vector = glm::vec3(1, 0, 0);
+		camera = glm::rotate(camera, view_angle.y, pitch_vector);
+		return glm::inverse(camera);
+	}
 };
 
 

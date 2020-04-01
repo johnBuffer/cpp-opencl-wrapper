@@ -11,7 +11,7 @@ __constant sampler_t tex_sampler = CLK_NORMALIZED_COORDS_TRUE | CLK_FILTER_NEARE
 //__constant float3 light_position = (float3)(0.0f, 1.0f, 0.0f);
 __constant float EPS = 0x1.fffffep-1f;
 __constant float NORMAL_EPS = 0.0078125f * 0.0078125f * 0.0078125f;
-__constant float AMBIENT = 0.25f;
+__constant float AMBIENT = 0.0f;
 __constant float SUN_INTENSITY = 10.0f;
 //__constant float3 SKY_COLOR = (float3)(51.0f, 204.0f, 255.0f);
 __constant float3 SKY_COLOR = (float3)(255.0f);
@@ -483,7 +483,7 @@ __kernel void lighting(
 	__constant float* view_matrix,
 	__global int32_t* rand_seed,
 	float time,
-	__global float* depth
+	__global float* frame_points
 ) 
 {
 	const int2 gid = (int2)(get_global_id(0), get_global_id(1));
@@ -500,13 +500,23 @@ __kernel void lighting(
 
 	float3 color = (float3) godRay(svo_data, position, d, light_position);
 
-	const float conservation_coef = 0.0f;
+	const HitPoint intersection = castRay(svo_data, position, d, false);
+	if (intersection.hit) {
+		if (!intersection.water) {
+			const float3 gi_start = intersection.position + intersection.normal * NORMAL_EPS;
+			color += getGlobalIllumination(svo_data, gi_start, intersection.normal, light_position, rand_seed, index);
+		}
+
+		frame_points[3*index + 0] = intersection.position.x;
+		frame_points[3*index + 1] = intersection.position.y;
+		frame_points[3*index + 2] = intersection.position.z;
+	}
+
+	const float conservation_coef = 0.95f;
 	const float new_contribution_coef = 1.0f - conservation_coef;
 
 	// Color output
 	const float final_color = fmin(255.0f, color.x) * new_contribution_coef + result[4 * index ] * conservation_coef;
-	result[4 * index + 0] = final_color;
-	result[4 * index + 1] = final_color;
-	result[4 * index + 2] = final_color;
-	result[4 * index + 3] = 255;
+	
+	colorToResultBuffer((float3)final_color, index, result);
 }

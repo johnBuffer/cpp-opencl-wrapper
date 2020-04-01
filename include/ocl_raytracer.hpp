@@ -18,6 +18,7 @@ public:
 		, m_max_depth(max_depth)
 		, m_swarm(CPU_THREADS)
 		, m_time(0.0f)
+		, m_current_lighting_buffer(0)
 	{
 		m_context = createDefaultContext(m_wrapper);
 		initialize(max_depth, svo_data);
@@ -25,17 +26,28 @@ public:
 
 	void updateKernelArgs(const Camera& camera)
 	{
+		// Swap lighting buffers
+		m_current_lighting_buffer = !m_current_lighting_buffer;
+
 		m_time += 0.001f;
 		const float scale = 1.0f / (1 << m_max_depth);
 		const cl_float3 camera_position = { camera.position.x * scale + 1.0f, camera.position.y * scale + 1.0f, camera.position.z * scale + 1.0f };
-		const cl_float2 camera_direction = { camera.view_angle.x, camera.view_angle.y };
+
+		const glm::mat3 view_mat = camera.getViewMatrix();
+		m_command_queue.writeInMemoryObject(m_buff_view_matrix_reprojection, true, &view_mat[0]);
+		m_reprojection.setArgument(1, m_buff_result_lighting[!m_current_lighting_buffer]);
+		m_reprojection.setArgument(2, m_buff_view_matrix_reprojection);
+		m_reprojection.setArgument(3, camera_position);
+		m_reprojection.setArgument(4, m_buff_result_lighting[m_current_lighting_buffer]);
+
+
 		m_command_queue.writeInMemoryObject(m_buff_view_matrix, true, &camera.rot_mat[0]);
 		m_albedo.setArgument(2, camera_position);
 		m_albedo.setArgument(3, m_buff_view_matrix);
-
 		m_albedo.setArgument(6, render_mode);
 		m_albedo.setArgument(7, m_time);
 
+		m_lighting.setArgument(1, m_buff_result_lighting[m_current_lighting_buffer]);
 		m_lighting.setArgument(2, camera_position);
 		m_lighting.setArgument(3, m_buff_view_matrix);
 		m_lighting.setArgument(5, m_time);
@@ -101,8 +113,7 @@ public:
 		const size_t globalWorkSize[2] = { work_gorup_width, work_gorup_height };
 		const size_t localWorkSize[2] = { 10, 10 };
 		m_command_queue.addKernel(m_lighting, 2, NULL, globalWorkSize, localWorkSize);
-		m_command_queue.readMemoryObject(m_buff_result_lighting, true, m_result_lighting);
-		m_command_queue.readMemoryObject(m_buff_result_depth, true, m_result_depth);
+		m_command_queue.readMemoryObject(m_buff_result_lighting[m_current_lighting_buffer], true, m_result_lighting);
 	}
 
 	const sf::Image& getAlbedo() const
@@ -128,28 +139,33 @@ private:
 	oclw::Context m_context;
 	oclw::CommandQueue m_command_queue;
 	oclw::Program m_program;
+	oclw::Program m_program_reprojection;
+	// Kernels
 	oclw::Kernel m_albedo;
 	oclw::Kernel m_lighting;
+	oclw::Kernel m_reprojection;
 	// Resources
 	sf::Image m_image_side, m_image_top;
 	// Buffers
 	oclw::MemoryObject m_buff_svo;
 	oclw::MemoryObject m_buff_view_matrix;
+	oclw::MemoryObject m_buff_view_matrix_reprojection;
 	oclw::MemoryObject m_buff_result_albedo;
-	oclw::MemoryObject m_buff_result_lighting;
-	oclw::MemoryObject m_buff_result_depth;
+	oclw::MemoryObject m_buff_result_lighting[2];
+	oclw::MemoryObject m_buff_last_frame_points;
 	oclw::MemoryObject m_buff_image_top;
 	oclw::MemoryObject m_buff_image_side;
 	oclw::MemoryObject m_buff_seeds;
+	bool m_current_lighting_buffer;
 
 	std::vector<float> m_result_albedo;
 	std::vector<float> m_result_lighting;
-	std::vector<float> m_result_depth;
 	std::vector<int32_t> m_seeds;
 	// Ouput images
 	swrm::Swarm m_swarm;
 	sf::Image m_output_albedo;
 	sf::Image m_output_lighting;
+
 
 private:
 	void initialize(uint8_t max_depth, std::vector<LSVONode>& svo)
@@ -161,10 +177,12 @@ private:
 		m_command_queue = m_context.createQueue(device);
 		// Create OpenCL program from HelloWorld.cl kernel source
 		m_program = m_context.createProgram(device, "../src/voxel.cl");
+		m_program_reprojection = m_context.createProgram(device, "../src/reprojection.cl");
 		// Create memory objects that will be used as arguments to kernel
 		loadImagesToDevice();
 		m_buff_svo = m_context.createMemoryObject(svo, oclw::ReadOnly | oclw::CopyHostPtr);
 		m_buff_view_matrix = m_context.createMemoryObject<float>(9, oclw::ReadOnly);
+		m_buff_view_matrix_reprojection = m_context.createMemoryObject<float>(9, oclw::ReadOnly);
 		initializeSeeds();
 		m_buff_seeds = m_context.createMemoryObject(m_seeds, oclw::ReadWrite | oclw::CopyHostPtr);
 		// Create output buffers
@@ -174,9 +192,9 @@ private:
 		m_result_albedo.resize(albedo_render_pxl_count * 4);
 		m_buff_result_albedo = m_context.createMemoryObject<float>(m_result_albedo.size(), oclw::WriteOnly);
 		m_result_lighting.resize(light_render_pxl_count * 4);
-		m_buff_result_lighting = m_context.createMemoryObject<float>(m_result_lighting.size(), oclw::WriteOnly);
-		m_result_depth.resize(light_render_pxl_count);
-		m_buff_result_depth = m_context.createMemoryObject<float>(m_result_depth.size(), oclw::WriteOnly);
+		m_buff_result_lighting[0] = m_context.createMemoryObject<float>(m_result_lighting.size(), oclw::ReadWrite);
+		m_buff_result_lighting[1] = m_context.createMemoryObject<float>(m_result_lighting.size(), oclw::ReadWrite);
+		m_buff_last_frame_points = m_context.createMemoryObject<float>(m_result_lighting.size() * 3, oclw::ReadWrite);
 		// Kernels initialization
 		m_albedo = m_program.createKernel("albedo");
 		m_albedo.setArgument(0, m_buff_svo);
@@ -186,9 +204,11 @@ private:
 
 		m_lighting = m_program.createKernel("lighting");
 		m_lighting.setArgument(0, m_buff_svo);
-		m_lighting.setArgument(1, m_buff_result_lighting);
 		m_lighting.setArgument(4, m_buff_seeds);
-		m_lighting.setArgument(6, m_buff_result_depth);
+		m_lighting.setArgument(6, m_buff_last_frame_points);
+	
+		m_reprojection = m_program.createKernel("reproject");
+		m_lighting.setArgument(0, m_buff_last_frame_points);
 	}
 
 	void loadImagesToDevice()

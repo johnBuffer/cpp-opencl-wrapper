@@ -83,14 +83,14 @@ int main()
 			lighting_sprite.setScale(1.0f / lighting_quality, 1.0f / lighting_quality);
 			tex_lighting_upscale.draw(lighting_sprite);
 			tex_lighting_upscale.display();
-			sf::Sprite lighting_sprite_upscale(blur.apply(tex_lighting_upscale.getTexture(), 1));
-			//sf::Sprite lighting_sprite_upscale(tex_lighting_upscale.getTexture());
+			//sf::Sprite lighting_sprite_upscale(blur.apply(tex_lighting_upscale.getTexture(), 1));
+			sf::Sprite lighting_sprite_upscale(tex_lighting_upscale.getTexture());
 
 			sf::Sprite albedo_sprite(tex_albedo);
 
 			sf::RenderStates state;
 			state.blendMode = sf::BlendAdd;
-			state.shader = &median;
+			//state.shader = &median;
 
 			window.draw(albedo_sprite);
 			if (raytracer.render_mode == 1) {
