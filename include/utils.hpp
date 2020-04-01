@@ -22,3 +22,10 @@ uint32_t floatAsInt(const float f);
 
 
 float intAsFloat(const uint32_t i);
+
+
+std::string vecToString(const glm::vec3& v);
+
+
+// To Be Deleted
+glm::vec3 projVec(const glm::vec3& v);

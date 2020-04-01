@@ -49,13 +49,15 @@ struct Camera
 		return v * rot_mat;
 	}
 
-	const glm::mat4 getViewMatrix() const
+	const glm::mat3 getViewMatrix() const
 	{
-		const glm::vec3 up_vector = glm::vec3(0, 1, 0);
+		const glm::vec2 arranged(-view_angle.x, view_angle.y);
+		return generateRotationMatrix(arranged);
+		/*const glm::vec3 up_vector = glm::vec3(0, 1, 0);
 		glm::mat4 camera = glm::rotate(glm::mat4(), view_angle.x, up_vector);
 		const glm::vec3 pitch_vector = glm::vec3(1, 0, 0);
 		camera = glm::rotate(camera, view_angle.y, pitch_vector);
-		return glm::inverse(camera);
+		return glm::inverse(camera);*/
 	}
 };
 

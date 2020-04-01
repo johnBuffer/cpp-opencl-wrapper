@@ -267,7 +267,7 @@ float getGlobalIllumination(__global Node* svo_data, const float3 position, cons
 			const float3 gi_light_direction = normalize(light_position - gi_light_start);
 			const HitPoint gi_light_intersection = castRay(svo_data, gi_light_start, gi_light_direction, false);
 			if (!gi_light_intersection.hit) {
-				gi_add += 10.0f * SUN_INTENSITY * fmax(AMBIENT, dot(gi_normal, gi_light_direction)) * ray_contrib;
+				gi_add += 200.0f * SUN_INTENSITY * fmax(AMBIENT, dot(gi_normal, gi_light_direction)) * ray_contrib;
 			}
 		} else {
 			gi_add += 2.0f;
@@ -498,7 +498,7 @@ __kernel void lighting(
 
 	const float3 d = normalize(multVec3Mat3(screen_position, view_matrix));
 
-	float3 color = (float3) godRay(svo_data, position, d, light_position);
+	float3 color = (float3)(0.0f);//godRay(svo_data, position, d, light_position);
 
 	const HitPoint intersection = castRay(svo_data, position, d, false);
 	if (intersection.hit) {
@@ -507,9 +507,13 @@ __kernel void lighting(
 			color += getGlobalIllumination(svo_data, gi_start, intersection.normal, light_position, rand_seed, index);
 		}
 
-		frame_points[3*index + 0] = intersection.position.x;
-		frame_points[3*index + 1] = intersection.position.y;
-		frame_points[3*index + 2] = intersection.position.z;
+		frame_points[4*index + 0] = intersection.position.x;
+		frame_points[4*index + 1] = intersection.position.y;
+		frame_points[4*index + 2] = intersection.position.z;
+		frame_points[4*index + 3] = 1.0f;
+	}
+	else {
+		frame_points[4*index + 3] = 0.0f;
 	}
 
 	const float conservation_coef = 0.95f;

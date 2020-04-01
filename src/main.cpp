@@ -51,7 +51,8 @@ int main()
 		// Camera
 		Camera camera;
 		camera.position = glm::vec3(68.7249f, 200.2f, 211.236);
-		camera.view_angle = glm::vec2(0.395287f, 0.00f);
+		//camera.view_angle = glm::vec2(0.395287f, 0.00f);
+		camera.view_angle = glm::vec2(0.0f);
 		camera.fov = 1.0f;
 
 
@@ -97,8 +98,14 @@ int main()
 				window.draw(lighting_sprite_upscale, state);
 				//window.draw(lighting_sprite_upscale, sf::BlendMultiply);
 			}
-			//window.draw(lighting_sprite_upscale);
+			window.draw(lighting_sprite_upscale);
 
+			const float aim_size = 2.0f;
+			sf::RectangleShape aim(sf::Vector2f(aim_size, aim_size));
+			aim.setOrigin(aim_size * 0.5f, aim_size * 0.5f);
+			aim.setPosition(800, 450);
+			aim.setFillColor(sf::Color::Red);
+			window.draw(aim);
 
 			window.display();
 		}

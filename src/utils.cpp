@@ -4,6 +4,8 @@
 #include <algorithm>
 #include <glm/gtc/matrix_transform.hpp>
 #include <SFML/Graphics.hpp>
+#include <sstream>
+#include <cmath>
 
 
 oclw::Context createDefaultContext(oclw::Wrapper& wrapper)
@@ -27,6 +29,7 @@ oclw::Context createDefaultContext(oclw::Wrapper& wrapper)
 	std::cout << "Done." << std::endl;
 	return context;
 }
+
 
 void generateSVO(uint8_t max_depth, SVO& svo)
 {
@@ -90,6 +93,7 @@ void generateSVO(uint8_t max_depth, SVO& svo)
 	}*/
 }
 
+
 glm::mat3 generateRotationMatrix(const glm::vec2& angle)
 {
 	const glm::mat4 rx = glm::rotate(glm::mat4(1.0f), -angle.x, glm::vec3(0.0f, 1.0f, 0.0f));
@@ -116,3 +120,32 @@ float intAsFloat(const uint32_t i)
 {
 	return *(float*)(&i);
 }
+
+
+std::string vecToString(const glm::vec3 & v)
+{
+	std::stringstream sx;
+	sx << "(" << v.x << ", " << v.y << ", " << v.z << ")";
+	return sx.str();
+}
+
+
+glm::vec3 projVec(const glm::vec3& in)
+{
+	const float screen_size_x = 800;
+	const float screen_size_y = 450;
+	const float aspect_ratio = 16.0f / 9.0f;
+	const float near = 0.5f;
+
+	glm::vec3 out(0.0f);
+
+	out.x = near * in.x / (in.z);
+	out.y = near * in.y / (in.z);
+	out.z = near;
+
+	out.x = int((out.x + 0.5f) * screen_size_x);
+	out.y = int((out.y * aspect_ratio + 0.5f) * screen_size_y);
+
+	return out;
+}
+

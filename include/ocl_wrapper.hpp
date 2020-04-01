@@ -338,6 +338,11 @@ namespace oclw
 			checkError(err_num, "Cannot write in buffer");
 		}
 
+		void waitCompletion()
+		{
+			clFinish(m_command_queue);
+		}
+
 	private:
 		cl_command_queue m_command_queue;
 	};
