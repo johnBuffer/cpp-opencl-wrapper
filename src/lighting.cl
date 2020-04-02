@@ -93,16 +93,18 @@ float rand(__global int32_t* state, uint32_t index)
 
 float3 getRandomizedNormal(float3 normal, __global int32_t* seed, uint32_t index)
 {
-	const float range = 5.0f;
+	const float range = 2.0f;
 	const float coord_1 = range * rand(seed, index);
 	const float coord_2 = range * rand(seed, index);
 	if (normal.x) {
 		return normalize((float3)(normal.x, coord_1, coord_2));
 	}
-	else if (normal.y) {
+	
+	if (normal.y) {
 		return normalize((float3)(coord_1, normal.y, coord_2));
 	}
-	else if (normal.z) {
+	
+	if (normal.z) {
 		return normalize((float3)(coord_1, coord_2, normal.z));
 	}
 
@@ -264,7 +266,7 @@ float getGlobalIllumination(__global Node* svo_data, const float3 position, cons
             gi_add += SUN_INTENSITY * fmax(AMBIENT, dot(gi_normal, gi_light_direction));
         }
     } else {
-        gi_add += 0.2f;
+        //gi_add += 0.2f;
     }
 	
 	
@@ -279,7 +281,6 @@ void colorToResultBuffer(float3 color, uint32_t index, __global float* buffer)
 	buffer[4 * index + 2] = color.z;
 	buffer[4 * index + 3] = 255.0f;
 }
-
 
 
 int2 projectPoint(const float3 in, const int2 screen_size)
@@ -347,7 +348,7 @@ __kernel void lighting(
 			const float3 gi_start = intersection.position + intersection.normal * NORMAL_EPS;
 			const float3 gi = getGlobalIllumination(svo_data, gi_start, intersection.normal, light_position, rand_seed, index);
             // Accumulation
-            const float conservation_coef = 0.0f;
+            const float conservation_coef = 0.8f;
             const float new_contribution_coef = 1.0f - conservation_coef;
             const float old = getOldValue(last_frame_color, last_view_matrix, last_position, intersection.position, screen_size);
             color = fmin(1.0f, gi.x) * new_contribution_coef + old * conservation_coef;

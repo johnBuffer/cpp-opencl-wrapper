@@ -260,68 +260,12 @@ float3 getColorFromIntersection(HitPoint intersection, image2d_t top_image, imag
 {
 	float3 color = SKY_COLOR;
 	
-	const float y = 256.0f * (1.0f - (intersection.position.y - 1.0f));
-
-	const float lvl_0 = 10;
-	const float lvl_1 = 12;
-	const float lvl_2 = 30;
-	const float lvl_3 = 120;
-
-	const float3 lvl_0_color = (float3)(252, 224, 111);
-	const float3 lvl_1_color = (float3)(72, 122, 60);
-	//const float3 lvl_2_color = (float3)(143, 143, 143);
-	const float3 lvl_2_color = (float3)(99, 87, 71);
-	const float3 lvl_3_color = (float3)(64, 62, 57);
-
-	if (y < lvl_0) {
-		color = lvl_0_color;
-	}
-	else if (y < lvl_1) {
-		const float r = ratio(y - lvl_0, lvl_1 - lvl_0);
-		color = lvl_0_color * (1.0f - r) + lvl_1_color * r;
-	}
-	else if (y < lvl_2) {
-		const float r = ratio(y - lvl_1, lvl_2 - lvl_1);
-		color = lvl_1_color * (1.0f - r) + lvl_2_color * r;
-	}
-	else if (y < lvl_3) {
-		const float r = ratio(y - lvl_2, lvl_3 - lvl_2);
-		color = lvl_2_color * (1.0f - r) + lvl_3_color * r;
-	}
-	else {
-		color = (float3)(250);
-	}
-
-	return color * fmin(1.0f, 0.5f + (read_imagei(top_image, tex_sampler, intersection.tex_coords).x / 255.0f));
+	return (float3)255.0f;
 }
 
 float3 getColorAndLightFromIntersection(HitPoint intersection, image2d_t top_image, image2d_t side_image, __global Node* svo_data, float3 light_position, bool under_water)
 {
 	return getColorFromIntersection(intersection, top_image, side_image) * getLightIntensity(intersection, svo_data, light_position, under_water);
-}
-
-float godRay(__global Node* svo_data, const float3 position, const float3 direction, const float3 light_position)
-{
-	float acc = 0.0f;
-	const float step_size = 1.0f / 256.0f;
-	float t_current = step_size;
-	const HitPoint max_ray = castRay(svo_data, position, direction, false);
-	const float t_max = max_ray.distance;
-
-	while (t_current < t_max) {
-		const float3 current_pos = position + direction * t_current;
-		const float3 to_light = normalize(light_position - current_pos);
-		const HitPoint ray = castRay(svo_data, current_pos, to_light, false);
-		if (!ray.hit) {
-			acc += 100.0f * step_size;
-		} else {
-			acc -= 100.0f * step_size;
-		}
-
-		t_current += step_size;
-	}
-
-	return fmax(0.0f, acc);
 }
 
 
@@ -354,9 +298,10 @@ __kernel void albedo(
 	HitPoint intersection = castRay(svo_data, position, d, false);
 
 	float3 color = SKY_COLOR;
-	float light_intensity = 1.0f;
+	float light_intensity = 0.0f;
 	if (intersection.hit) {
 		if (intersection.water) {
+			light_intensity = 1.0f;
 			const float distortion_strength = 0.01f;
 			float3 normal_distortion = (float3)(0.0f);
 			const float3 mirror_color = WATER_COLOR;

@@ -20,9 +20,9 @@ int main()
 
 	try
 	{
-		const float lighting_quality = 0.5f;
+		const float lighting_quality = 1.0f;
 
-		const uint8_t max_depth = 8;
+		const uint8_t max_depth = 9;
 		SVO* builder = new SVO(max_depth);
 		generateSVO(max_depth, *builder);
 		LSVO svo(*builder, max_depth);
@@ -31,7 +31,7 @@ int main()
 		Raytracer raytracer(WIN_WIDTH, WIN_HEIGHT, max_depth, svo.data, lighting_quality);
 
 		// Main loop
-		sf::RenderWindow window(sf::VideoMode(WIN_WIDTH, WIN_HEIGHT), "OpenCL and SFML", sf::Style::Fullscreen);
+		sf::RenderWindow window(sf::VideoMode(WIN_WIDTH, WIN_HEIGHT), "OpenCL and SFML", sf::Style::Default);
 		window.setMouseCursorVisible(false);
 
 		EventManager event_manager(window);

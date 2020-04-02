@@ -14,7 +14,8 @@ __kernel void combine(
 	const int2 gid = (int2)(get_global_id(0), get_global_id(1));
 	const int2 screen_size = (int2)(get_global_size(0), get_global_size(1));
 	const uint32_t index = gid.x + gid.y * screen_size.x;
-	const uint32_t index_light = gid.x/2 + gid.y/2 * screen_size.x/2;
+	const uint32_t light_downscale = 1;
+	const uint32_t index_light = gid.x/light_downscale + gid.y/light_downscale * screen_size.x/light_downscale;
 
 	const float light_intensity = fmin(1.0f, shadow[index] + lighting[4 * index_light]);
 

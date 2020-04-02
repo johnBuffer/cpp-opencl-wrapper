@@ -29,13 +29,11 @@ public:
 		// Swap lighting buffers
 		/*if (!render_mode) {
 		}*/
-		m_current_lighting_buffer = !m_current_lighting_buffer;
+		//m_current_lighting_buffer = !m_current_lighting_buffer;
 
 		m_time += 0.001f;
 		const float scale = 1.0f / (1 << m_max_depth);
 		const cl_float3 camera_position = { camera.position.x * scale + 1.0f, camera.position.y * scale + 1.0f, camera.position.z * scale + 1.0f };
-
-		camera_ptr = &camera;
 
 		if (first) {
 			first = false;
@@ -75,7 +73,7 @@ public:
 		renderAlbedo();
 		// Run lighting kernel
 		renderLighting();
-		//biblur();
+		biblur();
 		combine();
 
 		auto group_albedo = m_swarm.execute([&](uint32_t thread_id, uint32_t max_thread) {
@@ -122,8 +120,9 @@ public:
 	{
 		const size_t work_gorup_width = static_cast<size_t>(m_render_dimension.x * m_lighting_quality);
 		const size_t work_gorup_height = static_cast<size_t>(m_render_dimension.y * m_lighting_quality);
+		//std::cout << work_gorup_width << " " << work_gorup_height << std::endl;
 		const size_t globalWorkSize[2] = { work_gorup_width, work_gorup_height };
-		const size_t localWorkSize[2] = { 10, 10 };
+		const size_t localWorkSize[2] = { 20, 20 };
 		m_command_queue.addKernel(m_lighting, 2, NULL, globalWorkSize, localWorkSize);
 		m_command_queue.readMemoryObject(m_buff_result_lighting[m_current_lighting_buffer], true, m_result_lighting);
 	}
@@ -133,7 +132,7 @@ public:
 		const size_t work_gorup_width = static_cast<size_t>(m_render_dimension.x * m_lighting_quality);
 		const size_t work_gorup_height = static_cast<size_t>(m_render_dimension.y * m_lighting_quality);
 		const size_t globalWorkSize[2] = { work_gorup_width, work_gorup_height };
-		const size_t localWorkSize[2] = { 10, 10 };
+		const size_t localWorkSize[2] = { 20, 20 };
 
 		m_biblur.setArgument(0, m_buff_result_lighting[m_current_lighting_buffer]);
 		m_biblur.setArgument(2, m_buff_result_lighting[!m_current_lighting_buffer]);
@@ -160,7 +159,7 @@ public:
 	void combine()
 	{
 		const size_t globalWorkSize[2] = { m_render_dimension.x, m_render_dimension.y };
-		const size_t localWorkSize[2] = { 20, 20 };
+		const size_t localWorkSize[2] = { 40, 20 };
 		m_command_queue.addKernel(m_combinator, 2, NULL, globalWorkSize, localWorkSize);
 		m_command_queue.readMemoryObject(m_buff_result_albedo, true, m_result_albedo);
 	}
@@ -220,7 +219,7 @@ private:
 	sf::Image m_output_lighting;
 
 	// Dev
-	const Camera* camera_ptr;
+	//const Camera* camera_ptr;
 	bool first = true;
 	glm::mat3 old_view;
 	cl_float3 old_pos;
