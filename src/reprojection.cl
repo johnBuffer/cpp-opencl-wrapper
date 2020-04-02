@@ -5,6 +5,9 @@ typedef int            int32_t;
 typedef unsigned int   uint32_t;
 
 
+__constant float NEAR = 0.5f;
+
+
 /*float3 multVec3Mat3(float3 v, __constant float* mat)
 {
 	return (float3)(
@@ -14,7 +17,7 @@ typedef unsigned int   uint32_t;
 	);
 }*/
 
-float3 multVec3Mat3(float3 v, __constant float* mat)
+float3 preMultVec3Mat3(float3 v, __constant float* mat)
 {
 	return (float3)(
 		v.x * mat[0] + v.y * mat[3] + v.z * mat[6],
@@ -24,15 +27,21 @@ float3 multVec3Mat3(float3 v, __constant float* mat)
 }
 
 
-int2 projectPoint(const float3 in, const int2 screen_size, const float near)
+int2 projectPoint(const float3 in, const int2 screen_size)
 {
 	const float aspect_ratio = screen_size.x / (float)screen_size.y;
 
-    int2 out;
-	out.x = (int32_t)((near * in.x / in.z + 0.5f) * screen_size.x);
-	out.y = (int32_t)(((aspect_ratio * near * in.y / in.z) + 0.5f) * screen_size.y);
+    float2 out_f;
+    const float inv_z = 1.0f / in.z;
 
-	return out;
+	out_f.x = (NEAR * in.x * inv_z) + 0.5f;
+	out_f.y = (aspect_ratio * NEAR * in.y * inv_z) + 0.5f;
+
+    int2 out_i;
+    out_i.x = out_f.x * (screen_size.x + 1);
+    out_i.y = out_f.y * (screen_size.y + 1);
+
+	return out_i;
 }
 
 
@@ -69,7 +78,7 @@ __kernel void reproject(
     const float4 buffer_point = getFloat4FromBuffer(last_frame_points, index);
     if (buffer_point.w) {
         const float3 view_point = multVec3Mat3(buffer_point.xyz - camera_position, view_matrix);
-        const int2 projected_point = projectPoint(view_point, screen_size, 0.5f);
+        const int2 projected_point = projectPoint(view_point, screen_size);
 
         const int32_t point_index = projected_point.x + projected_point.y * screen_size.x;
         if (projected_point.x >= 0 && projected_point.x < screen_size.x && projected_point.y >= 0 && projected_point.y < screen_size.y) {

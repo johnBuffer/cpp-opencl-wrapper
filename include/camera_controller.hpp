@@ -18,6 +18,8 @@ struct CameraRay
 struct Camera
 {
 	glm::vec3 position;
+	glm::vec3 last_move;
+
 	glm::vec2 view_angle;
 	glm::vec3 camera_vec;
 	glm::mat3 rot_mat;
@@ -31,6 +33,12 @@ struct Camera
 		view_angle = angle;
 		rot_mat = generateRotationMatrix(view_angle);
 		camera_vec = viewToWorld(glm::vec3(0.0f, 0.0f, 1.0f));
+	}
+
+	void move(const glm::vec3& m)
+	{
+		last_move = m;
+		position += m;
 	}
 
 	CameraRay getRay(const glm::vec2& lens_position)

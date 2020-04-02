@@ -12,7 +12,7 @@ oclw::Context createDefaultContext(oclw::Wrapper& wrapper);
 void generateSVO(uint8_t max_depth, SVO& svo);
 
 
-glm::mat3 generateRotationMatrix(const glm::vec2& angle);
+glm::mat4 generateRotationMatrix(const glm::vec2& angle);
 
 
 float frac(float f);

@@ -35,14 +35,19 @@ public:
 
 		camera_ptr = &camera;
 
-		const glm::mat3 view_mat = camera.getViewMatrix();
-		//m_command_queue.writeInMemoryObject(m_buff_view_matrix_reprojection, true, &view_mat[0]);
+		if (first) {
+			first = false;
+			old_view = camera.rot_mat;
+			old_pos = camera_position;
+		}
+
+		m_command_queue.writeInMemoryObject(m_buff_view_matrix_old, true, &old_view[0]);
 		m_command_queue.writeInMemoryObject(m_buff_view_matrix, true, &camera.rot_mat[0]);
 
-		m_reprojection.setArgument(1, m_buff_result_lighting[!m_current_lighting_buffer]);
+		/*m_reprojection.setArgument(1, m_buff_result_lighting[!m_current_lighting_buffer]);
 		m_reprojection.setArgument(2, m_buff_view_matrix);
 		m_reprojection.setArgument(3, camera_position);
-		m_reprojection.setArgument(4, m_buff_result_lighting[m_current_lighting_buffer]);
+		m_reprojection.setArgument(4, m_buff_result_lighting[m_current_lighting_buffer]);*/
 
 		m_albedo.setArgument(2, camera_position);
 		m_albedo.setArgument(3, m_buff_view_matrix);
@@ -53,17 +58,23 @@ public:
 		m_lighting.setArgument(2, camera_position);
 		m_lighting.setArgument(3, m_buff_view_matrix);
 		m_lighting.setArgument(5, m_time);
+		m_lighting.setArgument(6, m_buff_result_lighting[!m_current_lighting_buffer]);
+		m_lighting.setArgument(7, m_buff_view_matrix_old);
+		m_lighting.setArgument(8, old_pos);
+
+		old_view = camera.rot_mat;
+		old_pos = camera_position;
 	}
 
 	void render()
 	{
-		reproject();
+		//reproject();
 
 		const uint32_t area_count = static_cast<uint32_t>(sqrt(CPU_THREADS));
 		const uint32_t area_width = m_render_dimension.x / area_count;
 		const uint32_t area_height = m_render_dimension.y / area_count;
 		// Run albedo kernel
-		renderAlbedo();
+		/*renderAlbedo();
 		auto group_albedo = m_swarm.execute([&](uint32_t thread_id, uint32_t max_thread) {
 			const uint32_t start_x = thread_id % 4;
 			const uint32_t start_y = thread_id / 4;
@@ -78,7 +89,7 @@ public:
 				}
 			}
 		});
-		group_albedo.waitExecutionDone();
+		group_albedo.waitExecutionDone();*/
 		// Run lighting kernel
 		renderLighting();
 		m_command_queue.waitCompletion();
@@ -99,27 +110,22 @@ public:
 				}
 			}
 		});
+		group_lighting.waitExecutionDone();
 
 		// To Be Removed
-		const float scale = 1.0f / (1 << m_max_depth);
+		/*const float scale = 1.0f / (1 << m_max_depth);
 		const glm::vec3 camera_position = { camera_ptr->position.x * scale + 1.0f, camera_ptr->position.y * scale + 1.0f, camera_ptr->position.z * scale + 1.0f };
-		const uint32_t pt_x(672);
-		const uint32_t pt_y(442);
+		const uint32_t pt_x(400);
+		const uint32_t pt_y(225);
 		const uint32_t index = pt_x + pt_y * 800;
 		const glm::vec3 point(m_result_points[4 * index + 0], m_result_points[4 * index + 1], m_result_points[4 * index + 2]);
 		const glm::vec3 view_point_1 = camera_ptr->rot_mat * (point - camera_position);
-		//const glm::vec3 view_point_2 = (point - camera_position) * camera_ptr->rot_mat;
-
-		/*std::cout << "Camera pos   " << camera_position.x << ", " << camera_position.y << ", " << camera_position.z << std::endl;
-		std::cout << "Camera view  " << camera_ptr->view_angle.x << ", " << camera_ptr->view_angle.y << std::endl;
-		std::cout << "World point  " << vecToString(point) << std::endl;
-		std::cout << "View point 1 " << vecToString(view_point_1) << std::endl;*/
-		//std::cout << "View point 2 " << vecToString(view_point_2) << std::endl;
-		//std::cout << "Test       1 " << vecToString(projVec(view_point_1)) << std::endl << std::endl;
-		//std::cout << "Test       2 " << vecToString(projVec(view_point_2)) << std::endl << std::endl;
+		const glm::vec3 view_point_2 = (point - camera_position) * camera_ptr->rot_mat;
+		std::cout << "Camera pos   " << camera_position.x << ", " << camera_position.y << ", " << camera_position.z << std::endl;
+		std::cout << "View point 1 " << vecToString(view_point_1) << std::endl;
+		std::cout << "Test       1 " << vecToString(projVec(view_point_1)) << std::endl << std::endl;*/
 
 		// Wait for threads to terminate
-		group_lighting.waitExecutionDone();
 	}
 
 	void renderAlbedo()
@@ -138,7 +144,6 @@ public:
 		const size_t localWorkSize[2] = { 10, 10 };
 		m_command_queue.addKernel(m_lighting, 2, NULL, globalWorkSize, localWorkSize);
 		m_command_queue.readMemoryObject(m_buff_result_lighting[m_current_lighting_buffer], true, m_result_lighting);
-		m_command_queue.readMemoryObject(m_buff_last_frame_points, true, m_result_points);
 	}
 
 	void reproject()
@@ -174,7 +179,7 @@ private:
 	oclw::Context m_context;
 	oclw::CommandQueue m_command_queue;
 	oclw::Program m_program;
-	oclw::Program m_program_reprojection;
+	oclw::Program m_program_gi;
 	// Kernels
 	oclw::Kernel m_albedo;
 	oclw::Kernel m_lighting;
@@ -184,7 +189,7 @@ private:
 	// Buffers
 	oclw::MemoryObject m_buff_svo;
 	oclw::MemoryObject m_buff_view_matrix;
-	oclw::MemoryObject m_buff_view_matrix_reprojection;
+	oclw::MemoryObject m_buff_view_matrix_old;
 	oclw::MemoryObject m_buff_result_albedo;
 	oclw::MemoryObject m_buff_result_lighting[2];
 	oclw::MemoryObject m_buff_last_frame_points;
@@ -204,6 +209,9 @@ private:
 
 	// Dev
 	const Camera* camera_ptr;
+	bool first = true;
+	glm::mat3 old_view;
+	cl_float3 old_pos;
 
 
 private:
@@ -216,12 +224,12 @@ private:
 		m_command_queue = m_context.createQueue(device);
 		// Create OpenCL program from HelloWorld.cl kernel source
 		m_program = m_context.createProgram(device, "../src/voxel.cl");
-		m_program_reprojection = m_context.createProgram(device, "../src/reprojection.cl");
+		m_program_gi = m_context.createProgram(device, "../src/lighting.cl");
 		// Create memory objects that will be used as arguments to kernel
 		loadImagesToDevice();
 		m_buff_svo = m_context.createMemoryObject(svo, oclw::ReadOnly | oclw::CopyHostPtr);
 		m_buff_view_matrix = m_context.createMemoryObject<float>(9, oclw::ReadOnly);
-		m_buff_view_matrix_reprojection = m_context.createMemoryObject<float>(9, oclw::ReadOnly);
+		m_buff_view_matrix_old = m_context.createMemoryObject<float>(9, oclw::ReadOnly);
 		initializeSeeds();
 		m_buff_seeds = m_context.createMemoryObject(m_seeds, oclw::ReadWrite | oclw::CopyHostPtr);
 		// Create output buffers
@@ -242,13 +250,10 @@ private:
 		m_albedo.setArgument(4, m_buff_image_top);
 		m_albedo.setArgument(5, m_buff_image_side);
 
-		m_lighting = m_program.createKernel("lighting");
+		m_lighting = m_program_gi.createKernel("lighting");
 		m_lighting.setArgument(0, m_buff_svo);
 		m_lighting.setArgument(4, m_buff_seeds);
-		m_lighting.setArgument(6, m_buff_last_frame_points);
-	
-		m_reprojection = m_program_reprojection.createKernel("reproject");
-		m_reprojection.setArgument(0, m_buff_last_frame_points);
+		//m_lighting.setArgument(6, m_buff_last_frame_points);
 	}
 
 	void loadImagesToDevice()

@@ -94,7 +94,7 @@ void generateSVO(uint8_t max_depth, SVO& svo)
 }
 
 
-glm::mat3 generateRotationMatrix(const glm::vec2& angle)
+glm::mat4 generateRotationMatrix(const glm::vec2& angle)
 {
 	const glm::mat4 rx = glm::rotate(glm::mat4(1.0f), -angle.x, glm::vec3(0.0f, 1.0f, 0.0f));
 	const glm::mat4 ry = glm::rotate(glm::mat4(1.0f), -angle.y, glm::vec3(1.0f, 0.0f, 0.0f));
@@ -143,8 +143,8 @@ glm::vec3 projVec(const glm::vec3& in)
 	out.y = near * in.y / (in.z);
 	out.z = near;
 
-	out.x = int((out.x + 0.5f) * screen_size_x);
-	out.y = int((out.y * aspect_ratio + 0.5f) * screen_size_y);
+	out.x = int((out.x + 0.5f) * (screen_size_x + 1));
+	out.y = int((out.y * aspect_ratio + 0.5f) * (screen_size_y + 1));
 
 	return out;
 }

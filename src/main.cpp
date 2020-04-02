@@ -20,7 +20,7 @@ int main()
 
 	try
 	{
-		const float lighting_quality = 0.5f;
+		const float lighting_quality = 1.0f;
 
 		const uint8_t max_depth = 8;
 		SVO* builder = new SVO(max_depth);
@@ -31,7 +31,7 @@ int main()
 		Raytracer raytracer(WIN_WIDTH, WIN_HEIGHT, max_depth, svo.data, lighting_quality);
 
 		// Main loop
-		sf::RenderWindow window(sf::VideoMode(WIN_WIDTH, WIN_HEIGHT), "OpenCL and SFML", sf::Style::Default);
+		sf::RenderWindow window(sf::VideoMode(WIN_WIDTH, WIN_HEIGHT), "OpenCL and SFML", sf::Style::Fullscreen);
 		window.setMouseCursorVisible(false);
 
 		EventManager event_manager(window);
@@ -46,11 +46,12 @@ int main()
 		Blur blur(WIN_WIDTH, WIN_HEIGHT, 1.0f);
 
 		sf::Shader median; 
-		median.loadFromFile("../res/median_3.frag", sf::Shader::Fragment);
+		median.loadFromFile("../res/median.frag", sf::Shader::Fragment);
 
 		// Camera
 		Camera camera;
 		camera.position = glm::vec3(68.7249f, 200.2f, 211.236);
+		camera.last_move = glm::vec3(0.0f);
 		//camera.view_angle = glm::vec2(0.395287f, 0.00f);
 		camera.view_angle = glm::vec2(0.0f);
 		camera.fov = 1.0f;
@@ -95,17 +96,17 @@ int main()
 
 			window.draw(albedo_sprite);
 			if (raytracer.render_mode == 1) {
-				window.draw(lighting_sprite_upscale, state);
+				//window.draw(lighting_sprite_upscale, state);
 				//window.draw(lighting_sprite_upscale, sf::BlendMultiply);
 			}
-			window.draw(lighting_sprite_upscale);
+			window.draw(lighting_sprite_upscale, state);
 
 			const float aim_size = 2.0f;
 			sf::RectangleShape aim(sf::Vector2f(aim_size, aim_size));
 			aim.setOrigin(aim_size * 0.5f, aim_size * 0.5f);
 			aim.setPosition(800, 450);
 			aim.setFillColor(sf::Color::Red);
-			window.draw(aim);
+			//window.draw(aim);
 
 			window.display();
 		}
