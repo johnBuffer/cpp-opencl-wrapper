@@ -72,8 +72,8 @@ public:
 		// Run albedo kernel
 		renderAlbedo();
 		// Run lighting kernel
-		renderLighting();
-		biblur();
+		//renderLighting();
+		//biblur();
 		combine();
 
 		auto group_albedo = m_swarm.execute([&](uint32_t thread_id, uint32_t max_thread) {
