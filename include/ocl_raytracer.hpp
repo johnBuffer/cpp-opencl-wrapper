@@ -41,7 +41,7 @@ public:
 			old_pos = camera_position;
 		}
 
-		m_command_queue.writeInMemoryObject(m_buff_view_matrix_old, true, &old_view[0]);
+		//m_command_queue.writeInMemoryObject(m_buff_view_matrix_old, true, &old_view[0]);
 		m_command_queue.writeInMemoryObject(m_buff_view_matrix, true, &camera.rot_mat[0]);
 
 		m_albedo.setArgument(2, camera_position);
@@ -74,7 +74,7 @@ public:
 		// Run lighting kernel
 		//renderLighting();
 		//biblur();
-		combine();
+		//combine();
 
 		auto group_albedo = m_swarm.execute([&](uint32_t thread_id, uint32_t max_thread) {
 			const uint32_t start_x = thread_id % 4;
