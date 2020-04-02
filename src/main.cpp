@@ -20,7 +20,7 @@ int main()
 
 	try
 	{
-		const float lighting_quality = 1.0f;
+		const float lighting_quality = 0.5f;
 
 		const uint8_t max_depth = 8;
 		SVO* builder = new SVO(max_depth);
@@ -78,28 +78,10 @@ int main()
 
 			window.clear();
 
-			tex_lighting.loadFromImage(raytracer.getLighting());
 			tex_albedo.loadFromImage(raytracer.getAlbedo());
-
-			sf::Sprite lighting_sprite(tex_lighting);
-			lighting_sprite.setScale(1.0f / lighting_quality, 1.0f / lighting_quality);
-			tex_lighting_upscale.draw(lighting_sprite);
-			tex_lighting_upscale.display();
-			//sf::Sprite lighting_sprite_upscale(blur.apply(tex_lighting_upscale.getTexture(), 1));
-			sf::Sprite lighting_sprite_upscale(tex_lighting_upscale.getTexture());
-
 			sf::Sprite albedo_sprite(tex_albedo);
 
-			sf::RenderStates state;
-			state.blendMode = sf::BlendAdd;
-			//state.shader = &median;
-
 			window.draw(albedo_sprite);
-			if (raytracer.render_mode == 1) {
-				//window.draw(lighting_sprite_upscale, state);
-				//window.draw(lighting_sprite_upscale, sf::BlendMultiply);
-			}
-			window.draw(lighting_sprite_upscale, state);
 
 			const float aim_size = 2.0f;
 			sf::RectangleShape aim(sf::Vector2f(aim_size, aim_size));

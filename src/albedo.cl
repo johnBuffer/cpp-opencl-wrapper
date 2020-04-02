@@ -334,7 +334,8 @@ __kernel void albedo(
 	image2d_t top_image,
 	image2d_t side_image,
 	uint8_t mode,
-	float time
+	float time,
+    __global float* shadow_result
 )
 {
 	// Initialization
@@ -353,6 +354,7 @@ __kernel void albedo(
 	HitPoint intersection = castRay(svo_data, position, d, false);
 
 	float3 color = SKY_COLOR;
+	float light_intensity = 1.0f;
 	if (intersection.hit) {
 		if (intersection.water) {
 			const float distortion_strength = 0.01f;
@@ -375,7 +377,6 @@ __kernel void albedo(
 			else {
 				color *= transmitted * mirror_color;
 			}
-			//color *= getLightIntensity(reflection_ray, svo_data, light_position, false);
 
 			// Refraction
 			const float refraction_intensity = (1.0f - transmitted);
@@ -392,15 +393,11 @@ __kernel void albedo(
 			}
 		}
 		else {
-			color = getColorAndLightFromIntersection(intersection, top_image, side_image, svo_data, light_position, false);
+			color = getColorFromIntersection(intersection, top_image, side_image);
+			light_intensity = getLightIntensity(intersection, svo_data, light_position, false);
 		}
 	}
 
-	// Color output
-	if (mode == 0) {
-	    const uint16_t complexity = intersection.complexity > 255 ? 255 : intersection.complexity;
-		color = convert_float3(complexity);
-	}
-
     colorToResultBuffer(color, index, albedo_result);
+    shadow_result[index] = light_intensity;
 }

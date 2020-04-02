@@ -261,10 +261,10 @@ float getGlobalIllumination(__global Node* svo_data, const float3 position, cons
         const float3 gi_light_direction = normalize(light_position - gi_light_start);
         const HitPoint gi_light_intersection = castRay(svo_data, gi_light_start, gi_light_direction, false);
         if (!gi_light_intersection.hit) {
-            gi_add += 200.0f * SUN_INTENSITY * fmax(AMBIENT, dot(gi_normal, gi_light_direction));
+            gi_add += SUN_INTENSITY * fmax(AMBIENT, dot(gi_normal, gi_light_direction));
         }
     } else {
-        gi_add += 2.0f;
+        gi_add += 0.2f;
     }
 	
 	
@@ -279,6 +279,7 @@ void colorToResultBuffer(float3 color, uint32_t index, __global float* buffer)
 	buffer[4 * index + 2] = color.z;
 	buffer[4 * index + 3] = 255.0f;
 }
+
 
 
 int2 projectPoint(const float3 in, const int2 screen_size)
@@ -322,7 +323,8 @@ __kernel void lighting(
 	float time,
 	__global float* last_frame_color,
 	__constant float* last_view_matrix,
-    float3 last_position
+    float3 last_position,
+    __global float* depth
 ) 
 {
 	const int2 gid = (int2)(get_global_id(0), get_global_id(1));
@@ -345,12 +347,17 @@ __kernel void lighting(
 			const float3 gi_start = intersection.position + intersection.normal * NORMAL_EPS;
 			const float3 gi = getGlobalIllumination(svo_data, gi_start, intersection.normal, light_position, rand_seed, index);
             // Accumulation
-            const float conservation_coef = 0.8f;
+            const float conservation_coef = 0.0f;
             const float new_contribution_coef = 1.0f - conservation_coef;
             const float old = getOldValue(last_frame_color, last_view_matrix, last_position, intersection.position, screen_size);
-            color = fmin(255.0f, gi.x) * new_contribution_coef + old * conservation_coef;
+            color = fmin(1.0f, gi.x) * new_contribution_coef + old * conservation_coef;
+
+            depth[2 * index + 0] = fabs(intersection.normal.x + 2.0f * intersection.normal.y + 3.0f * intersection.normal.z);
+            depth[2 * index + 1] = intersection.distance;
 		}
-	}
-	
+	} else {
+        depth[index] = 4.0f;
+    }
+
 	colorToResultBuffer((float3)(color), index, result);
 }
