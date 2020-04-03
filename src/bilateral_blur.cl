@@ -23,7 +23,6 @@ void colorToResultBuffer(float3 color, uint32_t index, __global float* buffer)
     buffer[4 * index + 0] = color.x;
 	buffer[4 * index + 1] = color.y;
 	buffer[4 * index + 2] = color.z;
-	buffer[4 * index + 3] = 255.0f;
 }
 
 

@@ -29,7 +29,7 @@ public:
 		// Swap lighting buffers
 		/*if (!render_mode) {
 		}*/
-		//m_current_lighting_buffer = !m_current_lighting_buffer;
+		m_current_lighting_buffer = !m_current_lighting_buffer;
 
 		m_time += 0.001f;
 		const float scale = 1.0f / (1 << m_max_depth);
@@ -41,7 +41,7 @@ public:
 			old_pos = camera_position;
 		}
 
-		//m_command_queue.writeInMemoryObject(m_buff_view_matrix_old, true, &old_view[0]);
+		m_command_queue.writeInMemoryObject(m_buff_view_matrix_old, true, &old_view[0]);
 		m_command_queue.writeInMemoryObject(m_buff_view_matrix, true, &camera.rot_mat[0]);
 
 		m_albedo.setArgument(2, camera_position);
@@ -72,9 +72,9 @@ public:
 		// Run albedo kernel
 		renderAlbedo();
 		// Run lighting kernel
-		//renderLighting();
-		//biblur();
-		//combine();
+		renderLighting();
+		biblur();
+		combine();
 
 		auto group_albedo = m_swarm.execute([&](uint32_t thread_id, uint32_t max_thread) {
 			const uint32_t start_x = thread_id % 4;
@@ -91,21 +91,6 @@ public:
 			}
 		});
 		group_albedo.waitExecutionDone();
-
-		// To Be Removed
-		/*const float scale = 1.0f / (1 << m_max_depth);
-		const glm::vec3 camera_position = { camera_ptr->position.x * scale + 1.0f, camera_ptr->position.y * scale + 1.0f, camera_ptr->position.z * scale + 1.0f };
-		const uint32_t pt_x(400);
-		const uint32_t pt_y(225);
-		const uint32_t index = pt_x + pt_y * 800;
-		const glm::vec3 point(m_result_points[4 * index + 0], m_result_points[4 * index + 1], m_result_points[4 * index + 2]);
-		const glm::vec3 view_point_1 = camera_ptr->rot_mat * (point - camera_position);
-		const glm::vec3 view_point_2 = (point - camera_position) * camera_ptr->rot_mat;
-		std::cout << "Camera pos   " << camera_position.x << ", " << camera_position.y << ", " << camera_position.z << std::endl;
-		std::cout << "View point 1 " << vecToString(view_point_1) << std::endl;
-		std::cout << "Test       1 " << vecToString(projVec(view_point_1)) << std::endl << std::endl;*/
-
-		// Wait for threads to terminate
 	}
 
 	void renderAlbedo()
@@ -122,7 +107,7 @@ public:
 		const size_t work_gorup_height = static_cast<size_t>(m_render_dimension.y * m_lighting_quality);
 		//std::cout << work_gorup_width << " " << work_gorup_height << std::endl;
 		const size_t globalWorkSize[2] = { work_gorup_width, work_gorup_height };
-		const size_t localWorkSize[2] = { 20, 20 };
+		const size_t localWorkSize[2] = { 10, 10 };
 		m_command_queue.addKernel(m_lighting, 2, NULL, globalWorkSize, localWorkSize);
 		m_command_queue.readMemoryObject(m_buff_result_lighting[m_current_lighting_buffer], true, m_result_lighting);
 	}
@@ -132,15 +117,7 @@ public:
 		const size_t work_gorup_width = static_cast<size_t>(m_render_dimension.x * m_lighting_quality);
 		const size_t work_gorup_height = static_cast<size_t>(m_render_dimension.y * m_lighting_quality);
 		const size_t globalWorkSize[2] = { work_gorup_width, work_gorup_height };
-		const size_t localWorkSize[2] = { 20, 20 };
-
-		m_biblur.setArgument(0, m_buff_result_lighting[m_current_lighting_buffer]);
-		m_biblur.setArgument(2, m_buff_result_lighting[!m_current_lighting_buffer]);
-		m_command_queue.addKernel(m_biblur, 2, NULL, globalWorkSize, localWorkSize);
-
-		/*m_biblur.setArgument(0, m_buff_result_lighting[!m_current_lighting_buffer]);
-		m_biblur.setArgument(2, m_buff_result_lighting[m_current_lighting_buffer]);
-		m_command_queue.addKernel(m_biblur, 2, NULL, globalWorkSize, localWorkSize);
+		const size_t localWorkSize[2] = { 10, 10 };
 
 		m_biblur.setArgument(0, m_buff_result_lighting[m_current_lighting_buffer]);
 		m_biblur.setArgument(2, m_buff_result_lighting[!m_current_lighting_buffer]);
@@ -149,17 +126,12 @@ public:
 		m_biblur.setArgument(0, m_buff_result_lighting[!m_current_lighting_buffer]);
 		m_biblur.setArgument(2, m_buff_result_lighting[m_current_lighting_buffer]);
 		m_command_queue.addKernel(m_biblur, 2, NULL, globalWorkSize, localWorkSize);
-
-		m_biblur.setArgument(0, m_buff_result_lighting[m_current_lighting_buffer]);
-		m_biblur.setArgument(2, m_buff_result_lighting[!m_current_lighting_buffer]);
-		m_command_queue.addKernel(m_biblur, 2, NULL, globalWorkSize, localWorkSize);*/
-		//m_command_queue.readMemoryObject(m_buff_result_lighting[m_current_lighting_buffer], true, m_result_lighting);
 	}
 
 	void combine()
 	{
 		const size_t globalWorkSize[2] = { m_render_dimension.x, m_render_dimension.y };
-		const size_t localWorkSize[2] = { 40, 20 };
+		const size_t localWorkSize[2] = { 20, 20 };
 		m_command_queue.addKernel(m_combinator, 2, NULL, globalWorkSize, localWorkSize);
 		m_command_queue.readMemoryObject(m_buff_result_albedo, true, m_result_albedo);
 	}

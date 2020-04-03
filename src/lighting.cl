@@ -93,7 +93,7 @@ float rand(__global int32_t* state, uint32_t index)
 
 float3 getRandomizedNormal(float3 normal, __global int32_t* seed, uint32_t index)
 {
-	const float range = 2.0f;
+	const float range = 10.0f;
 	const float coord_1 = range * rand(seed, index);
 	const float coord_2 = range * rand(seed, index);
 	if (normal.x) {
@@ -113,7 +113,7 @@ float3 getRandomizedNormal(float3 normal, __global int32_t* seed, uint32_t index
 
 
 // Raytracing functions
-HitPoint castRay(__global Node* svo_data, float3 position, float3 d, bool in_water)
+HitPoint castRay(__global Node* svo_data, float3 position, float3 d)
 {
 	HitPoint result;
 	result.hit = 0;
@@ -168,7 +168,7 @@ HitPoint castRay(__global Node* svo_data, float3 position, float3 d, bool in_wat
 			const uint8_t leaf_mask = (parent_ref.leaf_mask >> child_shift) & 1u;
 			const uint8_t watr_mask = (parent_ref.reflective_mask >> child_shift) & 1u;
 			// We hit a leaf
-			if (leaf_mask && (!watr_mask || (watr_mask != in_water))) {
+			if (leaf_mask) {
 				result.hit = 1u;
 				// Could use mirror mask
 				result.normal = -sign(d) * (float3)(normal & 1u, normal & 2u, normal & 4u);
@@ -256,12 +256,12 @@ float getGlobalIllumination(__global Node* svo_data, const float3 position, cons
 	float gi_add = 0.0f;
     // First bounce
     const float3 noise_normal = getRandomizedNormal(normal, seed, index);
-    const HitPoint gi_intersection = castRay(svo_data, position, noise_normal, false);
+    const HitPoint gi_intersection = castRay(svo_data, position, noise_normal);
     if (gi_intersection.hit) {
         const float3 gi_normal = gi_intersection.normal;
         const float3 gi_light_start = gi_intersection.position + NORMAL_EPS * gi_normal;
         const float3 gi_light_direction = normalize(light_position - gi_light_start);
-        const HitPoint gi_light_intersection = castRay(svo_data, gi_light_start, gi_light_direction, false);
+        const HitPoint gi_light_intersection = castRay(svo_data, gi_light_start, gi_light_direction);
         if (!gi_light_intersection.hit) {
             gi_add += SUN_INTENSITY * fmax(AMBIENT, dot(gi_normal, gi_light_direction));
         }
@@ -274,12 +274,12 @@ float getGlobalIllumination(__global Node* svo_data, const float3 position, cons
 }
 
 
-void colorToResultBuffer(float3 color, uint32_t index, __global float* buffer)
+void colorToResultBuffer(float3 color, float additionnal, uint32_t index, __global float* buffer)
 {
     buffer[4 * index + 0] = color.x;
 	buffer[4 * index + 1] = color.y;
 	buffer[4 * index + 2] = color.z;
-	buffer[4 * index + 3] = 255.0f;
+	buffer[4 * index + 3] = additionnal;
 }
 
 
@@ -308,7 +308,10 @@ float getOldValue(__global float* last_frame_color, __constant float* last_view_
 
     if (last_screen_pos.x >= 0 && last_screen_pos.x < screen_size.x && last_screen_pos.y >= 0 && last_screen_pos.y < screen_size.y) {
         const int32_t point_index = last_screen_pos.x + last_screen_pos.y * screen_size.x;
-        return last_frame_color[4 * point_index];
+		//if (last_frame_color[4 * point_index + 3] == 0.5f) {
+		if (fabs(length(last_view_pos) - last_frame_color[4 * point_index + 3]) < 0.001f) {
+        	return last_frame_color[4 * point_index];
+		}
     }
 
     return 0.0f;
@@ -342,13 +345,13 @@ __kernel void lighting(
 
 	float3 color = (float3)(0.0f);
 
-	const HitPoint intersection = castRay(svo_data, position, d, false);
+	const HitPoint intersection = castRay(svo_data, position, d);
 	if (intersection.hit) {
 		if (!intersection.water) {
 			const float3 gi_start = intersection.position + intersection.normal * NORMAL_EPS;
 			const float3 gi = getGlobalIllumination(svo_data, gi_start, intersection.normal, light_position, rand_seed, index);
             // Accumulation
-            const float conservation_coef = 0.8f;
+            const float conservation_coef = 0.82f;
             const float new_contribution_coef = 1.0f - conservation_coef;
             const float old = getOldValue(last_frame_color, last_view_matrix, last_position, intersection.position, screen_size);
             color = fmin(1.0f, gi.x) * new_contribution_coef + old * conservation_coef;
@@ -360,5 +363,6 @@ __kernel void lighting(
         depth[index] = 4.0f;
     }
 
-	colorToResultBuffer((float3)(color), index, result);
+	colorToResultBuffer((float3)(color), intersection.distance, index, result);
+	//colorToResultBuffer((float3)(color), 0.5f, index, result);
 }
