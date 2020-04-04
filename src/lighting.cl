@@ -351,7 +351,7 @@ __kernel void lighting(
 			const float3 gi_start = intersection.position + intersection.normal * NORMAL_EPS;
 			const float3 gi = getGlobalIllumination(svo_data, gi_start, intersection.normal, light_position, rand_seed, index);
             // Accumulation
-            const float conservation_coef = 0.82f;
+            const float conservation_coef = 0.92f;
             const float new_contribution_coef = 1.0f - conservation_coef;
             const float old = getOldValue(last_frame_color, last_view_matrix, last_position, intersection.position, screen_size);
             color = fmin(1.0f, gi.x) * new_contribution_coef + old * conservation_coef;
