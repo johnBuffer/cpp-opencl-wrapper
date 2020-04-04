@@ -22,16 +22,16 @@ __kernel void combine(
 	//const uint8_t light_scale = 2;
 	//const uint32_t index_light = (gid.x/ light_scale + gid.y/ light_scale * screen_size.x / light_scale);
 
-	const float gi_intensity = read_imagef(lighting, tex_sampler, pxl_position).x;
-	const float light_intensity = 255.0f * fmin(1.0f, shadow[index] + gi_intensity);
+	const float3 gi_intensity = read_imagef(lighting, tex_sampler, pxl_position).xyz;
+	const float3 light_intensity = (float3)(fmax(0.0f, shadow[index])) + gi_intensity;
 	
-	/*albedo[4*index + 0] *= light_intensity;
-	albedo[4*index + 1] *= light_intensity;
-	albedo[4*index + 2] *= light_intensity;*/
+	albedo[4*index + 0] *= fmin(1.0f, light_intensity.x);
+	albedo[4*index + 1] *= fmin(1.0f, light_intensity.y);
+	albedo[4*index + 2] *= fmin(1.0f, light_intensity.z);
 
-	albedo[4*index + 0] = light_intensity;
-	albedo[4*index + 1] = light_intensity;
-	albedo[4*index + 2] = light_intensity;
+	// albedo[4*index + 0] = 255.0f * fmin(1.0f, light_intensity.x);
+	// albedo[4*index + 1] = 255.0f * fmin(1.0f, light_intensity.y);
+	// albedo[4*index + 2] = 255.0f * fmin(1.0f, light_intensity.z);
 
 	albedo[4*index + 3] = 255;
 }

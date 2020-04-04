@@ -71,11 +71,11 @@ public:
 		const uint32_t area_width = m_render_dimension.x / area_count;
 		const uint32_t area_height = m_render_dimension.y / area_count;
 		// Run albedo kernel
-		// renderAlbedo();
+		renderAlbedo();
 		// Run lighting kernel
 		renderLighting();
 		//biblur();
-		blur();
+		//blur();
 		combine();
 
 		auto group_albedo = m_swarm.execute([&](uint32_t thread_id, uint32_t max_thread) {

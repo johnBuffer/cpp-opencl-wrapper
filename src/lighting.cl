@@ -13,6 +13,7 @@ __constant float EPS = 0x1.fffffep-1f;
 __constant float NORMAL_EPS = 0.0078125f * 0.0078125f * 0.0078125f;
 __constant float AMBIENT = 0.0f;
 __constant float SUN_INTENSITY = 10.0f;
+//__constant float3 SKY_COLOR = (float3)(153.0f, 223.0f, 255.0f);
 __constant float3 SKY_COLOR = (float3)(255.0f);
 __constant float time_su = 0.0f;
 __constant float NEAR = 0.5f;
@@ -96,6 +97,19 @@ float3 getRandomizedNormal(float3 normal, image2d_t noise, uint32_t frame_count)
 	}
 
 	return (float3)(0.0f);
+}
+
+
+float3 getColorFromIntersection(HitPoint intersection)
+{
+	const float x = 255.0f * (1.0f - (intersection.position.x - 1.0f));
+	const float y = 255.0f * (1.0f - (intersection.position.y - 1.0f));
+	const float z = 255.0f * (1.0f - (intersection.position.z - 1.0f));
+
+	const float r = (uint8_t)(y) % 5 < 2 ? 1.0f : 0.0f;
+	const float g = (uint8_t)(x) % 5 < 2 ? 1.0f : 0.0f;
+
+	return (float3)(r, g, 1.0f - r);
 }
 
 
@@ -238,9 +252,9 @@ HitPoint castRay(__global Node* svo_data, float3 position, float3 d)
 }
 
 
-float getGlobalIllumination(__global Node* svo_data, const float3 position, const float3 normal, const float3 light_position, image2d_t noise, uint32_t frame_count)
+float3 getGlobalIllumination(__global Node* svo_data, const float3 position, const float3 normal, const float3 light_position, image2d_t noise, uint32_t frame_count)
 {
-	float gi_add = 0.0f;
+	float3 gi_add = (float3)0.0f;
     // First bounce
     const float3 noise_normal = getRandomizedNormal(normal, noise, frame_count);
     const HitPoint gi_intersection = castRay(svo_data, position, noise_normal);
@@ -250,12 +264,11 @@ float getGlobalIllumination(__global Node* svo_data, const float3 position, cons
         const float3 gi_light_direction = normalize(light_position - gi_light_start);
         const HitPoint gi_light_intersection = castRay(svo_data, gi_light_start, gi_light_direction);
         if (!gi_light_intersection.hit) {
-            gi_add += SUN_INTENSITY * fmax(AMBIENT, dot(gi_normal, gi_light_direction));
+            gi_add += 2.0f * getColorFromIntersection(gi_intersection);
         }
     } else {
-        gi_add += 0.1f;
+        gi_add += 0.2f * SKY_COLOR / 255.0f;
     }
-	
 	
 	return gi_add;
 }
@@ -271,7 +284,7 @@ float2 projectPoint(const float3 in, const int2 screen_size)
 }
 
 
-float getOldValue(image2d_t last_frame_color, __constant float* last_view_matrix, const float3 last_position, const float3 position, const int2 screen_size)
+float3 getOldValue(image2d_t last_frame_color, __constant float* last_view_matrix, const float3 last_position, const float3 position, const int2 screen_size)
 {
     const float3 last_view_pos = preMultVec3Mat3(position - last_position, last_view_matrix);
     const float2 last_screen_pos = projectPoint(last_view_pos, screen_size);
@@ -281,7 +294,7 @@ float getOldValue(image2d_t last_frame_color, __constant float* last_view_matrix
 		return last_color.x;
 	}*/
     
-	return last_color.x;
+	return last_color.xyz;
 	//return 0.0f;
 }
 
@@ -312,7 +325,7 @@ __kernel void lighting(
 
 	const float3 d = normalize(multVec3Mat3(screen_position, view_matrix));
 
-	float color = 0.0f;
+	float3 color = 1.0f;
 
 	const HitPoint intersection = castRay(svo_data, position, d);
 	if (intersection.hit) {
@@ -320,10 +333,10 @@ __kernel void lighting(
 			const float3 gi_start = intersection.position + intersection.normal * NORMAL_EPS;
 			const float3 gi = getGlobalIllumination(svo_data, gi_start, intersection.normal, light_position, noise, frame_count);
             // Accumulation
-            const float conservation_coef = 0.95f;
+            const float conservation_coef = 0.0f;
             const float new_contribution_coef = 1.0f - conservation_coef;
-            const float old = getOldValue(last_frame_color, last_view_matrix, last_position, intersection.position, screen_size);
-            color = fmin(1.0f, gi.x) * new_contribution_coef + old * conservation_coef;
+            const float3 old = getOldValue(last_frame_color, last_view_matrix, last_position, intersection.position, screen_size);
+            color = gi * new_contribution_coef + old * conservation_coef;
 
             depth[2 * index + 0] = fabs(intersection.normal.x + 2.0f * intersection.normal.y + 3.0f * intersection.normal.z);
             depth[2 * index + 1] = intersection.distance;
@@ -332,7 +345,7 @@ __kernel void lighting(
         depth[index] = 4.0f;
     }
 
-	const float4 out_color = (float4)(color, color, color, intersection.distance);
+	const float4 out_color = (float4)(color, intersection.distance);
 	/*const float3 noise_value = convert_float3(read_imagei(noise, noise_sampler, (int2)(gid.x % 512, gid.y % 512)).xyz);
 	const float4 out_color = (float4)(noise_value.x + fmod(noise_value.x + GOLDEN_RATIO * (frame_count % 100), 1.0f),
 	                                  noise_value.y + fmod(noise_value.x + GOLDEN_RATIO * (frame_count % 100), 1.0f),
