@@ -95,6 +95,41 @@ namespace oclw
 	};
 
 
+	enum ImageFormat
+	{
+		Red = CL_R,
+		Alpha = CL_A,
+		Intensity = CL_INTENSITY,
+		Luminance = CL_LUMINANCE,
+		RG = CL_RG,
+		RA = CL_RA,
+		RGB = CL_RGB,
+		RGBA = CL_RGBA,
+		ARGB = CL_ARGB,
+		BGRA = CL_BGRA
+	};
+
+
+	enum ChannelDatatype
+	{
+		Normalized_INT8  = CL_SNORM_INT8,  // Each channel component is a normalized signed 8 - bit integer value.
+		Normalized_INT16 = CL_SNORM_INT16, // Each channel component is a normalized signed 16 - bit integer value.
+		Normalized_UINT8 = CL_UNORM_INT8, // Each channel component is a normalized unsigned 8 - bit integer value.
+		Normalized_UINT16 = CL_UNORM_INT16, // Each channel component is a normalized unsigned 16 - bit integer value.
+		NormalizedShort565 = CL_UNORM_SHORT_565, // Represents a normalized 5 - 6 - 5 3 - channel RGB image.The channel order must be CL_RGB.
+		/*CL_UNORM_SHORT_555	Represents a normalized x - 5 - 5 - 5 4 - channel xRGB image.The channel order must be CL_RGB.
+		CL_UNORM_INT_101010	Represents a normalized x - 10 - 10 - 10 4 - channel xRGB image.The channel order must be CL_RGB.
+		CL_SIGNED_INT8	Each channel component is an unnormalized signed 8 - bit integer value.
+		CL_SIGNED_INT16	Each channel component is an unnormalized signed 16 - bit integer value.
+		CL_SIGNED_INT32	Each channel component is an unnormalized signed 32 - bit integer value.*/
+		Unsigned_INT8 = CL_UNSIGNED_INT8, // Each channel component is an unnormalized unsigned 8 - bit integer value.
+		/*CL_UNSIGNED_INT16	Each channel component is an unnormalized unsigned 16 - bit integer value.
+		CL_UNSIGNED_INT32	Each channel component is an unnormalized unsigned 32 - bit integer value.
+		CL_HALF_FLOAT	Each channel component is a 16 - bit half - float value.*/
+		Float = CL_FLOAT
+	};
+
+
 	class Exception : public std::exception
 	{
 	public:
@@ -426,11 +461,11 @@ namespace oclw
 			return MemoryObject(m_context, sizeof(T), element_count, mode);
 		}
 
-		MemoryObject createImage2D(uint32_t width, uint32_t height, void* data, int32_t mode)
+		MemoryObject createImage2D(uint32_t width, uint32_t height, void* data, int32_t mode, ImageFormat format, ChannelDatatype datatype)
 		{
 			cl_image_format image_format;
-			image_format.image_channel_order = CL_RGBA;
-			image_format.image_channel_data_type = CL_UNSIGNED_INT8;
+			image_format.image_channel_order = format;
+			image_format.image_channel_data_type = datatype;
 			cl_int err_num;
 			cl_mem image = clCreateImage2D(m_context, mode, &image_format, width, height, 0, data, &err_num);
 			checkError(err_num, "Cannot create image");

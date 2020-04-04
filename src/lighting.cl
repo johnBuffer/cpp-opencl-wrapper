@@ -7,19 +7,12 @@ typedef unsigned int   uint32_t;
 // Const values
 __constant float NORMALIZER = 1.0f / 4294967296.0f;
 __constant uint8_t SVO_MAX_DEPTH = 23u;
-__constant sampler_t tex_sampler = CLK_NORMALIZED_COORDS_TRUE | CLK_FILTER_NEAREST;
-//__constant float3 light_position = (float3)(0.0f, 1.0f, 0.0f);
+__constant sampler_t tex_sampler = CLK_NORMALIZED_COORDS_TRUE | CLK_FILTER_LINEAR | CLK_ADDRESS_CLAMP;
 __constant float EPS = 0x1.fffffep-1f;
 __constant float NORMAL_EPS = 0.0078125f * 0.0078125f * 0.0078125f;
 __constant float AMBIENT = 0.0f;
 __constant float SUN_INTENSITY = 10.0f;
-//__constant float3 SKY_COLOR = (float3)(51.0f, 204.0f, 255.0f);
 __constant float3 SKY_COLOR = (float3)(255.0f);
-//__constant float3 WATER_COLOR = (float3)(28.0f / 255.0f, 194.0f / 255.0f, 255.0f / 255.0f);
-__constant float3 WATER_COLOR = (float3)(28.0f / 255.0f, 194.0f / 255.0f, 255.0f / 255.0f);
-__constant float REFRACTION_COEF = 0.4f;
-__constant float REFLECTION_COEF = 0.6f;
-__constant float R0 = 0.0204f;
 __constant float time_su = 0.0f;
 __constant float NEAR = 0.5f;
 
@@ -274,68 +267,49 @@ float getGlobalIllumination(__global Node* svo_data, const float3 position, cons
 }
 
 
-void colorToResultBuffer(float3 color, float additionnal, uint32_t index, __global float* buffer)
+float2 projectPoint(const float3 in, const int2 screen_size)
 {
-    buffer[4 * index + 0] = color.x;
-	buffer[4 * index + 1] = color.y;
-	buffer[4 * index + 2] = color.z;
-	buffer[4 * index + 3] = additionnal;
-}
-
-
-int2 projectPoint(const float3 in, const int2 screen_size)
-{
-	const float aspect_ratio = screen_size.x / (float)screen_size.y;
-
-    float2 out_f;
+	const float aspect_ratio = (screen_size.x) / (float)(screen_size.y);
     const float inv_z = 1.0f / in.z;
+	const float2 offset = (float2)(0.5f + 0.5f / (float)screen_size.x, 0.5f + 0.5f / (float)screen_size.y);
 
-	out_f.x = (NEAR * in.x * inv_z) + 0.5f;
-	out_f.y = (aspect_ratio * NEAR * in.y * inv_z) + 0.5f;
-
-    int2 out_i;
-    out_i.x = out_f.x * (screen_size.x + 1);
-    out_i.y = out_f.y * (screen_size.y + 1);
-
-	return out_i;
+	return (float2) ((NEAR * in.x * inv_z), (aspect_ratio * NEAR * in.y * inv_z)) + offset;
 }
 
 
-float getOldValue(__global float* last_frame_color, __constant float* last_view_matrix, const float3 last_position, const float3 position, const int2 screen_size)
+float getOldValue(image2d_t last_frame_color, __constant float* last_view_matrix, const float3 last_position, const float3 position, const int2 screen_size)
 {
     const float3 last_view_pos = preMultVec3Mat3(position - last_position, last_view_matrix);
-    const int2 last_screen_pos = projectPoint(last_view_pos, screen_size);
+    const float2 last_screen_pos = projectPoint(last_view_pos, screen_size);
 
-    if (last_screen_pos.x >= 0 && last_screen_pos.x < screen_size.x && last_screen_pos.y >= 0 && last_screen_pos.y < screen_size.y) {
-        const int32_t point_index = last_screen_pos.x + last_screen_pos.y * screen_size.x;
-		//if (last_frame_color[4 * point_index + 3] == 0.5f) {
-		if (fabs(length(last_view_pos) - last_frame_color[4 * point_index + 3]) < 0.001f) {
-        	return last_frame_color[4 * point_index];
-		}
-    }
-
-    return 0.0f;
+	const float4 last_color = read_imagef(last_frame_color, tex_sampler, last_screen_pos);
+	if (fabs(length(last_view_pos) - last_color.w) < 0.001f) {
+		return last_color.x;
+	}
+    
+	return 0.0f;
 }
 
 
 __kernel void lighting(
-    __global Node* svo_data,
-    __global float* result,
+    global Node* svo_data,
+    write_only image2d_t result,
 	float3 position,
-	__constant float* view_matrix,
-	__global int32_t* rand_seed,
+	constant float* view_matrix,
+	global int32_t* rand_seed,
 	float time,
-	__global float* last_frame_color,
-	__constant float* last_view_matrix,
+	read_only image2d_t last_frame_color,
+	constant float* last_view_matrix,
     float3 last_position,
-    __global float* depth
+    global float* depth
 ) 
 {
 	const int2 gid = (int2)(get_global_id(0), get_global_id(1));
 	const uint32_t index = gid.x + gid.y * get_global_size(0);
 	const int2 screen_size = (int2)(get_global_size(0), get_global_size(1));
-	const float screen_ratio = (float)(screen_size.x) / (float)(screen_size.y);
-	const float3 screen_position = (float3)(gid.x / (float)screen_size.x - 0.5f, gid.y / (float)screen_size.x - 0.5f / screen_ratio, NEAR);
+	//const float2 pxl_position = (float2)(gid.x / (float)screen_size.x, gid.y / (float)screen_size.y);
+	const float screen_ratio = (float)(screen_size.y) / (float)(screen_size.x);
+	const float3 screen_position = (float3)(gid.x / (float)screen_size.x - 0.5f, (gid.y / (float)screen_size.y - 0.5f) * screen_ratio, NEAR);
 
 	const float time_of = -1.5f;
 	const float light_radius = 6.0f;
@@ -343,7 +317,7 @@ __kernel void lighting(
 
 	const float3 d = normalize(multVec3Mat3(screen_position, view_matrix));
 
-	float3 color = (float3)(0.0f);
+	float color = 0.0f;
 
 	const HitPoint intersection = castRay(svo_data, position, d);
 	if (intersection.hit) {
@@ -351,7 +325,7 @@ __kernel void lighting(
 			const float3 gi_start = intersection.position + intersection.normal * NORMAL_EPS;
 			const float3 gi = getGlobalIllumination(svo_data, gi_start, intersection.normal, light_position, rand_seed, index);
             // Accumulation
-            const float conservation_coef = 0.92f;
+            const float conservation_coef = 0.9f;
             const float new_contribution_coef = 1.0f - conservation_coef;
             const float old = getOldValue(last_frame_color, last_view_matrix, last_position, intersection.position, screen_size);
             color = fmin(1.0f, gi.x) * new_contribution_coef + old * conservation_coef;
@@ -363,6 +337,6 @@ __kernel void lighting(
         depth[index] = 4.0f;
     }
 
-	colorToResultBuffer((float3)(color), intersection.distance, index, result);
-	//colorToResultBuffer((float3)(color), 0.5f, index, result);
+	const float4 out_color = (float4)(color, color, color, intersection.distance);
+	write_imagef(result, gid, out_color);
 }

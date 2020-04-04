@@ -27,8 +27,6 @@ public:
 	void updateKernelArgs(const Camera& camera)
 	{
 		// Swap lighting buffers
-		/*if (!render_mode) {
-		}*/
 		m_current_lighting_buffer = !m_current_lighting_buffer;
 
 		m_time += 0.001f;
@@ -109,7 +107,6 @@ public:
 		const size_t globalWorkSize[2] = { work_gorup_width, work_gorup_height };
 		const size_t localWorkSize[2] = { 10, 10 };
 		m_command_queue.addKernel(m_lighting, 2, NULL, globalWorkSize, localWorkSize);
-		m_command_queue.readMemoryObject(m_buff_result_lighting[m_current_lighting_buffer], true, m_result_lighting);
 	}
 
 	void biblur()
@@ -220,13 +217,13 @@ private:
 		// Create output buffers
 		initializeOutputImages();
 		const uint64_t albedo_render_pxl_count = m_render_dimension.x * m_render_dimension.y;
-		const uint64_t light_render_pxl_count = albedo_render_pxl_count * m_lighting_quality;
+		const uint64_t light_render_pxl_count = albedo_render_pxl_count * m_lighting_quality * m_lighting_quality;
 		m_result_albedo.resize(albedo_render_pxl_count * 4);
 		m_buff_result_albedo = m_context.createMemoryObject<float>(m_result_albedo.size(), oclw::ReadWrite);
 		m_buff_shadow = m_context.createMemoryObject<float>(albedo_render_pxl_count, oclw::ReadWrite);
 		m_result_lighting.resize(light_render_pxl_count * 4);
-		m_buff_result_lighting[0] = m_context.createMemoryObject<float>(m_result_lighting.size(), oclw::ReadWrite);
-		m_buff_result_lighting[1] = m_context.createMemoryObject<float>(m_result_lighting.size(), oclw::ReadWrite);
+		m_buff_result_lighting[0] = m_context.createImage2D(m_render_dimension.x * m_lighting_quality, m_render_dimension.y * m_lighting_quality, nullptr, oclw::ReadWrite, oclw::RGBA, oclw::Float);
+		m_buff_result_lighting[1] = m_context.createImage2D(m_render_dimension.x * m_lighting_quality, m_render_dimension.y * m_lighting_quality, nullptr, oclw::ReadWrite, oclw::RGBA, oclw::Float);
 		m_buff_depth = m_context.createMemoryObject<float>(2 * light_render_pxl_count, oclw::ReadWrite);
 		// Kernels initialization
 		m_albedo = m_program.createKernel("albedo");
@@ -260,7 +257,7 @@ private:
 	oclw::MemoryObject imageToDevice(const sf::Image& image)
 	{
 		const sf::Vector2u image_size = image.getSize();
-		return m_context.createImage2D(image_size.x, image_size.y, (void*)image.getPixelsPtr(), oclw::ReadOnly | oclw::CopyHostPtr);
+		return m_context.createImage2D(image_size.x, image_size.y, (void*)image.getPixelsPtr(), oclw::ReadOnly | oclw::CopyHostPtr, oclw::RGBA, oclw::Unsigned_INT8);
 	}
 
 	void initializeSeeds()
