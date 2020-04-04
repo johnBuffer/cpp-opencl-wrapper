@@ -19,6 +19,7 @@ public:
 		, m_swarm(CPU_THREADS)
 		, m_time(0.0f)
 		, m_current_lighting_buffer(0)
+		, frame_count(0)
 	{
 		m_context = createDefaultContext(m_wrapper);
 		initialize(max_depth, svo_data);
@@ -28,6 +29,7 @@ public:
 	{
 		// Swap lighting buffers
 		m_current_lighting_buffer = !m_current_lighting_buffer;
+		++frame_count;
 
 		m_time += 0.001f;
 		const float scale = 1.0f / (1 << m_max_depth);
@@ -55,8 +57,9 @@ public:
 		m_lighting.setArgument(7, m_buff_view_matrix_old);
 		m_lighting.setArgument(8, old_pos);
 		m_lighting.setArgument(9, m_buff_depth);
+		m_lighting.setArgument(10, frame_count);
 
-		m_combinator.setArgument(2, m_buff_result_lighting[!m_current_lighting_buffer]);
+		m_combinator.setArgument(2, m_buff_result_lighting[m_current_lighting_buffer]);
 
 		old_view = camera.rot_mat;
 		old_pos = camera_position;
@@ -68,10 +71,11 @@ public:
 		const uint32_t area_width = m_render_dimension.x / area_count;
 		const uint32_t area_height = m_render_dimension.y / area_count;
 		// Run albedo kernel
-		//renderAlbedo();
+		// renderAlbedo();
 		// Run lighting kernel
 		renderLighting();
 		//biblur();
+		blur();
 		combine();
 
 		auto group_albedo = m_swarm.execute([&](uint32_t thread_id, uint32_t max_thread) {
@@ -125,6 +129,24 @@ public:
 		m_command_queue.addKernel(m_biblur, 2, NULL, globalWorkSize, localWorkSize);
 	}
 
+	void blur()
+	{
+		const size_t work_gorup_width = static_cast<size_t>(m_render_dimension.x * m_lighting_quality);
+		const size_t work_gorup_height = static_cast<size_t>(m_render_dimension.y * m_lighting_quality);
+		const size_t globalWorkSize[2] = { work_gorup_width, work_gorup_height };
+		const size_t localWorkSize[2] = { 10, 10 };
+
+		for (uint8_t i(1); i--;) {
+			m_blur_v.setArgument(0, m_buff_result_lighting[m_current_lighting_buffer]);
+			m_blur_v.setArgument(1, m_buff_result_lighting[!m_current_lighting_buffer]);
+			m_command_queue.addKernel(m_blur_v, 2, NULL, globalWorkSize, localWorkSize);
+
+			m_blur_h.setArgument(0, m_buff_result_lighting[!m_current_lighting_buffer]);
+			m_blur_h.setArgument(1, m_buff_result_lighting[m_current_lighting_buffer]);
+			m_command_queue.addKernel(m_blur_h, 2, NULL, globalWorkSize, localWorkSize);
+		}
+	}
+
 	void combine()
 	{
 		const size_t globalWorkSize[2] = { m_render_dimension.x, m_render_dimension.y };
@@ -159,11 +181,14 @@ private:
 	oclw::Program m_program_gi;
 	oclw::Program m_program_biblur;
 	oclw::Program m_program_combinator;
+	oclw::Program m_program_blur;
 	// Kernels
 	oclw::Kernel m_albedo;
 	oclw::Kernel m_lighting;
 	oclw::Kernel m_biblur;
 	oclw::Kernel m_combinator;
+	oclw::Kernel m_blur_v;
+	oclw::Kernel m_blur_h;
 	// Resources
 	sf::Image m_image_side, m_image_top;
 	// Buffers
@@ -175,6 +200,7 @@ private:
 	oclw::MemoryObject m_buff_depth;
 	oclw::MemoryObject m_buff_image_top;
 	oclw::MemoryObject m_buff_image_side;
+	oclw::MemoryObject m_buff_noise;
 	oclw::MemoryObject m_buff_seeds;
 	oclw::MemoryObject m_buff_shadow;
 	bool m_current_lighting_buffer;
@@ -192,6 +218,7 @@ private:
 	bool first = true;
 	glm::mat3 old_view;
 	cl_float3 old_pos;
+	uint32_t frame_count;
 
 
 private:
@@ -207,6 +234,7 @@ private:
 		m_program_gi = m_context.createProgram(device, "../src/lighting.cl");
 		m_program_biblur = m_context.createProgram(device, "../src/bilateral_blur.cl");
 		m_program_combinator = m_context.createProgram(device, "../src/combinator.cl");
+		m_program_blur = m_context.createProgram(device, "../src/blur.cl");
 		// Create memory objects that will be used as arguments to kernel
 		loadImagesToDevice();
 		m_buff_svo = m_context.createMemoryObject(svo, oclw::ReadOnly | oclw::CopyHostPtr);
@@ -235,7 +263,7 @@ private:
 
 		m_lighting = m_program_gi.createKernel("lighting");
 		m_lighting.setArgument(0, m_buff_svo);
-		m_lighting.setArgument(4, m_buff_seeds);
+		m_lighting.setArgument(4, m_buff_noise);
 
 		m_biblur = m_program_biblur.createKernel("blur");
 		m_biblur.setArgument(1, m_buff_depth);
@@ -243,15 +271,22 @@ private:
 		m_combinator = m_program_combinator.createKernel("combine");
 		m_combinator.setArgument(0, m_buff_result_albedo);
 		m_combinator.setArgument(1, m_buff_shadow);
+
+		m_blur_v = m_program_blur.createKernel("blur_v");
+		m_blur_h = m_program_blur.createKernel("blur_h");
 	}
 
 	void loadImagesToDevice()
 	{
 		m_image_side.loadFromFile("../res/grass_side_16x16.bmp");
 		m_image_top.loadFromFile("../res/grass_top_16x16.bmp");
-		const sf::Vector2u top_size = m_image_top.getSize();
+
+		sf::Image noise_image;
+		noise_image.loadFromFile("../res/noise.png");
+
 		m_buff_image_top = imageToDevice(m_image_top);
 		m_buff_image_side = imageToDevice(m_image_side);
+		m_buff_noise = imageToDevice(noise_image);
 	}
 
 	oclw::MemoryObject imageToDevice(const sf::Image& image)

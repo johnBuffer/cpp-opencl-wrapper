@@ -5,6 +5,8 @@ typedef int            int32_t;
 typedef unsigned int   uint32_t;
 
 
+__constant sampler_t tex_sampler = CLK_NORMALIZED_COORDS_FALSE | CLK_FILTER_LINEAR | CLK_ADDRESS_CLAMP_TO_EDGE;
+
 __constant float KERNEL[3][3] = {
     {0.077847f, 0.123317f, 0.077847f},
     {0.123317f, 0.195346f, 0.123317f},
@@ -27,9 +29,9 @@ void colorToResultBuffer(float3 color, uint32_t index, __global float* buffer)
 
 
 __kernel void blur(
-        __global float* frame_color,
+        read_only image2d_t input,
         __global float* depth,
-        __global float* output
+        write_only image2d_t output
     )
 {
     const int2 gid = (int2)(get_global_id(0), get_global_id(1));
@@ -37,6 +39,8 @@ __kernel void blur(
 	const uint32_t index = gid.x + gid.y * screen_size.x;
     const float current_normal = depth[2 * index];
     const float current_depth = depth[2 * index + 1];
+
+    const float last_coord = read_imagef(input, tex_sampler, gid).w;
 
     float color = 0.0f;
     float sum = 0.0f;
@@ -51,12 +55,13 @@ __kernel void blur(
                 if (normal == current_normal && fabs(current_depth - point_depth) < 0.125f * 0.125f * 0.125f) {
                     const float kernel_val = KERNEL[x + 1][y + 1];
                     sum += kernel_val;
-                    color += kernel_val * frame_color[4 * index_2];
+                    color += kernel_val * read_imagef(input, tex_sampler, coords).x;
                 }
             }
         }
     }
 
     color /= sum;
-    colorToResultBuffer((float3)color, index, output);
+    //colorToResultBuffer((float3)color, index, output);
+    write_imagef(output, gid, (float4)(color, color, color, last_coord));
 }
