@@ -48,6 +48,7 @@ public:
 		m_albedo.setArgument(3, m_buff_view_matrix);
 		m_albedo.setArgument(6, render_mode);
 		m_albedo.setArgument(7, m_time);
+		m_albedo.setArgument(9, m_buff_position);
 
 		m_lighting.setArgument(1, m_buff_result_lighting[m_current_lighting_buffer]);
 		m_lighting.setArgument(2, camera_position);
@@ -75,7 +76,7 @@ public:
 		renderAlbedo();
 		// Run lighting kernel
 		renderLighting();
-		//biblur();
+		biblur();
 		//blur();
 		combine();
 
@@ -116,13 +117,13 @@ public:
 
 	void biblur()
 	{
-		m_biblur.setArgument(1, m_buff_depth[m_current_lighting_buffer]);
+		m_biblur.setArgument(1, m_buff_position);
 		const size_t work_gorup_width = static_cast<size_t>(m_render_dimension.x * m_lighting_quality);
 		const size_t work_gorup_height = static_cast<size_t>(m_render_dimension.y * m_lighting_quality);
 		const size_t globalWorkSize[2] = { work_gorup_width, work_gorup_height };
 		const size_t localWorkSize[2] = { 10, 10 };
 
-		for (uint8_t i(1); i--;) {
+		for (uint8_t i(5); i--;) {
 			m_biblur.setArgument(0, m_buff_result_lighting[m_current_lighting_buffer]);
 			m_biblur.setArgument(2, m_buff_result_lighting[!m_current_lighting_buffer]);
 			m_command_queue.addKernel(m_biblur, 2, NULL, globalWorkSize, localWorkSize);
@@ -140,7 +141,7 @@ public:
 		const size_t globalWorkSize[2] = { work_gorup_width, work_gorup_height };
 		const size_t localWorkSize[2] = { 10, 10 };
 
-		for (uint8_t i(1); i--;) {
+		for (uint8_t i(3); i--;) {
 			m_blur_v.setArgument(0, m_buff_result_lighting[m_current_lighting_buffer]);
 			m_blur_v.setArgument(1, m_buff_result_lighting[!m_current_lighting_buffer]);
 			m_command_queue.addKernel(m_blur_v, 2, NULL, globalWorkSize, localWorkSize);
@@ -202,6 +203,7 @@ private:
 	oclw::MemoryObject m_buff_result_albedo;
 	oclw::MemoryObject m_buff_result_lighting[2];
 	oclw::MemoryObject m_buff_depth[2];
+	oclw::MemoryObject m_buff_position;
 	oclw::MemoryObject m_buff_image_top;
 	oclw::MemoryObject m_buff_image_side;
 	oclw::MemoryObject m_buff_noise;
@@ -258,6 +260,8 @@ private:
 		m_buff_result_lighting[1] = m_context.createImage2D(m_render_dimension.x * m_lighting_quality, m_render_dimension.y * m_lighting_quality, nullptr, oclw::ReadWrite, oclw::RGBA, oclw::Float);
 		m_buff_depth[0] = m_context.createImage2D(m_render_dimension.x * m_lighting_quality, m_render_dimension.y * m_lighting_quality, nullptr, oclw::ReadWrite, oclw::RG, oclw::Float);
 		m_buff_depth[1] = m_context.createImage2D(m_render_dimension.x * m_lighting_quality, m_render_dimension.y * m_lighting_quality, nullptr, oclw::ReadWrite, oclw::RG, oclw::Float);
+		m_buff_position = m_context.createImage2D(m_render_dimension.x * m_lighting_quality, m_render_dimension.y * m_lighting_quality, nullptr, oclw::ReadWrite, oclw::RGBA, oclw::Float);
+
 		// Kernels initialization
 		m_albedo = m_program.createKernel("albedo");
 		m_albedo.setArgument(0, m_buff_svo);

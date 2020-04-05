@@ -81,8 +81,8 @@ int main()
 			tex_albedo.loadFromImage(raytracer.getAlbedo());
 			sf::Sprite albedo_sprite(tex_albedo);
 
-			//window.draw(albedo_sprite);
-			window.draw(albedo_sprite, &median);
+			window.draw(albedo_sprite);
+			//window.draw(albedo_sprite, &median);
 
 			const float aim_size = 2.0f;
 			sf::RectangleShape aim(sf::Vector2f(aim_size, aim_size));

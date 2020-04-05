@@ -80,7 +80,7 @@ float3 getRandomizedNormal(float3 normal, image2d_t noise, uint32_t frame_count)
 	const int2 tex_coords = (int2)(get_global_id(0) % 512u, get_global_id(1) % 512u);
 	const float3 noise_value = convert_float3(read_imagei(noise, noise_sampler, tex_coords).xyz) / 255.0f;
 
-	const float range = 100.0f;
+	const float range = 1000.0f;
 	const float coord_1 = range * (fmod(noise_value.x + GOLDEN_RATIO * ((frame_count) % 1000), 1.0f) - 0.5f);
 	const float coord_2 = range * (fmod(noise_value.y + (GOLDEN_RATIO-0.1f) * ((frame_count) % 1000), 1.0f) - 0.5f);
 	//const float coord_3 = range * (fmod(noise_value.y + 1.0f * GOLDEN_RATIO * (frame_count % 100), 1.0f));
@@ -356,7 +356,6 @@ __kernel void lighting(
 				acc = 1.0f;
 			}
 			
-
 			write_imagef(depth, gid, (float4)(normalToNumber(intersection.normal), intersection.distance, 0.0f, 0.0f));
 		}
 	} else {

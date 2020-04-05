@@ -6,6 +6,7 @@ typedef unsigned int   uint32_t;
 
 
 __constant sampler_t tex_sampler = CLK_NORMALIZED_COORDS_FALSE | CLK_FILTER_LINEAR | CLK_ADDRESS_CLAMP_TO_EDGE;
+__constant sampler_t tex_position_sampler = CLK_NORMALIZED_COORDS_FALSE | CLK_FILTER_NEAREST | CLK_ADDRESS_CLAMP_TO_EDGE;
 
 __constant float KERNEL[3][3] = {
     {0.077847f, 0.123317f, 0.077847f},
@@ -13,24 +14,12 @@ __constant float KERNEL[3][3] = {
     {0.077847f, 0.123317f, 0.077847f}
 };
 
-
-uint32_t getIndexFromCoords(const int2 coords)
-{
-    return coords.x + coords.y * get_global_size(0);
-}
-
-
-void colorToResultBuffer(float3 color, uint32_t index, __global float* buffer)
-{
-    buffer[4 * index + 0] = color.x;
-	buffer[4 * index + 1] = color.y;
-	buffer[4 * index + 2] = color.z;
-}
+__constant float THRESHOLD = 30.0f;
 
 
 __kernel void blur(
         read_only image2d_t input,
-        read_only image2d_t depth,
+        read_only image2d_t screen_space_positions,
         write_only image2d_t output
     )
 {
@@ -39,17 +28,17 @@ __kernel void blur(
 	const uint32_t index = gid.x + gid.y * screen_size.x;
     const float acc = read_imagef(input, tex_sampler, gid).w;
 
-    if (acc < 10.0f) {
-        const float current_depth = read_imagef(depth, tex_sampler, gid).y;
+    if (acc < THRESHOLD) {
+        const float3 current_position = read_imagef(screen_space_positions, tex_position_sampler, gid).xyz;
 
         float3 color = (0.0f);
         float sum = 0.0f;
         for (int32_t x = -1; x < 2; ++x) {
             for (int32_t y = -1; y < 2; ++y) {
                 const int2 coords = gid + (int2)(x, y);
-                const float point_depth = read_imagef(depth, tex_sampler, gid + (int2)(x, y)).y;
+                const float3 point_position = read_imagef(screen_space_positions, tex_position_sampler, coords).xyz;
 
-                if (fabs(current_depth - point_depth) < 0.125f * 0.125f * 0.125f) {
+                if (point_position.x == current_position.x || point_position.y == current_position.y || point_position.z == current_position.z) {
                     const float4 point_color = read_imagef(input, tex_sampler, coords);
                     const float kernel_val = KERNEL[x + 1][y + 1];
                     sum += kernel_val;
@@ -59,7 +48,7 @@ __kernel void blur(
         }
 
         color /= sum;
-        write_imagef(output, gid, (float4)(color, acc));
+        write_imagef(output, gid, (float4)(color * acc, acc));
     }
     else {
         write_imagef(output, gid, read_imagef(input, tex_sampler, gid));

@@ -277,15 +277,16 @@ float3 getColorAndLightFromIntersection(HitPoint intersection, image2d_t top_ima
 
 // Kernels
 __kernel void albedo(
-    __global Node* svo_data,
-    __global float* albedo_result,
-	float3 position,
-	__constant float* view_matrix,
+    global Node* svo_data
+    , global float* albedo_result
+	, float3 position,
+	constant float* view_matrix,
 	image2d_t top_image,
 	image2d_t side_image,
 	uint8_t mode,
-	float time,
-    __global float* shadow_result
+	float time
+    , __global float* shadow_result
+	, write_only image2d_t screen_space_positions
 )
 {
 	// Initialization
@@ -306,6 +307,8 @@ __kernel void albedo(
 	float3 color = SKY_COLOR;
 	float light_intensity = 0.0f;
 	if (intersection.hit) {
+		write_imagef(screen_space_positions, gid, (float4)(intersection.position, 1.0f));
+
 		if (intersection.water) {
 			light_intensity = 1.0f;
 			const float distortion_strength = 0.01f;
