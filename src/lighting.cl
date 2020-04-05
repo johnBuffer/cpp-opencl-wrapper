@@ -109,7 +109,8 @@ float3 getColorFromIntersection(HitPoint intersection)
 	const float r = (uint8_t)(y) % 5 < 2 ? 1.0f : 0.0f;
 	const float g = (uint8_t)(x) % 5 < 2 ? 1.0f : 0.0f;
 
-	return (float3)(r, g, 1.0f - r);
+	//return (float3)(r, g, 1.0f - r);
+	return (float3)(1.0f);
 }
 
 
@@ -264,10 +265,10 @@ float3 getGlobalIllumination(__global Node* svo_data, const float3 position, con
         const float3 gi_light_direction = normalize(light_position - gi_light_start);
         const HitPoint gi_light_intersection = castRay(svo_data, gi_light_start, gi_light_direction);
         if (!gi_light_intersection.hit) {
-            gi_add += 2.0f * getColorFromIntersection(gi_intersection);
+            gi_add += getColorFromIntersection(gi_intersection);
         }
     } else {
-        gi_add += 0.2f * SKY_COLOR / 255.0f;
+        gi_add += 0.0f;//0.1f * SKY_COLOR / 255.0f;
     }
 	
 	return gi_add;
@@ -283,19 +284,27 @@ float2 projectPoint(const float3 in, const int2 screen_size)
 	return (float2) ((NEAR * in.x * inv_z), (aspect_ratio * NEAR * in.y * inv_z)) + offset;
 }
 
-
-float3 getOldValue(image2d_t last_frame_color, __constant float* last_view_matrix, const float3 last_position, const float3 position, const int2 screen_size)
+float normalToNumber(const float3 normal)
 {
-    const float3 last_view_pos = preMultVec3Mat3(position - last_position, last_view_matrix);
+	return fabs(normal.x + 2.0f * normal.y + 3.0f * normal.z);
+}
+
+
+float4 getOldValue(image2d_t last_frame_color, image2d_t last_frame_depth, __constant float* last_view_matrix, const float3 last_position, const HitPoint intersection, const int2 screen_size)
+{
+	const int2 gid = (int2)(get_global_id(0), get_global_id(1));
+	const uint32_t index = gid.x + gid.y * get_global_size(0);
+    const float3 last_view_pos = preMultVec3Mat3(intersection.position - last_position, last_view_matrix);
     const float2 last_screen_pos = projectPoint(last_view_pos, screen_size);
 
 	const float4 last_color = read_imagef(last_frame_color, tex_sampler, last_screen_pos);
-	/*if (fabs(length(last_view_pos) - last_color.w) < 0.001f) {
-		return last_color.x;
-	}*/
+	const float2 last_depth = read_imagef(last_frame_depth, tex_sampler, last_screen_pos).xy;
+	float acc = 0.0f;
+	if (fabs(length(last_view_pos) - last_depth.y) < 0.001f && normalToNumber(intersection.normal) == last_depth.x) {
+		acc = last_color.w;
+	}
     
-	return last_color.xyz;
-	//return 0.0f;
+	return (float4)(last_color.xyz, acc);
 }
 
 
@@ -309,8 +318,9 @@ __kernel void lighting(
 	read_only image2d_t last_frame_color,
 	constant float* last_view_matrix,
     float3 last_position,
-    global float* depth,
-	uint32_t frame_count
+    write_only image2d_t depth,
+	uint32_t frame_count,
+	read_only image2d_t last_depth
 ) 
 {
 	const int2 gid = (int2)(get_global_id(0), get_global_id(1));
@@ -326,6 +336,7 @@ __kernel void lighting(
 	const float3 d = normalize(multVec3Mat3(screen_position, view_matrix));
 
 	float3 color = 1.0f;
+	float acc = 1.0f;
 
 	const HitPoint intersection = castRay(svo_data, position, d);
 	if (intersection.hit) {
@@ -333,22 +344,33 @@ __kernel void lighting(
 			const float3 gi_start = intersection.position + intersection.normal * NORMAL_EPS;
 			const float3 gi = getGlobalIllumination(svo_data, gi_start, intersection.normal, light_position, noise, frame_count);
             // Accumulation
-            const float conservation_coef = 0.0f;
-            const float new_contribution_coef = 1.0f - conservation_coef;
-            const float3 old = getOldValue(last_frame_color, last_view_matrix, last_position, intersection.position, screen_size);
-            color = gi * new_contribution_coef + old * conservation_coef;
+            //const float conservation_coef = 0.95f;
+            //const float new_contribution_coef = 1.0f - conservation_coef;
+            const float4 old = getOldValue(last_frame_color, last_depth, last_view_matrix, last_position, intersection, screen_size);
+            
+			if (old.w) {
+				if (0 && old.w > 100.0f) {
+					color = (gi + old.xyz) / 5.0f;
+					acc = 20.0f;
+				}
+				else {
+					color = gi + old.xyz;
+					acc = old.w + 1.0f;
+				}
+				
+			} else {
+				color = gi;
+				acc = 1.0f;
+			}
+			
 
-            depth[2 * index + 0] = fabs(intersection.normal.x + 2.0f * intersection.normal.y + 3.0f * intersection.normal.z);
-            depth[2 * index + 1] = intersection.distance;
+			write_imagef(depth, gid, (float4)(normalToNumber(intersection.normal), intersection.distance, 0.0f, 0.0f));
 		}
 	} else {
-        depth[index] = 4.0f;
+        write_imagef(depth, gid, (float4)(0.0f));
     }
 
-	const float4 out_color = (float4)(color, intersection.distance);
-	/*const float3 noise_value = convert_float3(read_imagei(noise, noise_sampler, (int2)(gid.x % 512, gid.y % 512)).xyz);
-	const float4 out_color = (float4)(noise_value.x + fmod(noise_value.x + GOLDEN_RATIO * (frame_count % 100), 1.0f),
-	                                  noise_value.y + fmod(noise_value.x + GOLDEN_RATIO * (frame_count % 100), 1.0f),
-									  noise_value.z + fmod(noise_value.x + GOLDEN_RATIO * (frame_count % 100), 1.0f), 255);*/
+	const float4 out_color = (float4)(color, acc);
+	
 	write_imagef(result, gid, out_color);
 }

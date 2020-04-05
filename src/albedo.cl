@@ -265,7 +265,8 @@ float3 getColorFromIntersection(HitPoint intersection, image2d_t top_image, imag
 	const float r = (uint8_t)(y) % 5 < 2 ? 1.0f : 0.0f;
 	const float g = (uint8_t)(x) % 5 < 2 ? 1.0f : 0.0f;
 
-	return (float3)(r, g, 1.0f - r);
+	//return (float3)(r, g, 1.0f - r);
+	return (float3)(1.0f);
 }
 
 float3 getColorAndLightFromIntersection(HitPoint intersection, image2d_t top_image, image2d_t side_image, __global Node* svo_data, float3 light_position, bool under_water)

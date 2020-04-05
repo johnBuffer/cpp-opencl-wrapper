@@ -30,38 +30,38 @@ void colorToResultBuffer(float3 color, uint32_t index, __global float* buffer)
 
 __kernel void blur(
         read_only image2d_t input,
-        __global float* depth,
+        read_only image2d_t depth,
         write_only image2d_t output
     )
 {
     const int2 gid = (int2)(get_global_id(0), get_global_id(1));
     const int2 screen_size = (int2)(get_global_size(0), get_global_size(1));
 	const uint32_t index = gid.x + gid.y * screen_size.x;
-    const float current_normal = depth[2 * index];
-    const float current_depth = depth[2 * index + 1];
+    const float acc = read_imagef(input, tex_sampler, gid).w;
 
-    const float last_coord = read_imagef(input, tex_sampler, gid).w;
+    if (acc < 10.0f) {
+        const float current_depth = read_imagef(depth, tex_sampler, gid).y;
 
-    float color = 0.0f;
-    float sum = 0.0f;
-    for (int32_t x = -1; x < 2; ++x) {
-        for (int32_t y = -1; y < 2; ++y) {
-            const int2 coords = gid + (int2)(x, y);
-            if (coords.x >= 0 && coords.x < screen_size.x && coords.y >= 0 && coords.y < screen_size.y) {
-                const uint32_t index_2 = getIndexFromCoords(coords);
-                const float normal = depth[2 * index_2];
-                const float point_depth = depth[2 * index_2 + 1];
+        float3 color = (0.0f);
+        float sum = 0.0f;
+        for (int32_t x = -1; x < 2; ++x) {
+            for (int32_t y = -1; y < 2; ++y) {
+                const int2 coords = gid + (int2)(x, y);
+                const float point_depth = read_imagef(depth, tex_sampler, gid + (int2)(x, y)).y;
 
-                if (normal == current_normal && fabs(current_depth - point_depth) < 0.125f * 0.125f * 0.125f) {
+                if (fabs(current_depth - point_depth) < 0.125f * 0.125f * 0.125f) {
+                    const float4 point_color = read_imagef(input, tex_sampler, coords);
                     const float kernel_val = KERNEL[x + 1][y + 1];
                     sum += kernel_val;
-                    color += kernel_val * read_imagef(input, tex_sampler, coords).x;
+                    color += kernel_val * point_color.xyz / point_color.w;
                 }
             }
         }
-    }
 
-    color /= sum;
-    //colorToResultBuffer((float3)color, index, output);
-    write_imagef(output, gid, (float4)(color, color, color, last_coord));
+        color /= sum;
+        write_imagef(output, gid, (float4)(color, acc));
+    }
+    else {
+        write_imagef(output, gid, read_imagef(input, tex_sampler, gid));
+    }
 }

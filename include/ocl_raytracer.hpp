@@ -56,8 +56,9 @@ public:
 		m_lighting.setArgument(6, m_buff_result_lighting[!m_current_lighting_buffer]);
 		m_lighting.setArgument(7, m_buff_view_matrix_old);
 		m_lighting.setArgument(8, old_pos);
-		m_lighting.setArgument(9, m_buff_depth);
+		m_lighting.setArgument(9, m_buff_depth[m_current_lighting_buffer]);
 		m_lighting.setArgument(10, frame_count);
+		m_lighting.setArgument(11, m_buff_depth[!m_current_lighting_buffer]);
 
 		m_combinator.setArgument(2, m_buff_result_lighting[m_current_lighting_buffer]);
 
@@ -115,18 +116,21 @@ public:
 
 	void biblur()
 	{
+		m_biblur.setArgument(1, m_buff_depth[m_current_lighting_buffer]);
 		const size_t work_gorup_width = static_cast<size_t>(m_render_dimension.x * m_lighting_quality);
 		const size_t work_gorup_height = static_cast<size_t>(m_render_dimension.y * m_lighting_quality);
 		const size_t globalWorkSize[2] = { work_gorup_width, work_gorup_height };
 		const size_t localWorkSize[2] = { 10, 10 };
 
-		m_biblur.setArgument(0, m_buff_result_lighting[m_current_lighting_buffer]);
-		m_biblur.setArgument(2, m_buff_result_lighting[!m_current_lighting_buffer]);
-		m_command_queue.addKernel(m_biblur, 2, NULL, globalWorkSize, localWorkSize);
+		for (uint8_t i(1); i--;) {
+			m_biblur.setArgument(0, m_buff_result_lighting[m_current_lighting_buffer]);
+			m_biblur.setArgument(2, m_buff_result_lighting[!m_current_lighting_buffer]);
+			m_command_queue.addKernel(m_biblur, 2, NULL, globalWorkSize, localWorkSize);
 
-		m_biblur.setArgument(0, m_buff_result_lighting[!m_current_lighting_buffer]);
-		m_biblur.setArgument(2, m_buff_result_lighting[m_current_lighting_buffer]);
-		m_command_queue.addKernel(m_biblur, 2, NULL, globalWorkSize, localWorkSize);
+			m_biblur.setArgument(0, m_buff_result_lighting[!m_current_lighting_buffer]);
+			m_biblur.setArgument(2, m_buff_result_lighting[m_current_lighting_buffer]);
+			m_command_queue.addKernel(m_biblur, 2, NULL, globalWorkSize, localWorkSize);
+		}
 	}
 
 	void blur()
@@ -197,7 +201,7 @@ private:
 	oclw::MemoryObject m_buff_view_matrix_old;
 	oclw::MemoryObject m_buff_result_albedo;
 	oclw::MemoryObject m_buff_result_lighting[2];
-	oclw::MemoryObject m_buff_depth;
+	oclw::MemoryObject m_buff_depth[2];
 	oclw::MemoryObject m_buff_image_top;
 	oclw::MemoryObject m_buff_image_side;
 	oclw::MemoryObject m_buff_noise;
@@ -242,7 +246,7 @@ private:
 		m_buff_view_matrix_old = m_context.createMemoryObject<float>(9, oclw::ReadOnly);
 		initializeSeeds();
 		m_buff_seeds = m_context.createMemoryObject(m_seeds, oclw::ReadWrite | oclw::CopyHostPtr);
-		// Create output buffers
+		// Create OpenCL buffers
 		initializeOutputImages();
 		const uint64_t albedo_render_pxl_count = m_render_dimension.x * m_render_dimension.y;
 		const uint64_t light_render_pxl_count = albedo_render_pxl_count * m_lighting_quality * m_lighting_quality;
@@ -252,7 +256,8 @@ private:
 		m_result_lighting.resize(light_render_pxl_count * 4);
 		m_buff_result_lighting[0] = m_context.createImage2D(m_render_dimension.x * m_lighting_quality, m_render_dimension.y * m_lighting_quality, nullptr, oclw::ReadWrite, oclw::RGBA, oclw::Float);
 		m_buff_result_lighting[1] = m_context.createImage2D(m_render_dimension.x * m_lighting_quality, m_render_dimension.y * m_lighting_quality, nullptr, oclw::ReadWrite, oclw::RGBA, oclw::Float);
-		m_buff_depth = m_context.createMemoryObject<float>(2 * light_render_pxl_count, oclw::ReadWrite);
+		m_buff_depth[0] = m_context.createImage2D(m_render_dimension.x * m_lighting_quality, m_render_dimension.y * m_lighting_quality, nullptr, oclw::ReadWrite, oclw::RG, oclw::Float);
+		m_buff_depth[1] = m_context.createImage2D(m_render_dimension.x * m_lighting_quality, m_render_dimension.y * m_lighting_quality, nullptr, oclw::ReadWrite, oclw::RG, oclw::Float);
 		// Kernels initialization
 		m_albedo = m_program.createKernel("albedo");
 		m_albedo.setArgument(0, m_buff_svo);
@@ -266,7 +271,7 @@ private:
 		m_lighting.setArgument(4, m_buff_noise);
 
 		m_biblur = m_program_biblur.createKernel("blur");
-		m_biblur.setArgument(1, m_buff_depth);
+		//m_biblur.setArgument(1, m_buff_depth);
 
 		m_combinator = m_program_combinator.createKernel("combine");
 		m_combinator.setArgument(0, m_buff_result_albedo);

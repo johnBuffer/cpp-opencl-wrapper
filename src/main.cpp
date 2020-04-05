@@ -20,7 +20,7 @@ int main()
 
 	try
 	{
-		const float lighting_quality = 1.0f;
+		const float lighting_quality = 0.5f;
 
 		const uint8_t max_depth = 8;
 		SVO* builder = new SVO(max_depth);
