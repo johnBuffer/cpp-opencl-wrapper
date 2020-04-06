@@ -11,10 +11,11 @@ __constant sampler_t tex_sampler = CLK_NORMALIZED_COORDS_TRUE | CLK_FILTER_NEARE
 //__constant float3 light_position = (float3)(0.0f, 1.0f, 0.0f);
 __constant float EPS = 0x1.fffffep-1f;
 __constant float NORMAL_EPS = 0.0078125f * 0.0078125f * 0.0078125f;
-__constant float AMBIENT = 0.0f;
+__constant float AMBIENT = 0.5f;
 __constant float SUN_INTENSITY = 10.0f;
+__constant float3 SKY_COLOR = (float3)(153.0f, 223.0f, 255.0f);
 //__constant float3 SKY_COLOR = (float3)(51.0f, 204.0f, 255.0f);
-__constant float3 SKY_COLOR = (float3)(255.0f);
+//__constant float3 SKY_COLOR = (float3)(255.0f);
 //__constant float3 WATER_COLOR = (float3)(28.0f / 255.0f, 194.0f / 255.0f, 255.0f / 255.0f);
 __constant float3 WATER_COLOR = (float3)(28.0f / 255.0f, 194.0f / 255.0f, 255.0f / 255.0f);
 __constant float REFRACTION_COEF = 0.4f;
@@ -262,11 +263,11 @@ float3 getColorFromIntersection(HitPoint intersection, image2d_t top_image, imag
 	const float y = 255.0f * (1.0f - (intersection.position.y - 1.0f));
 	const float z = 255.0f * (1.0f - (intersection.position.z - 1.0f));
 
-	const float r = (uint8_t)(y) % 5 < 2 ? 1.0f : 0.0f;
-	const float g = (uint8_t)(x) % 5 < 2 ? 1.0f : 0.0f;
-
+	const float r = 1.0f;
+	const float g = y > 1.1f ? 1.0f : 0.0f;
+	const float b = y > 1.1f ? 1.0f : 0.0f;
 	//return (float3)(r, g, 1.0f - r);
-	return (float3)(1.0f);
+	return (float3)(r, g, b);
 }
 
 float3 getColorAndLightFromIntersection(HitPoint intersection, image2d_t top_image, image2d_t side_image, __global Node* svo_data, float3 light_position, bool under_water)
@@ -317,7 +318,7 @@ __kernel void albedo(
 			write_imagef(screen_space_positions, gid, (float4)(0.0f));
 			
 			light_intensity = 1.0f;
-			const float distortion_strength = 0.01f;
+			const float distortion_strength = 0.015f;
 			float3 normal_distortion = (float3)(0.0f);
 			const float3 mirror_color = WATER_COLOR;
 			const float wave_speed = 0.05f;
@@ -342,7 +343,7 @@ __kernel void albedo(
 			const float refraction_intensity = (1.0f - transmitted);
 			if (refraction_intensity > 0.05f) {
 				const float3 refraction_start = intersection.position - NORMAL_EPS * normal;
-				const float3 refraction_d = normalize(refract(d, normal, 1.0f / 1.33333f));
+				const float3 refraction_d = normalize(refract(d, normal, 1.0f / 1.83333f));
 				const HitPoint refraction_ray = castRay(svo_data, refraction_start, refraction_d, true);
 				const float deep_coef = 1.0f / (1.0f + refraction_ray.distance * 256.0f);
 				if (refraction_ray.hit) {

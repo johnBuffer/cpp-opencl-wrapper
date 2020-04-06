@@ -26,13 +26,13 @@ __kernel void combine(
 	const float3 gi_intensity = gi_value.xyz / gi_value.w;
 	const float3 light_intensity = gi_intensity + (float3)(fmax(0.0f, shadow[index]));
 	
-	// albedo[4*index + 0] *= fmin(1.0f, light_intensity.x);
-	// albedo[4*index + 1] *= fmin(1.0f, light_intensity.y);
-	// albedo[4*index + 2] *= fmin(1.0f, light_intensity.z);
+	albedo[4*index + 0] *= fmin(1.0f, light_intensity.x);
+	albedo[4*index + 1] *= fmin(1.0f, light_intensity.y);
+	albedo[4*index + 2] *= fmin(1.0f, light_intensity.z);
 
-	albedo[4*index + 0] = 255.0f * fmin(1.0f, light_intensity.x);
-	albedo[4*index + 1] = 255.0f * fmin(1.0f, light_intensity.y);
-	albedo[4*index + 2] = 255.0f * fmin(1.0f, light_intensity.z);
+	// albedo[4*index + 0] = 255.0f * fmin(1.0f, light_intensity.x);
+	// albedo[4*index + 1] = 255.0f * fmin(1.0f, light_intensity.y);
+	// albedo[4*index + 2] = 255.0f * fmin(1.0f, light_intensity.z);
 
 	albedo[4*index + 3] = 255;
 }

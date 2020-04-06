@@ -85,6 +85,7 @@ public:
 		renderAlbedo();
 		// Run lighting kernel
 		renderLighting();
+		median();
 		//biblur();
 		//blur();
 		combine();
@@ -161,6 +162,25 @@ public:
 		}
 	}
 
+	void median()
+	{
+		//m_median.setArgument(1, m_buff_position);
+		const size_t work_gorup_width = static_cast<size_t>(m_render_dimension.x * m_lighting_quality);
+		const size_t work_gorup_height = static_cast<size_t>(m_render_dimension.y * m_lighting_quality);
+		const size_t globalWorkSize[2] = { work_gorup_width, work_gorup_height };
+		const size_t localWorkSize[2] = { 10, 10 };
+
+		for (uint8_t i(1); i--;) {
+			m_median.setArgument(0, m_buff_result_lighting[m_current_lighting_buffer]);
+			m_median.setArgument(1, m_buff_result_lighting[!m_current_lighting_buffer]);
+			m_command_queue.addKernel(m_median, 2, NULL, globalWorkSize, localWorkSize);
+
+			m_median.setArgument(0, m_buff_result_lighting[!m_current_lighting_buffer]);
+			m_median.setArgument(1, m_buff_result_lighting[m_current_lighting_buffer]);
+			m_command_queue.addKernel(m_median, 2, NULL, globalWorkSize, localWorkSize);
+		}
+	}
+
 	void combine()
 	{
 		const size_t globalWorkSize[2] = { m_render_dimension.x, m_render_dimension.y };
@@ -196,6 +216,7 @@ private:
 	oclw::Program m_program_biblur;
 	oclw::Program m_program_combinator;
 	oclw::Program m_program_blur;
+	oclw::Program m_program_median;
 	// Kernels
 	oclw::Kernel m_albedo;
 	oclw::Kernel m_lighting;
@@ -203,6 +224,7 @@ private:
 	oclw::Kernel m_combinator;
 	oclw::Kernel m_blur_v;
 	oclw::Kernel m_blur_h;
+	oclw::Kernel m_median;
 	// Resources
 	sf::Image m_image_side, m_image_top;
 	// Buffers
@@ -265,6 +287,8 @@ private:
 		m_program_biblur = m_context.createProgram(device, "../src/bilateral_blur.cl");
 		m_program_combinator = m_context.createProgram(device, "../src/combinator.cl");
 		m_program_blur = m_context.createProgram(device, "../src/blur.cl");
+		m_program_median = m_context.createProgram(device, "../src/median.cl");
+
 		// Create memory objects that will be used as arguments to kernel
 		loadImagesToDevice();
 		m_buff_svo = m_context.createMemoryObject(svo, oclw::ReadOnly | oclw::CopyHostPtr);
@@ -300,6 +324,8 @@ private:
 
 		m_blur_v = m_program_blur.createKernel("blur_v");
 		m_blur_h = m_program_blur.createKernel("blur_h");
+
+		m_median = m_program_median.createKernel("median");
 	}
 
 	void loadImagesToDevice()
