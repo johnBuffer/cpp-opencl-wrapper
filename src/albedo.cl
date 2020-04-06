@@ -275,18 +275,25 @@ float3 getColorAndLightFromIntersection(HitPoint intersection, image2d_t top_ima
 }
 
 
+float normalToNumber(const float3 normal)
+{
+	return normal.x + 2.0f * normal.y + 4.0f * normal.z;
+}
+
+
 // Kernels
 __kernel void albedo(
     global Node* svo_data
     , global float* albedo_result
-	, float3 position,
-	constant float* view_matrix,
-	image2d_t top_image,
-	image2d_t side_image,
-	uint8_t mode,
-	float time
-    , __global float* shadow_result
+	, float3 position
+	, constant float* view_matrix
+	, image2d_t top_image
+	, image2d_t side_image
+	, uint8_t mode
+	, float time
+    , global float* shadow_result
 	, write_only image2d_t screen_space_positions
+	, write_only image2d_t depth
 )
 {
 	// Initialization
@@ -299,17 +306,16 @@ __kernel void albedo(
 	const float time_of = -1.5f;
 	const float light_radius = 6.0f;
 	const float3 light_position = (float3)(light_radius * cos(time_su * time + time_of) + 1.5f, -1.0f, light_radius * sin(time_su * time + time_of) + 1.5f);
-	
+	// Cast ray
 	const float3 d = normalize(multVec3Mat3(screen_position, view_matrix));
-
 	HitPoint intersection = castRay(svo_data, position, d, false);
-
+	// Result
 	float3 color = SKY_COLOR;
 	float light_intensity = 0.0f;
 	if (intersection.hit) {
-		write_imagef(screen_space_positions, gid, (float4)(intersection.position, 1.0f));
-
 		if (intersection.water) {
+			write_imagef(screen_space_positions, gid, (float4)(0.0f));
+			
 			light_intensity = 1.0f;
 			const float distortion_strength = 0.01f;
 			float3 normal_distortion = (float3)(0.0f);
@@ -347,9 +353,15 @@ __kernel void albedo(
 			}
 		}
 		else {
+			const float normal_number = normalToNumber(intersection.normal);
+			write_imagef(screen_space_positions, gid, (float4)(intersection.position, normal_number));
+			write_imagef(depth, gid, (float4)(intersection.distance, normal_number, 0.0f, 0.0f));
 			color = 255.0f * getColorFromIntersection(intersection, top_image, side_image);
 			light_intensity = getLightIntensity(intersection, svo_data, light_position, false);
 		}
+	}
+	else {
+		write_imagef(screen_space_positions, gid, (float4)(0.0f));
 	}
 
     colorToResultBuffer(color, index, albedo_result);

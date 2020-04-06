@@ -13,10 +13,27 @@
 #include "lsvo.hpp"
 
 
+float normalToColor(const glm::vec3 normal)
+{
+	return normal.x + normal.y * 2.0f + normal.z * 4.0f;
+}
+
+
+
+glm::vec3 numberToNormal(const float number)
+{
+	const int32_t n = std::abs(number);
+
+	return (number > 0.0f ? 1.0f : -1.0f) * glm::vec3(n & 1, (n >> 1u) & 1, (n >> 2u) & 1);
+}
+
+
 int main()
 {
 	constexpr uint32_t WIN_WIDTH = 1600;
 	constexpr uint32_t WIN_HEIGHT = 900;
+
+	std::cout << vecToString(numberToNormal(normalToColor(glm::vec3(0.0f, 0.0f, -1.0f)))) << std::endl;
 
 	try
 	{
@@ -31,7 +48,7 @@ int main()
 		Raytracer raytracer(WIN_WIDTH, WIN_HEIGHT, max_depth, svo.data, lighting_quality);
 
 		// Main loop
-		sf::RenderWindow window(sf::VideoMode(WIN_WIDTH, WIN_HEIGHT), "OpenCL and SFML", sf::Style::Fullscreen);
+		sf::RenderWindow window(sf::VideoMode(WIN_WIDTH, WIN_HEIGHT), "OpenCL and SFML", sf::Style::Default);
 		window.setMouseCursorVisible(false);
 
 		EventManager event_manager(window);

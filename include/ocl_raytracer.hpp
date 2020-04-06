@@ -44,22 +44,31 @@ public:
 		m_command_queue.writeInMemoryObject(m_buff_view_matrix_old, true, &old_view[0]);
 		m_command_queue.writeInMemoryObject(m_buff_view_matrix, true, &camera.rot_mat[0]);
 
-		m_albedo.setArgument(2, camera_position);
-		m_albedo.setArgument(3, m_buff_view_matrix);
-		m_albedo.setArgument(6, render_mode);
-		m_albedo.setArgument(7, m_time);
-		m_albedo.setArgument(9, m_buff_position);
+		uint32_t albedo_index_count = 0u;
+		m_albedo.setArgument(albedo_index_count++, m_buff_svo);
+		m_albedo.setArgument(albedo_index_count++, m_buff_result_albedo);
+		m_albedo.setArgument(albedo_index_count++, camera_position);
+		m_albedo.setArgument(albedo_index_count++, m_buff_view_matrix);
+		m_albedo.setArgument(albedo_index_count++, m_buff_image_top);
+		m_albedo.setArgument(albedo_index_count++, m_buff_image_side);
+		m_albedo.setArgument(albedo_index_count++, render_mode);
+		m_albedo.setArgument(albedo_index_count++, m_time);
+		m_albedo.setArgument(albedo_index_count++, m_buff_shadow);
+		m_albedo.setArgument(albedo_index_count++, m_buff_position);
+		m_albedo.setArgument(albedo_index_count++, m_buff_depth[m_current_lighting_buffer]);
 
-		m_lighting.setArgument(1, m_buff_result_lighting[m_current_lighting_buffer]);
-		m_lighting.setArgument(2, camera_position);
-		m_lighting.setArgument(3, m_buff_view_matrix);
-		m_lighting.setArgument(5, m_time);
-		m_lighting.setArgument(6, m_buff_result_lighting[!m_current_lighting_buffer]);
-		m_lighting.setArgument(7, m_buff_view_matrix_old);
-		m_lighting.setArgument(8, old_pos);
-		m_lighting.setArgument(9, m_buff_depth[m_current_lighting_buffer]);
-		m_lighting.setArgument(10, frame_count);
-		m_lighting.setArgument(11, m_buff_depth[!m_current_lighting_buffer]);
+		uint32_t gi_index_count = 0u;
+		m_lighting.setArgument(gi_index_count++, m_buff_svo);
+		m_lighting.setArgument(gi_index_count++, m_buff_result_lighting[m_current_lighting_buffer]);
+		m_lighting.setArgument(gi_index_count++, m_buff_noise);
+		m_lighting.setArgument(gi_index_count++, m_time);
+		m_lighting.setArgument(gi_index_count++, m_buff_result_lighting[!m_current_lighting_buffer]);
+		m_lighting.setArgument(gi_index_count++, m_buff_view_matrix_old);
+		m_lighting.setArgument(gi_index_count++, old_pos);
+		m_lighting.setArgument(gi_index_count++, frame_count);
+		m_lighting.setArgument(gi_index_count++, m_buff_depth[m_current_lighting_buffer]);
+		m_lighting.setArgument(gi_index_count++, m_buff_depth[!m_current_lighting_buffer]);
+		m_lighting.setArgument(gi_index_count++, m_buff_position);
 
 		m_combinator.setArgument(2, m_buff_result_lighting[m_current_lighting_buffer]);
 
@@ -235,6 +244,21 @@ private:
 		cl_device_id device = devices_list.front();
 		// Create command queue
 		m_command_queue = m_context.createQueue(device);
+
+		oclw::Program test_prog = m_context.createProgram(device, "../src/test.cl");
+		oclw::Kernel test_kernel = test_prog.createKernel("test");
+		std::vector<float> data(4);
+		oclw::MemoryObject mem_object = m_context.createMemoryObject<float>(4, oclw::WriteOnly);
+		test_kernel.setArgument(0, mem_object);
+		const size_t globalWorkSize = 1;
+		const size_t localWorkSize = 1;
+		m_command_queue.addKernel(test_kernel, 1, NULL, &globalWorkSize, &localWorkSize);
+		m_command_queue.readMemoryObject(mem_object, true, data);
+
+		std::cout << "lol : " << data[0] << " " << data[1] << " " << data[2] << " " << data[3] << std::endl;
+		exit(0);
+
+
 		// Create OpenCL program from HelloWorld.cl kernel source
 		m_program = m_context.createProgram(device, "../src/albedo.cl");
 		m_program_gi = m_context.createProgram(device, "../src/lighting.cl");
@@ -264,15 +288,8 @@ private:
 
 		// Kernels initialization
 		m_albedo = m_program.createKernel("albedo");
-		m_albedo.setArgument(0, m_buff_svo);
-		m_albedo.setArgument(1, m_buff_result_albedo);
-		m_albedo.setArgument(4, m_buff_image_top);
-		m_albedo.setArgument(5, m_buff_image_side);
-		m_albedo.setArgument(8, m_buff_shadow);
 
 		m_lighting = m_program_gi.createKernel("lighting");
-		m_lighting.setArgument(0, m_buff_svo);
-		m_lighting.setArgument(4, m_buff_noise);
 
 		m_biblur = m_program_biblur.createKernel("blur");
 		//m_biblur.setArgument(1, m_buff_depth);
