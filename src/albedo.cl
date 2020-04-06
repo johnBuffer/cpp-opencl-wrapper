@@ -132,7 +132,7 @@ HitPoint castRay(__global Node* svo_data, float3 position, float3 d, bool in_wat
 			if (leaf_mask && (!watr_mask || (watr_mask != in_water))) {
 				result.hit = 1u;
 				// Could use mirror mask
-				result.normal = -sign(d) * (float3)(normal & 1u, normal & 2u, normal & 4u);
+				result.normal = -sign(d) * (float3)(normal & 1u, (normal>>1u) & 1u, (normal>>2u) & 1u);
 				result.distance = t_min;
 				result.water = watr_mask;
 
@@ -308,7 +308,7 @@ __kernel void albedo(
 	const float3 light_position = (float3)(light_radius * cos(time_su * time + time_of) + 1.5f, -1.0f, light_radius * sin(time_su * time + time_of) + 1.5f);
 	// Cast ray
 	const float3 d = normalize(multVec3Mat3(screen_position, view_matrix));
-	HitPoint intersection = castRay(svo_data, position, d, false);
+	const HitPoint intersection = castRay(svo_data, position, d, false);
 	// Result
 	float3 color = SKY_COLOR;
 	float light_intensity = 0.0f;

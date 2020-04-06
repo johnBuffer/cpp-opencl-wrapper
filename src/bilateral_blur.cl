@@ -14,7 +14,7 @@ __constant float KERNEL[3][3] = {
     {0.077847f, 0.123317f, 0.077847f}
 };
 
-__constant float THRESHOLD = 30.0f;
+__constant float THRESHOLD = 50.0f;
 
 
 __kernel void blur(

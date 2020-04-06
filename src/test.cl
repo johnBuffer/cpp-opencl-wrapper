@@ -26,7 +26,7 @@ __kernel void test(
     const int gid = get_global_id(0);
     const float3 n = (float3)(0.0f, -1.0f, 0.0f);
     const float number = normalToNumber(n);
-    data[0] = number;
+    data[0] = ((test_n >> 1u) & 2u);
     const float3 n_r = normalFromNumber(number);
 
     data[1] = n_r.x;

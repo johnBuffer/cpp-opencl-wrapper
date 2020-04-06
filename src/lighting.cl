@@ -18,6 +18,7 @@ __constant float3 SKY_COLOR = (float3)(255.0f);
 __constant float time_su = 0.0f;
 __constant float NEAR = 0.5f;
 __constant float GOLDEN_RATIO = 1.61803398875f;
+__constant float G = 1.0f / 1.22074408460575947536f;
 
 
 // Structs declaration
@@ -80,20 +81,20 @@ float3 getRandomizedNormal(float3 normal, image2d_t noise, uint32_t frame_count)
 	const int2 tex_coords = (int2)(get_global_id(0) % 512u, get_global_id(1) % 512u);
 	const float3 noise_value = convert_float3(read_imagei(noise, exact_sampler, tex_coords).xyz) / 255.0f;
 
-	const float range = 1000.0f;
-	const float coord_1 = range * (fmod(noise_value.x + GOLDEN_RATIO * ((frame_count) % 1000), 1.0f) - 0.5f);
-	const float coord_2 = range * (fmod(noise_value.y + (GOLDEN_RATIO-0.1f) * ((frame_count) % 1000), 1.0f) - 0.5f);
-	//const float coord_3 = range * (fmod(noise_value.y + 1.0f * GOLDEN_RATIO * (frame_count % 100), 1.0f));
+	const float range = 1.0f;
+	const float coord_1 = range * (fmod(noise_value.x + G       * ((frame_count) % 1000), 1.0f) - 0.5f);
+	const float coord_2 = range * (fmod(noise_value.y + (G*G)   * ((frame_count) % 1000), 1.0f) - 0.5f);
+	const float coord_3 = range * (fmod(noise_value.z + (G*G*G) * (frame_count % 1000), 0.5f));
 	if (normal.x) {
-		return normalize((float3)(normal.x, coord_1, coord_2));
+		return normalize((float3)(sign(normal.x) * coord_3, coord_1, coord_2));
 	}
 	
 	if (normal.y) {
-		return normalize((float3)(coord_1, normal.y, coord_2));
+		return normalize((float3)(coord_1, sign(normal.y) * coord_3, coord_2));
 	}
 	
 	if (normal.z) {
-		return normalize((float3)(coord_1, coord_2, normal.z));
+		return normalize((float3)(coord_1, coord_2, sign(normal.z) * coord_3));
 	}
 
 	return (float3)(0.0f);
@@ -268,7 +269,7 @@ float3 getGlobalIllumination(__global Node* svo_data, const float3 position, con
             gi_add += getColorFromIntersection(gi_intersection);
         }
     } else {
-        gi_add += 0.0f;//0.1f * SKY_COLOR / 255.0f;
+        gi_add += 0.2f * SKY_COLOR / 255.0f;
     }
 	
 	return gi_add;
@@ -289,7 +290,7 @@ float2 projectPoint(const float3 in)
 float3 normalFromNumber(const float number)
 {
 	const int32_t n = fabs(number);
-	return (float3)(n & 1, (n >> 1u) & 1, (n >> 2u) & 1);
+	return sign(number) * (float3)(n & 1, (n >> 1u) & 1, (n >> 2u) & 1);
 }
 
 
@@ -300,9 +301,9 @@ float4 getOldValue(image2d_t last_frame_color, image2d_t last_frame_depth, __con
     const float2 last_screen_pos = projectPoint(last_view_pos);
 
 	const float4 last_color = read_imagef(last_frame_color, tex_sampler, last_screen_pos);
-	const float2 last_depth = read_imagef(last_frame_depth, exact_sampler, last_screen_pos).xy;
+	const float2 last_depth = read_imagef(last_frame_depth, tex_sampler, last_screen_pos).xy;
 	float acc = 0.0f;
-	if (fabs(length(last_view_pos) - last_depth.x) < 0.1f) {// && intersection.w == last_depth.y) {
+	if (fabs(length(last_view_pos) - last_depth.x) < 0.0001f && intersection.w == last_depth.y) {
 		acc = last_color.w;
 	}
     
@@ -341,17 +342,13 @@ __kernel void lighting(
 		// Accumulation
 		const float4 old = getOldValue(last_frame_color, last_depth, last_view_matrix, last_position, intersection);
 		
-		/*if (old.w) {
+		if (old.w) {
 			color = gi + old.xyz;
 			acc = old.w + 1.0f;		
 		} else {
 			color = gi;
 			acc = 1.0f;
-		}*/
-		
-		color.x = fabs(normal.x) > 0.5f;
-		color.y = fabs(normal.y) > 0.5f;
-		color.z = fabs(normal.z) > 0.5f;
+		}
 	}
 
 	const float4 out_color = (float4)(color, acc);

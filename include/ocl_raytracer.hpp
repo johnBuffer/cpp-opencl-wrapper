@@ -85,7 +85,7 @@ public:
 		renderAlbedo();
 		// Run lighting kernel
 		renderLighting();
-		biblur();
+		//biblur();
 		//blur();
 		combine();
 
@@ -132,7 +132,7 @@ public:
 		const size_t globalWorkSize[2] = { work_gorup_width, work_gorup_height };
 		const size_t localWorkSize[2] = { 10, 10 };
 
-		for (uint8_t i(5); i--;) {
+		for (uint8_t i(3); i--;) {
 			m_biblur.setArgument(0, m_buff_result_lighting[m_current_lighting_buffer]);
 			m_biblur.setArgument(2, m_buff_result_lighting[!m_current_lighting_buffer]);
 			m_command_queue.addKernel(m_biblur, 2, NULL, globalWorkSize, localWorkSize);
@@ -245,7 +245,7 @@ private:
 		// Create command queue
 		m_command_queue = m_context.createQueue(device);
 
-		oclw::Program test_prog = m_context.createProgram(device, "../src/test.cl");
+		/*oclw::Program test_prog = m_context.createProgram(device, "../src/test.cl");
 		oclw::Kernel test_kernel = test_prog.createKernel("test");
 		std::vector<float> data(4);
 		oclw::MemoryObject mem_object = m_context.createMemoryObject<float>(4, oclw::WriteOnly);
@@ -256,7 +256,7 @@ private:
 		m_command_queue.readMemoryObject(mem_object, true, data);
 
 		std::cout << "lol : " << data[0] << " " << data[1] << " " << data[2] << " " << data[3] << std::endl;
-		exit(0);
+		exit(0);*/
 
 
 		// Create OpenCL program from HelloWorld.cl kernel source
