@@ -70,7 +70,7 @@ public:
 		m_lighting.setArgument(gi_index_count++, m_buff_depth[!m_current_lighting_buffer]);
 		m_lighting.setArgument(gi_index_count++, m_buff_position);
 
-		m_combinator.setArgument(2, m_buff_result_lighting[m_current_lighting_buffer]);
+		m_combinator.setArgument(2, m_buff_final_lighting[0]);
 
 		old_view = camera.rot_mat;
 		old_pos = camera_position;
@@ -85,8 +85,8 @@ public:
 		renderAlbedo();
 		// Run lighting kernel
 		renderLighting();
+		biblur();
 		median();
-		//biblur();
 		//blur();
 		combine();
 
@@ -133,14 +133,13 @@ public:
 		const size_t globalWorkSize[2] = { work_gorup_width, work_gorup_height };
 		const size_t localWorkSize[2] = { 10, 10 };
 
+		bool current_buffer = 0;
 		for (uint8_t i(3); i--;) {
-			m_biblur.setArgument(0, m_buff_result_lighting[m_current_lighting_buffer]);
-			m_biblur.setArgument(2, m_buff_result_lighting[!m_current_lighting_buffer]);
+			m_biblur.setArgument(0, m_buff_result_lighting[current_buffer]);
+			m_biblur.setArgument(2, m_buff_result_lighting[!current_buffer]);
 			m_command_queue.addKernel(m_biblur, 2, NULL, globalWorkSize, localWorkSize);
 
-			m_biblur.setArgument(0, m_buff_result_lighting[!m_current_lighting_buffer]);
-			m_biblur.setArgument(2, m_buff_result_lighting[m_current_lighting_buffer]);
-			m_command_queue.addKernel(m_biblur, 2, NULL, globalWorkSize, localWorkSize);
+			current_buffer = !current_buffer;
 		}
 	}
 
@@ -170,15 +169,9 @@ public:
 		const size_t globalWorkSize[2] = { work_gorup_width, work_gorup_height };
 		const size_t localWorkSize[2] = { 10, 10 };
 
-		for (uint8_t i(1); i--;) {
-			m_median.setArgument(0, m_buff_result_lighting[m_current_lighting_buffer]);
-			m_median.setArgument(1, m_buff_result_lighting[!m_current_lighting_buffer]);
-			m_command_queue.addKernel(m_median, 2, NULL, globalWorkSize, localWorkSize);
-
-			m_median.setArgument(0, m_buff_result_lighting[!m_current_lighting_buffer]);
-			m_median.setArgument(1, m_buff_result_lighting[m_current_lighting_buffer]);
-			m_command_queue.addKernel(m_median, 2, NULL, globalWorkSize, localWorkSize);
-		}
+		m_median.setArgument(0, m_buff_result_lighting[!m_current_lighting_buffer]);
+		m_median.setArgument(1, m_buff_final_lighting[0]);
+		m_command_queue.addKernel(m_median, 2, NULL, globalWorkSize, localWorkSize);
 	}
 
 	void combine()
@@ -233,6 +226,7 @@ private:
 	oclw::MemoryObject m_buff_view_matrix_old;
 	oclw::MemoryObject m_buff_result_albedo;
 	oclw::MemoryObject m_buff_result_lighting[2];
+	oclw::MemoryObject m_buff_final_lighting[2];
 	oclw::MemoryObject m_buff_depth[2];
 	oclw::MemoryObject m_buff_position;
 	oclw::MemoryObject m_buff_image_top;
@@ -306,6 +300,8 @@ private:
 		m_result_lighting.resize(light_render_pxl_count * 4);
 		m_buff_result_lighting[0] = m_context.createImage2D(m_render_dimension.x * m_lighting_quality, m_render_dimension.y * m_lighting_quality, nullptr, oclw::ReadWrite, oclw::RGBA, oclw::Float);
 		m_buff_result_lighting[1] = m_context.createImage2D(m_render_dimension.x * m_lighting_quality, m_render_dimension.y * m_lighting_quality, nullptr, oclw::ReadWrite, oclw::RGBA, oclw::Float);
+		m_buff_final_lighting[0] = m_context.createImage2D(m_render_dimension.x * m_lighting_quality, m_render_dimension.y * m_lighting_quality, nullptr, oclw::ReadWrite, oclw::RGBA, oclw::Float);
+		m_buff_final_lighting[1] = m_context.createImage2D(m_render_dimension.x * m_lighting_quality, m_render_dimension.y * m_lighting_quality, nullptr, oclw::ReadWrite, oclw::RGBA, oclw::Float);
 		m_buff_depth[0] = m_context.createImage2D(m_render_dimension.x * m_lighting_quality, m_render_dimension.y * m_lighting_quality, nullptr, oclw::ReadWrite, oclw::RG, oclw::Float);
 		m_buff_depth[1] = m_context.createImage2D(m_render_dimension.x * m_lighting_quality, m_render_dimension.y * m_lighting_quality, nullptr, oclw::ReadWrite, oclw::RG, oclw::Float);
 		m_buff_position = m_context.createImage2D(m_render_dimension.x * m_lighting_quality, m_render_dimension.y * m_lighting_quality, nullptr, oclw::ReadWrite, oclw::RGBA, oclw::Float);
