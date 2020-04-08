@@ -130,7 +130,7 @@ public:
 		const size_t work_gorup_width = static_cast<size_t>(m_render_dimension.x * m_lighting_quality);
 		const size_t work_gorup_height = static_cast<size_t>(m_render_dimension.y * m_lighting_quality);
 		const size_t globalWorkSize[2] = { work_gorup_width, work_gorup_height };
-		const size_t localWorkSize[2] = { 10, 10 };
+		const size_t localWorkSize[2] = { 20, 20 };
 
 		bool current_buffer = 0;
 		for (uint8_t i(1); i--;) {

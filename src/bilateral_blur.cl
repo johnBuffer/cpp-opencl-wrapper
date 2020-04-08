@@ -14,7 +14,7 @@ __constant float KERNEL[3][3] = {
     {0.077847f, 0.123317f, 0.077847f}
 };
 
-__constant float THRESHOLD = 20.0f;
+__constant float THRESHOLD = 51.0f;
 
 
 __kernel void blur(
@@ -33,7 +33,9 @@ __kernel void blur(
 
         float3 color = (0.0f);
         float sum = 0.0f;
-        const int32_t width = 12;
+        const int32_t min_width = 3;
+        const int32_t max_width = 12;
+        const int32_t width = min_width + (max_width - min_width) * (1.0f - acc/THRESHOLD);
         for (int32_t x = -width; x < width + 1; ++x) {
             for (int32_t y = -width; y < width + 1; ++y) {
                 const int2 coords = gid + (int2)(x, y);

@@ -61,8 +61,9 @@ void generateSVO(uint8_t max_depth, SVO& svo)
 				volume_raw->setCell(Cell::Solid, Cell::Grass, x, y, z);
 			}
 
-			const int32_t height = 64.0f * std::pow(sin(ratio_x * PI) * sin(ratio_z * PI), 8.0f);
-
+			const int32_t height = float(terrain_height_map.getPixel(x, z).r / 255.0f) * 128.0f;
+			const int32_t margin = 40;
+			if (x > margin && x < grid_size_x - margin && z > margin && z < grid_size_x - margin)
 			for (uint32_t y = 1; y < std::max(0, std::min(height, grid_size_y) - 1); y++) {
 				volume_raw->setCell(Cell::Solid, Cell::Grass, x, y, z);
 			}
