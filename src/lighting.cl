@@ -11,17 +11,16 @@ __constant sampler_t tex_sampler = CLK_NORMALIZED_COORDS_TRUE | CLK_FILTER_LINEA
 __constant sampler_t exact_sampler = CLK_NORMALIZED_COORDS_FALSE | CLK_FILTER_NEAREST | CLK_ADDRESS_CLAMP;
 __constant float EPS = 0x1.fffffep-1f;
 __constant float NORMAL_EPS = 0.0078125f * 0.0078125f * 0.0078125f;
-__constant float AMBIENT = 0.5f;
 __constant float SUN_INTENSITY = 10.0f;
 __constant float3 SKY_COLOR = (float3)(153.0f, 223.0f, 255.0f);
 //__constant float3 SKY_COLOR = (float3)(255.0f);
-__constant float time_su = 0.0f;
+__constant float time_su = 0.5f;
 __constant float NEAR = 0.5f;
 __constant float GOLDEN_RATIO = 1.61803398875f;
 __constant float G = 1.0f / 1.22074408460575947536f;
 __constant float PI = 3.141592653f;
-__constant float ACC_COUNT = 50.0f;
-__constant float ACC_RATIO = 1.0f - 1.0f / 50.0f;
+__constant float ACC_COUNT = 20.0f;
+__constant float ACC_RATIO = 1.0f - 1.0f / 20.0f;
 
 
 // Structs declaration
@@ -113,9 +112,13 @@ float3 getColorFromIntersection(HitPoint intersection)
 	//const float r = (uint8_t)(y) % 5 < 2 ? 1.0f : 0.0f;
 	//const float g = (uint8_t)(x) % 5 < 2 ? 1.0f : 0.0f;
 
-	const float r = 1.0f;
-	const float g = y > 1.1f ? 1.0f : 0.0f;
-	const float b = y > 1.1f ? 1.0f : 0.0f;
+	const float r = z > 128 ? 1.0f : 0.0f && x > 128 ? 1.0f : 0.0f;
+	const float g = x < 128 ? 1.0f : 0.0f;
+	const float b = z < 128 ? 1.0f : 0.0f;
+
+	if (x < 5.0f || x > 250.0f || z < 5.0f || z > 250.0f) {
+		return (float3)(1.0f);
+	}
 	//return (float3)(r, g, 1.0f - r);
 	return (float3)(r, g, b);
 }
@@ -272,10 +275,10 @@ float3 getGlobalIllumination(__global Node* svo_data, const float3 position, con
         const float3 gi_light_direction = normalize(light_position - gi_light_start);
         const HitPoint gi_light_intersection = castRay(svo_data, gi_light_start, gi_light_direction);
         if (!gi_light_intersection.hit) {
-            gi_add += fmax(0.0f, dot(gi_light_direction, gi_normal)) * getColorFromIntersection(gi_intersection) / PI;
+            gi_add += fmax(0.0f, fmin(1.0f, SUN_INTENSITY * dot(gi_light_direction, gi_normal))) * getColorFromIntersection(gi_intersection);
         }
     } else {
-        gi_add += 0.2f * SKY_COLOR / 255.0f / PI;
+        gi_add += 0.2f * SKY_COLOR / 255.0f;
     }
 	
 	return gi_add;
@@ -355,6 +358,9 @@ __kernel void lighting(
 			color = gi + old.xyz;
 			acc = old.w + 1.0f;
 		}
+
+		//color = gi;
+		//acc = 1.0f;
 	}
 
 	const float4 out_color = (float4)(color, acc);

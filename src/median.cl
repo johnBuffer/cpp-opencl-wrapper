@@ -23,7 +23,7 @@ __kernel void median(
     
     const float4 central_color = read_imagef(src, TEX_SAMPLER, gid);
 
-    if (central_color.w && central_color.w < THRESHOLD) {
+    if (central_color.w) {
         vec v[6];
         float4 color = read_imagef(src, TEX_SAMPLER, gid + (int2)(-1, -1));
         v[0] = color.xyz;

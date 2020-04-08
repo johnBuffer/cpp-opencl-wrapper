@@ -35,7 +35,7 @@ void generateSVO(uint8_t max_depth, SVO& svo)
 {
 	const uint32_t size = 1 << max_depth;
 	const uint32_t grid_size_x = size;
-	const uint32_t grid_size_y = size;
+	const int32_t grid_size_y = size;
 	const uint32_t grid_size_z = size;
 	using Volume = SVO;
 	Volume* volume_raw = &svo;
@@ -49,20 +49,22 @@ void generateSVO(uint8_t max_depth, SVO& svo)
 	for (uint32_t x = 1; x < grid_size_x - 1; x++) {
 		for (uint32_t z = 1; z < grid_size_z - 1; z++) {
 			int32_t max_height = grid_size_y;
-
-			float amp_x = x - grid_size_x * 0.5f;
-			float amp_z = z - grid_size_z * 0.5f;
-			float ratio = std::pow(1.0f - sqrt(amp_x * amp_x + amp_z * amp_z) / (10.0f * grid_size_x), 256.0f);
-			int32_t height = int32_t(64.0f * myNoise.GetNoise(float(0.75f * x), float(0.75f * z)) + 32);
+			
+			const float PI = 3.141592653f;
+			const float ratio_x = x / float(grid_size_x);
+			const float ratio_z = z / float(grid_size_x);
 
 			volume_raw->setCell(Cell::Solid, Cell::Grass, x, 0, z);
 
-			for (int y(0); y < 10; ++y) {
-				volume_raw->setCell(Cell::Mirror, Cell::Grass, x, y, z);
-				
-				for (int y(0); y < std::min(max_height, height); ++y) {
-					volume_raw->setCell(Cell::Solid, Cell::Grass, x, y, z);
-				}
+			if (x == 1 || x == grid_size_x - 2 || z == 1 || z == grid_size_x - 2)
+			for (uint32_t y = 1; y < 32; y++) {
+				volume_raw->setCell(Cell::Solid, Cell::Grass, x, y, z);
+			}
+
+			const int32_t height = 64.0f * std::pow(sin(ratio_x * PI) * sin(ratio_z * PI), 8.0f);
+
+			for (uint32_t y = 1; y < std::max(0, std::min(height, grid_size_y) - 1); y++) {
+				volume_raw->setCell(Cell::Solid, Cell::Grass, x, y, z);
 			}
 		}
 	}

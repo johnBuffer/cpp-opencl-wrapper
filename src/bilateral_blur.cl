@@ -14,7 +14,7 @@ __constant float KERNEL[3][3] = {
     {0.077847f, 0.123317f, 0.077847f}
 };
 
-__constant float THRESHOLD = 1000.0f;
+__constant float THRESHOLD = 20.0f;
 
 
 __kernel void blur(
@@ -33,16 +33,17 @@ __kernel void blur(
 
         float3 color = (0.0f);
         float sum = 0.0f;
-        for (int32_t x = -1; x < 2; ++x) {
-            for (int32_t y = -1; y < 2; ++y) {
+        const int32_t width = 12;
+        for (int32_t x = -width; x < width + 1; ++x) {
+            for (int32_t y = -width; y < width + 1; ++y) {
                 const int2 coords = gid + (int2)(x, y);
                 const float3 point_position = read_imagef(screen_space_positions, tex_position_sampler, coords).xyz;
 
                 if ((point_position.x == current_position.x || point_position.y == current_position.y || point_position.z == current_position.z)) {
                     const float4 point_color = read_imagef(input, tex_sampler, coords);
-                    const float kernel_val = KERNEL[x + 1][y + 1];
-                    sum += kernel_val;
-                    color += kernel_val * point_color.xyz;
+                    //const float kernel_val = KERNEL[x + 1][y + 1];
+                    sum += point_color.w;
+                    color += point_color.w * point_color.xyz;
                 }
             }
         }

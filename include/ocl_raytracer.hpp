@@ -85,8 +85,8 @@ public:
 		// Run lighting kernel
 		renderLighting();
 		normalize();
-		//median();
 		biblur();
+		median();
 		//blur();
 		combine();
 
