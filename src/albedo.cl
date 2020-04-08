@@ -84,7 +84,7 @@ HitPoint castRay(__global Node* svo_data, float3 position, float3 d, bool in_wat
 	const float EPS = 1.0f / (float)(1 << SVO_MAX_DEPTH);
 	
 	// Initialize stack
-	OctreeStack stack[23];
+	OctreeStack stack[11];
 	// Check octant mask and modify ray accordingly
 	if (fabs(d.x) < EPS) { d.x = copysign(EPS, d.x); }
 	if (fabs(d.y) < EPS) { d.y = copysign(EPS, d.y); }
@@ -158,8 +158,8 @@ HitPoint castRay(__global Node* svo_data, float3 position, float3 d, bool in_wat
 			}
 			// Eventually add parent to the stack
 			if (tc_max < h) {
-				stack[scale].parent_index = parent_id;
-				stack[scale].t_max = t_max;
+				stack[scale-12].parent_index = parent_id;
+				stack[scale-12].t_max = t_max;
 			}
 			h = tc_max;
 			// Update current voxel
@@ -194,7 +194,7 @@ HitPoint castRay(__global Node* svo_data, float3 position, float3 d, bool in_wat
 			if (step_mask & 4u) differing_bits |= (ipos_z ^ as_int(pos.z + scale_f));
 			scale = (as_int((float)differing_bits) >> SVO_MAX_DEPTH) - 127u;
 			scale_f = as_float((scale - SVO_MAX_DEPTH + 127u) << SVO_MAX_DEPTH);
-			const OctreeStack entry = stack[scale];
+			const OctreeStack entry = stack[scale-12];
 			parent_id = entry.parent_index;
 			t_max = entry.t_max;
 			const uint32_t shx = ipos_x >> scale;

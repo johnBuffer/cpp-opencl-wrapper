@@ -20,6 +20,8 @@ __constant float NEAR = 0.5f;
 __constant float GOLDEN_RATIO = 1.61803398875f;
 __constant float G = 1.0f / 1.22074408460575947536f;
 __constant float PI = 3.141592653f;
+__constant float ACC_COUNT = 50.0f;
+__constant float ACC_RATIO = 1.0f - 1.0f / 50.0f;
 
 
 // Structs declaration
@@ -129,7 +131,7 @@ HitPoint castRay(__global Node* svo_data, float3 position, float3 d)
 	const float EPS = 1.0f / (float)(1 << SVO_MAX_DEPTH);
 	
 	// Initialize stack
-	OctreeStack stack[23];
+	OctreeStack stack[11];
 	// Check octant mask and modify ray accordingly
 	if (fabs(d.x) < EPS) { d.x = copysign(EPS, d.x); }
 	if (fabs(d.y) < EPS) { d.y = copysign(EPS, d.y); }
@@ -203,8 +205,8 @@ HitPoint castRay(__global Node* svo_data, float3 position, float3 d)
 			}
 			// Eventually add parent to the stack
 			if (tc_max < h) {
-				stack[scale].parent_index = parent_id;
-				stack[scale].t_max = t_max;
+				stack[scale-12].parent_index = parent_id;
+				stack[scale-12].t_max = t_max;
 			}
 			h = tc_max;
 			// Update current voxel
@@ -239,7 +241,7 @@ HitPoint castRay(__global Node* svo_data, float3 position, float3 d)
 			if (step_mask & 4u) differing_bits |= (ipos_z ^ as_int(pos.z + scale_f));
 			scale = (as_int((float)differing_bits) >> SVO_MAX_DEPTH) - 127u;
 			scale_f = as_float((scale - SVO_MAX_DEPTH + 127u) << SVO_MAX_DEPTH);
-			const OctreeStack entry = stack[scale];
+			const OctreeStack entry = stack[scale-12];
 			parent_id = entry.parent_index;
 			t_max = entry.t_max;
 			const uint32_t shx = ipos_x >> scale;
@@ -308,10 +310,10 @@ float4 getOldValue(image2d_t last_frame_color, image2d_t last_frame_depth, __con
 	const float2 last_depth = read_imagef(last_frame_depth, tex_sampler, last_screen_pos).xy;
 	float acc = 0.0f;
 	if (fabs(length(last_view_pos) - last_depth.x) < 0.0001f && intersection.w == last_depth.y) {
-		acc = last_color.w;
+		return last_color;
 	}
     
-	return (float4)(last_color.xyz, acc);
+	return (float4)(0.0f);
 }
 
 
@@ -346,16 +348,26 @@ __kernel void lighting(
 		// Accumulation
 		const float4 old = getOldValue(last_frame_color, last_depth, last_view_matrix, last_position, intersection);
 		
-		if (old.w) {
-			color = gi + old.xyz;
-			acc = old.w + 1.0f;		
+		if (old.w >= ACC_COUNT) {
+			color = gi + old.xyz * ACC_RATIO;
+			acc = ACC_COUNT;
 		} else {
-			color = gi;
-			acc = 1.0f;
+			color = gi + old.xyz;
+			acc = old.w + 1.0f;
 		}
 	}
 
 	const float4 out_color = (float4)(color, acc);
-	
+
 	write_imagef(result, gid, out_color);
+}
+
+__kernel void normalizer(
+	read_only image2d_t input,
+    write_only image2d_t output
+) 
+{
+	const int2 gid = (int2)(get_global_id(0), get_global_id(1));
+	const float4 in_color = read_imagef(input, exact_sampler, gid);
+	write_imagef(output, gid, (float4)(fmax(0.0f, in_color.xyz / in_color.w), in_color.w));
 }

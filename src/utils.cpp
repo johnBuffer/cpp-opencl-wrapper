@@ -86,14 +86,14 @@ void generateSVO(uint8_t max_depth, SVO& svo)
 		}
 	}*/
 
-	for (uint32_t x = 220; x < 230; x++) {
+	/*for (uint32_t x = 220; x < 230; x++) {
 		volume_raw->setCell(Cell::Solid, Cell::Grass, x, 1, 250);
 	}
 
 	for (uint32_t x = 220; x < 230; x++) {
 		volume_raw->setCell(Cell::Solid, Cell::Grass, x, 1, 240);
 		volume_raw->setCell(Cell::Solid, Cell::Grass, x, 2, 240);
-	}
+	}*/
 }
 
 

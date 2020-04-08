@@ -1,5 +1,5 @@
 __constant sampler_t TEX_SAMPLER = CLK_NORMALIZED_COORDS_FALSE | CLK_FILTER_NEAREST;
-__constant float THRESHOLD = 20000.0f;
+__constant float THRESHOLD = 50.0f;
 
 // Change these 2 defines to change precision
 #define vec float3
@@ -20,47 +20,38 @@ __kernel void median(
     ) 
 {
     const int2 gid = (int2)(get_global_id(0), get_global_id(1));
-    vec v[25];
     
     const float4 central_color = read_imagef(src, TEX_SAMPLER, gid);
 
     if (central_color.w && central_color.w < THRESHOLD) {
         vec v[6];
         float4 color = read_imagef(src, TEX_SAMPLER, gid + (int2)(-1, -1));
-        v[0] = color.xyz / color.w;
+        v[0] = color.xyz;
         color = read_imagef(src, TEX_SAMPLER, gid + (int2)(0, -1));
-        v[1] = color.xyz / color.w;
+        v[1] = color.xyz;
         color = read_imagef(src, TEX_SAMPLER, gid + (int2)(1, -1));
-        v[2] = color.xyz / color.w;
+        v[2] = color.xyz;
         color = read_imagef(src, TEX_SAMPLER, gid + (int2)(-1, 0));
-        v[3] = color.xyz / color.w;
+        v[3] = color.xyz;
         color = read_imagef(src, TEX_SAMPLER, gid + (int2)(0, 0));
-        v[4] = color.xyz / color.w;
+        v[4] = color.xyz;
         color = read_imagef(src, TEX_SAMPLER, gid + (int2)(1, 0));
-        v[5] = color.xyz / color.w;
-
+        v[5] = color.xyz;
         // Starting with a subset of size 6, remove the min and max each time
         vec temp;
         mnmx6(v[0], v[1], v[2], v[3], v[4], v[5]);
-
         color = read_imagef(src, TEX_SAMPLER, gid + (int2)(-1, 1));
-        v[5] = color.xyz / color.w;
-
+        v[5] = color.xyz;
         mnmx5(v[1], v[2], v[3], v[4], v[5]);
-
         color = read_imagef(src, TEX_SAMPLER, gid + (int2)(0, 1));
-        v[5] = color.xyz / color.w;
-
+        v[5] = color.xyz;
         mnmx4(v[2], v[3], v[4], v[5]);
-
         color = read_imagef(src, TEX_SAMPLER, gid + (int2)(1, 1));
-        v[5] = color.xyz / color.w;
-
+        v[5] = color.xyz;
         mnmx3(v[3], v[4], v[5]);
-
-        write_imagef(dst, gid, (float4)(v[4], central_color.w));
+        write_imagef(dst, gid, (float4)(v[4], 1.0f));
     }
     else {
-        write_imagef(dst, gid, central_color);
+        write_imagef(dst, gid, (float4)(central_color.xyz, 1.0f));
     }
 }

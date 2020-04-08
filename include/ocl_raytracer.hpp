@@ -20,6 +20,7 @@ public:
 		, m_time(0.0f)
 		, m_current_lighting_buffer(0)
 		, frame_count(0)
+		, m_current_final_buffer(0)
 	{
 		m_context = createDefaultContext(m_wrapper);
 		initialize(max_depth, svo_data);
@@ -70,8 +71,6 @@ public:
 		m_lighting.setArgument(gi_index_count++, m_buff_depth[!m_current_lighting_buffer]);
 		m_lighting.setArgument(gi_index_count++, m_buff_position);
 
-		m_combinator.setArgument(2, m_buff_final_lighting[0]);
-
 		old_view = camera.rot_mat;
 		old_pos = camera_position;
 	}
@@ -85,8 +84,9 @@ public:
 		renderAlbedo();
 		// Run lighting kernel
 		renderLighting();
+		normalize();
+		//median();
 		biblur();
-		median();
 		//blur();
 		combine();
 
@@ -112,7 +112,6 @@ public:
 		const size_t globalWorkSize[2] = { m_render_dimension.x, m_render_dimension.y };
 		const size_t localWorkSize[2] = { 20, 20 };
 		m_command_queue.addKernel(m_albedo, 2, NULL, globalWorkSize, localWorkSize);
-		m_command_queue.readMemoryObject(m_buff_result_albedo, true, m_result_albedo);
 	}
 
 	void renderLighting()
@@ -121,7 +120,7 @@ public:
 		const size_t work_gorup_height = static_cast<size_t>(m_render_dimension.y * m_lighting_quality);
 		//std::cout << work_gorup_width << " " << work_gorup_height << std::endl;
 		const size_t globalWorkSize[2] = { work_gorup_width, work_gorup_height };
-		const size_t localWorkSize[2] = { 10, 10 };
+		const size_t localWorkSize[2] = { 20, 20 };
 		m_command_queue.addKernel(m_lighting, 2, NULL, globalWorkSize, localWorkSize);
 	}
 
@@ -134,9 +133,10 @@ public:
 		const size_t localWorkSize[2] = { 10, 10 };
 
 		bool current_buffer = 0;
-		for (uint8_t i(3); i--;) {
-			m_biblur.setArgument(0, m_buff_result_lighting[current_buffer]);
-			m_biblur.setArgument(2, m_buff_result_lighting[!current_buffer]);
+		for (uint8_t i(1); i--;) {
+			m_biblur.setArgument(0, m_buff_final_lighting[m_current_final_buffer]);
+			m_biblur.setArgument(2, m_buff_final_lighting[!m_current_final_buffer]);
+			swapFinalBuffers();
 			m_command_queue.addKernel(m_biblur, 2, NULL, globalWorkSize, localWorkSize);
 
 			current_buffer = !current_buffer;
@@ -167,19 +167,30 @@ public:
 		const size_t work_gorup_width = static_cast<size_t>(m_render_dimension.x * m_lighting_quality);
 		const size_t work_gorup_height = static_cast<size_t>(m_render_dimension.y * m_lighting_quality);
 		const size_t globalWorkSize[2] = { work_gorup_width, work_gorup_height };
-		const size_t localWorkSize[2] = { 10, 10 };
+		const size_t localWorkSize[2] = { 20, 20 };
 
-		m_median.setArgument(0, m_buff_result_lighting[!m_current_lighting_buffer]);
-		m_median.setArgument(1, m_buff_final_lighting[0]);
+		m_median.setArgument(0, m_buff_final_lighting[m_current_final_buffer]);
+		m_median.setArgument(1, m_buff_final_lighting[!m_current_final_buffer]);
+		swapFinalBuffers();
 		m_command_queue.addKernel(m_median, 2, NULL, globalWorkSize, localWorkSize);
 	}
 
 	void combine()
 	{
+		m_combinator.setArgument(2, m_buff_final_lighting[m_current_final_buffer]);
 		const size_t globalWorkSize[2] = { m_render_dimension.x, m_render_dimension.y };
 		const size_t localWorkSize[2] = { 20, 20 };
 		m_command_queue.addKernel(m_combinator, 2, NULL, globalWorkSize, localWorkSize);
 		m_command_queue.readMemoryObject(m_buff_result_albedo, true, m_result_albedo);
+	}
+
+	void normalize()
+	{
+		m_normalizer.setArgument(0, m_buff_result_lighting[m_current_lighting_buffer]);
+		m_normalizer.setArgument(1, m_buff_final_lighting[m_current_final_buffer]);
+		const size_t globalWorkSize[2] = { m_render_dimension.x, m_render_dimension.y };
+		const size_t localWorkSize[2] = { 20, 20 };
+		m_command_queue.addKernel(m_normalizer, 2, NULL, globalWorkSize, localWorkSize);
 	}
 
 	const sf::Image& getAlbedo() const
@@ -218,6 +229,7 @@ private:
 	oclw::Kernel m_blur_v;
 	oclw::Kernel m_blur_h;
 	oclw::Kernel m_median;
+	oclw::Kernel m_normalizer;
 	// Resources
 	sf::Image m_image_side, m_image_top;
 	// Buffers
@@ -250,6 +262,7 @@ private:
 	glm::mat3 old_view;
 	cl_float3 old_pos;
 	uint32_t frame_count;
+	bool m_current_final_buffer;
 
 
 private:
@@ -310,6 +323,7 @@ private:
 		m_albedo = m_program.createKernel("albedo");
 
 		m_lighting = m_program_gi.createKernel("lighting");
+		m_normalizer = m_program_gi.createKernel("normalizer");
 
 		m_biblur = m_program_biblur.createKernel("blur");
 		//m_biblur.setArgument(1, m_buff_depth);
@@ -322,6 +336,11 @@ private:
 		m_blur_h = m_program_blur.createKernel("blur_h");
 
 		m_median = m_program_median.createKernel("median");
+	}
+
+	void swapFinalBuffers()
+	{
+		m_current_final_buffer = !m_current_final_buffer;
 	}
 
 	void loadImagesToDevice()

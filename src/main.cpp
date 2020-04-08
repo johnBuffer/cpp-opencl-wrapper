@@ -13,33 +13,17 @@
 #include "lsvo.hpp"
 
 
-float normalToColor(const glm::vec3 normal)
-{
-	return normal.x + normal.y * 2.0f + normal.z * 4.0f;
-}
-
-
-
-glm::vec3 numberToNormal(const float number)
-{
-	const int32_t n = std::abs(number);
-
-	return (number > 0.0f ? 1.0f : -1.0f) * glm::vec3(n & 1, (n >> 1u) & 1, (n >> 2u) & 1);
-}
-
 
 int main()
 {
-	constexpr uint32_t WIN_WIDTH = 1600;
-	constexpr uint32_t WIN_HEIGHT = 900;
-
-	std::cout << vecToString(numberToNormal(normalToColor(glm::vec3(0.0f, 0.0f, -1.0f)))) << std::endl;
+	constexpr uint32_t WIN_WIDTH = 1280;
+	constexpr uint32_t WIN_HEIGHT = 720;
 
 	try
 	{
 		const float lighting_quality = 1.0f;
 
-		const uint8_t max_depth = 8;
+		const uint8_t max_depth = 7;
 		SVO* builder = new SVO(max_depth);
 		generateSVO(max_depth, *builder);
 		LSVO svo(*builder, max_depth);
@@ -67,7 +51,7 @@ int main()
 
 		// Camera
 		Camera camera;
-		camera.position = glm::vec3(68.7249f, 200.2f, 211.236);
+		camera.position = glm::vec3(68.7249f, 60, 60);
 		camera.last_move = glm::vec3(0.0f);
 		//camera.view_angle = glm::vec2(0.395287f, 0.00f);
 		camera.view_angle = glm::vec2(0.0f);
