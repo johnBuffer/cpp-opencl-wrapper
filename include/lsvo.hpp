@@ -89,6 +89,8 @@ struct LSVO : public Volumetric
 					// We hit a leaf
 					if (leaf_mask & 1u) {
 						result.hit = true;
+						result.global_index = parent_id;
+						result.child_index = child_shift;
 						if (reflective) {
 							result.cell.type = Cell::Mirror;
 						}

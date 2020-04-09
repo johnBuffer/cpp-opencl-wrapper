@@ -2,7 +2,6 @@
 
 #include <SFML/Graphics.hpp>
 #include "camera_controller.hpp"
-//#include "ocl_raytracer.hpp"
 
 
 struct EventManager
@@ -16,6 +15,7 @@ struct EventManager
 		, backward(false)
 		, mouse_control(true)
 		, boost(false)
+		, mutate_waiting(false)
 	{
 	}
 
@@ -38,6 +38,18 @@ struct EventManager
 				case sf::Keyboard::S:
 					backward = true;
 					break;
+				case sf::Keyboard::F:
+				{
+					const uint32_t svo_size = 1 << svo.max_depth;
+					const glm::vec3 ray = camera.camera_vec;
+					const HitPoint point = svo.castRay(camera.position, ray);
+					if (point.hit) {
+						mutate_waiting = true;
+						index = point.global_index;
+						child_index = point.child_index;
+					}
+					break;
+				}
 				case sf::Keyboard::Q:
 					left = true;
 					break;
@@ -95,6 +107,10 @@ struct EventManager
 				case sf::Keyboard::D:
 					right = false;
 					break;
+				case sf::Keyboard::F:
+				{
+					break;
+				}
 				case sf::Keyboard::Space:
 					up = false;
 					break;
@@ -131,6 +147,9 @@ struct EventManager
 
 	sf::Clock clock;
 	bool forward, left, right, up, backward, boost, mouse_control;
+	bool mutate_waiting;
+	uint32_t index;
+	uint8_t child_index;
 
 private:
 	sf::RenderWindow& window;

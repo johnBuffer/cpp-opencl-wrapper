@@ -32,7 +32,7 @@ int main()
 		Raytracer raytracer(WIN_WIDTH, WIN_HEIGHT, max_depth, svo.data, lighting_quality);
 
 		// Main loop
-		sf::RenderWindow window(sf::VideoMode(WIN_WIDTH, WIN_HEIGHT), "OpenCL and SFML", sf::Style::Fullscreen);
+		sf::RenderWindow window(sf::VideoMode(WIN_WIDTH, WIN_HEIGHT), "OpenCL and SFML", sf::Style::Default);
 		window.setMouseCursorVisible(false);
 
 		EventManager event_manager(window);
@@ -74,6 +74,11 @@ int main()
 				controller.updateCameraView(mouse_sensitivity * glm::vec2(mouse_pos.x - WIN_WIDTH * 0.5f, (WIN_HEIGHT  * 0.5f) - mouse_pos.y), camera);
 			}
 
+			if (event_manager.mutate_waiting) {
+				event_manager.mutate_waiting = false;
+				raytracer.mutate(event_manager.index, event_manager.child_index);
+			}
+
 			raytracer.updateKernelArgs(camera);
 			raytracer.render();
 
@@ -88,9 +93,9 @@ int main()
 			const float aim_size = 2.0f;
 			sf::RectangleShape aim(sf::Vector2f(aim_size, aim_size));
 			aim.setOrigin(aim_size * 0.5f, aim_size * 0.5f);
-			aim.setPosition(800, 450);
-			aim.setFillColor(sf::Color::Red);
-			//window.draw(aim);
+			aim.setPosition(WIN_WIDTH*0.5f, WIN_HEIGHT*0.5f);
+			aim.setFillColor(sf::Color::Green);
+			window.draw(aim);
 
 			window.display();
 		}

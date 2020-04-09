@@ -20,6 +20,9 @@ struct HitPoint
 	float distance;
 
 	uint32_t complexity;
+
+	uint32_t global_index;
+	uint8_t child_index;
 };
 
 

@@ -11,7 +11,7 @@ __constant sampler_t tex_sampler = CLK_NORMALIZED_COORDS_TRUE | CLK_FILTER_LINEA
 __constant sampler_t exact_sampler = CLK_NORMALIZED_COORDS_FALSE | CLK_FILTER_NEAREST | CLK_ADDRESS_CLAMP;
 __constant float EPS = 0x1.fffffep-1f;
 __constant float NORMAL_EPS = 0.0078125f * 0.0078125f * 0.0078125f;
-__constant float SUN_INTENSITY = 20.0f;
+__constant float SUN_INTENSITY = 0.0f;
 __constant float3 SKY_COLOR = (float3)(153.0f, 223.0f, 255.0f);
 //__constant float3 SKY_COLOR = (float3)(0.0f);
 __constant float time_su = 0.5f;
@@ -29,8 +29,8 @@ typedef struct Node
     uint8_t  child_mask;
 	uint8_t  leaf_mask;
 	uint32_t child_offset;
-	uint8_t reflective_mask;
-	uint8_t padding;
+	uint8_t  reflective_mask;
+	uint8_t  emissive;
 } Node;
 
 typedef struct OctreeStack
@@ -47,6 +47,7 @@ typedef struct HitPoint
 	float    distance;
 	float3   normal;
 	bool     water;
+	bool     emissive;
 	uint16_t complexity;
 } HitPoint;
 
@@ -83,10 +84,9 @@ float3 getRandomizedNormal(float3 normal, image2d_t noise, uint32_t frame_count)
 	const int2 tex_coords = (int2)(get_global_id(0) % 512u, get_global_id(1) % 512u);
 	const float3 noise_value = convert_float3(read_imagei(noise, exact_sampler, tex_coords).xyz) / 255.0f;
 
-	const float range = 1.0f;
-	const float coord_1 = range * (fmod(noise_value.x + G       * ((frame_count) % 1000), 1.0f) - 0.5f);
-	const float coord_2 = range * (fmod(noise_value.y + (G*G)   * ((frame_count) % 1000), 1.0f) - 0.5f);
-	const float coord_3 = range * (fmod(noise_value.z + (G*G*G) * (frame_count % 1000), 0.5f));
+	const float coord_1 = (fmod(noise_value.x + G       * (frame_count % 1000), 1.0f) - 0.5f);
+	const float coord_2 = (fmod(noise_value.y + (G*G)   * (frame_count % 1000), 1.0f) - 0.5f);
+	const float coord_3 = (fmod(noise_value.z + (G*G*G) * (frame_count % 1000), 0.5f));
 	if (normal.x) {
 		return normalize((float3)(sign(normal.x) * coord_3, coord_1, coord_2));
 	}
@@ -105,23 +105,20 @@ float3 getRandomizedNormal(float3 normal, image2d_t noise, uint32_t frame_count)
 
 float3 getColorFromIntersection(HitPoint intersection)
 {
-	const float x = 255.0f * (1.0f - (intersection.position.x - 1.0f));
-	const float y = 255.0f * (1.0f - (intersection.position.y - 1.0f));
-	const float z = 255.0f * (1.0f - (intersection.position.z - 1.0f));
+	if (intersection.emissive) {
+		if (intersection.normal.x) {
+			return (float3)(1.0f, 0.0f, 0.0f);
+		}
+		
+		if (intersection.normal.y) {
+			return (float3)(0.0f, 1.0f, 0.0f);
+		}
 
-	const float r = z > 128 ? 1.0f : 0.0f && x > 128 ? 1.0f : 0.0f;
-	const float g = x < 128 ? 1.0f : 0.0f;
-	const float b = z < 128 ? 1.0f : 0.0f;
-
-	if (x <= 4.0f || x > 251.0f || z <= 4.0f || z > 251.0f) {
-		return (float3)(1.0f);
-	} else if (y > 10) {
-		return (float3)(1.0f, 0.0f, 1.0f);
+		if (intersection.normal.z) {
+			return (float3)(0.0f, 0.0f, 1.0f);
+		}
 	}
-	//return (float3)(r, g, 1.0f - r);
-	return (float3)(r, g, b);
-
-	//return (float3)1.0f;
+	return (float3)(1.0f);
 }
 
 
@@ -187,6 +184,7 @@ HitPoint castRay(__global Node* svo_data, float3 position, float3 d)
 				result.normal = -sign(d) * (float3)(normal & 1u, normal & 2u, normal & 4u);
 				result.distance = t_min;
 				result.water = watr_mask;
+				result.emissive = (parent_ref.emissive >> child_shift) & 1u;
 
 				if ((mirror_mask & 1) == 0) pos.x = 3.0f - scale_f - pos.x;
 				if ((mirror_mask & 2) == 0) pos.y = 3.0f - scale_f - pos.y;
@@ -271,6 +269,10 @@ float3 getGlobalIllumination(__global Node* svo_data, const float3 position, con
     const float3 noise_normal = getRandomizedNormal(normal, noise, frame_count);
     const HitPoint gi_intersection = castRay(svo_data, position, noise_normal);
     if (gi_intersection.hit) {
+		if (gi_intersection.emissive) {
+			return 2.0f * getColorFromIntersection(gi_intersection);
+		}
+
         const float3 gi_normal = gi_intersection.normal;
         const float3 gi_light_start = gi_intersection.position + NORMAL_EPS * gi_normal;
         const float3 gi_light_direction = normalize(light_position - gi_light_start);

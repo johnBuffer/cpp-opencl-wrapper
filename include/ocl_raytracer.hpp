@@ -203,6 +203,15 @@ public:
 		return m_output_lighting;
 	}
 
+	void mutate(const uint32_t index, uint8_t child_index)
+	{
+		m_mutator.setArgument(1, index);
+		m_mutator.setArgument(2, child_index);
+		const size_t globalWorkSize = 1;
+		const size_t localWorkSize = 1;
+		m_command_queue.addKernel(m_mutator, 1, NULL, &globalWorkSize, &localWorkSize);
+	}
+
 	uint8_t render_mode = 1;
 
 private:
@@ -221,6 +230,7 @@ private:
 	oclw::Program m_program_combinator;
 	oclw::Program m_program_blur;
 	oclw::Program m_program_median;
+	oclw::Program m_program_mutator;
 	// Kernels
 	oclw::Kernel m_albedo;
 	oclw::Kernel m_lighting;
@@ -230,6 +240,7 @@ private:
 	oclw::Kernel m_blur_h;
 	oclw::Kernel m_median;
 	oclw::Kernel m_normalizer;
+	oclw::Kernel m_mutator;
 	// Resources
 	sf::Image m_image_side, m_image_top;
 	// Buffers
@@ -295,6 +306,7 @@ private:
 		m_program_combinator = m_context.createProgram(device, "../src/combinator.cl");
 		m_program_blur = m_context.createProgram(device, "../src/blur.cl");
 		m_program_median = m_context.createProgram(device, "../src/median.cl");
+		m_program_mutator = m_context.createProgram(device, "../src/mutator.cl");
 
 		// Create memory objects that will be used as arguments to kernel
 		loadImagesToDevice();
@@ -336,6 +348,9 @@ private:
 		m_blur_h = m_program_blur.createKernel("blur_h");
 
 		m_median = m_program_median.createKernel("median");
+
+		m_mutator = m_program_mutator.createKernel("mutate");
+		m_mutator.setArgument(0, m_buff_svo);
 	}
 
 	void swapFinalBuffers()

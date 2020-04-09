@@ -1,9 +1,9 @@
 #pragma once
 
 #include <glm/glm.hpp>
+#include <glm/gtx/transform.hpp>
 #include "utils.hpp"
 #include "lsvo.hpp"
-#include <glm/gtx/transform.hpp>
 
 
 constexpr float PI = 3.141592653f;
@@ -39,6 +39,12 @@ struct Camera
 	{
 		last_move = m;
 		position += m;
+	}
+
+	const glm::vec3 getNormalizedPosition(const uint32_t world_size) const
+	{
+		const float scale = 1.0f / float(world_size);
+		return position * scale + glm::vec3(1.0f);
 	}
 
 	CameraRay getRay(const glm::vec2& lens_position)
