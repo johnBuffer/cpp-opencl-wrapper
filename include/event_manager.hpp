@@ -19,7 +19,7 @@ struct EventManager
 	{
 	}
 
-	void processEvents(CameraController& controller, Camera& camera, LSVO& svo, uint8_t& render_mode)
+	void processEvents()
 	{
 		glm::vec3 move = glm::vec3(0.0f);
 		sf::Event event;
@@ -40,14 +40,6 @@ struct EventManager
 					break;
 				case sf::Keyboard::F:
 				{
-					const uint32_t svo_size = 1 << svo.max_depth;
-					const glm::vec3 ray = camera.camera_vec;
-					const HitPoint point = svo.castRay(camera.position, ray);
-					if (point.hit) {
-						mutate_waiting = true;
-						index = point.global_index;
-						child_index = point.child_index;
-					}
 					break;
 				}
 				case sf::Keyboard::Q:
@@ -57,11 +49,9 @@ struct EventManager
 					right = true;
 					break;
 				case sf::Keyboard::O:
-					render_mode = !render_mode;
 					break;
 				case sf::Keyboard::Space:
 					up = true;
-					controller.jump();
 					break;
 				case sf::Keyboard::E:
 					mouse_control = !mouse_control;
@@ -72,13 +62,8 @@ struct EventManager
 				case sf::Keyboard::Down:
 					break;
 				case sf::Keyboard::Right:
-					camera.aperture += 0.1f;
 					break;
 				case sf::Keyboard::Left:
-					camera.aperture -= 0.1f;
-					if (camera.aperture < 0.0f) {
-						camera.aperture = 0.0f;
-					}
 					break;
 				case sf::Keyboard::R:
 					break;
@@ -122,27 +107,6 @@ struct EventManager
 				}
 			}
 		}
-
-		const float boost_value = boost ? 10.0f : 5.0f;
-		if (forward) {
-			move += camera.camera_vec;
-		}
-		else if (backward) {
-			move -= camera.camera_vec;
-		}
-
-		if (left) {
-			move += glm::vec3(-camera.camera_vec.z, 0.0f, camera.camera_vec.x);
-		}
-		else if (right) {
-			move -= glm::vec3(-camera.camera_vec.z, 0.0f, camera.camera_vec.x);
-		}
-
-		if (up) {
-			move += glm::vec3(0.0f, -1.0f, 0.0f);
-		}
-
-		controller.move(move, camera, svo, boost);
 	}
 
 	sf::Clock clock;

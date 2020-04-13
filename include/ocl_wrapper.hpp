@@ -198,19 +198,15 @@ namespace oclw
 
 		~MemoryObject()
 		{
-			if (!--(*m_ref_count)) {
-				delete m_ref_count;
-
-				// Clean cl buffer here
-			}
+			m_memory_object = nullptr;
 		}
 
 		operator bool() const
 		{
-			return m_memory_object;
+			return m_memory_object != nullptr;
 		}
 
-		cl_mem& getRaw()
+		std::shared_ptr<_cl_mem>& getRaw()
 		{
 			return m_memory_object;
 		}
@@ -223,7 +219,7 @@ namespace oclw
 	private:
 		uint64_t* m_ref_count;
 
-		cl_mem m_memory_object;
+		std::shared_ptr<struct _cl_mem> m_memory_object;
 		std::size_t m_element_count;
 		std::size_t m_total_size;
 
@@ -236,7 +232,7 @@ namespace oclw
 		void initialize(cl_context context, int32_t mode, uint64_t total_size, void* data)
 		{
 			cl_int err_num;
-			m_memory_object = clCreateBuffer(context, mode, m_total_size, data, &err_num);
+			m_memory_object.reset(clCreateBuffer(context, mode, m_total_size, data, &err_num));
 			checkError(err_num, "Cannot create memory object");
 			initializeRefCounting();
 		}
@@ -469,6 +465,28 @@ namespace oclw
 			cl_int err_num;
 			cl_mem image = clCreateImage2D(m_context, mode, &image_format, width, height, 0, data, &err_num);
 			checkError(err_num, "Cannot create image");
+			return MemoryObject(image, width * height, 4u);
+		}
+
+		MemoryObject createImage3D(uint32_t width, uint32_t height, uint32_t depth, void* data, int32_t mode, ImageFormat format, ChannelDatatype datatype)
+		{
+			cl_image_format image_format;
+			image_format.image_channel_order = format;
+			image_format.image_channel_data_type = datatype;
+			cl_int err_num;
+			cl_mem image = clCreateImage2D(m_context, mode, &image_format, width, height, 0, data, &err_num);
+			checkError(err_num, "Cannot create 2D image");
+			return MemoryObject(image, width * height, 4u);
+		}
+
+		MemoryObject createImage3D(uint32_t width, uint32_t height, uint32_t depth, ImageFormat format, ChannelDatatype datatype)
+		{
+			cl_image_format image_format;
+			image_format.image_channel_order = format;
+			image_format.image_channel_data_type = datatype;
+			cl_int err_num;
+			cl_mem image = clCreateImage3D(m_context, MemoryObjectReadMode::ReadWrite, &image_format, width, height, depth, 0, 0, nullptr, &err_num);
+			checkError(err_num, "Cannot create 3D image");
 			return MemoryObject(image, width * height, 4u);
 		}
 

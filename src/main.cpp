@@ -29,11 +29,11 @@ int main()
 		LSVO svo(*builder, max_depth);
 		delete builder;
 
-		Raytracer raytracer(WIN_WIDTH, WIN_HEIGHT, max_depth, svo.data, lighting_quality);
+		Raytracer raytracer(10, 10);
 
 		// Main loop
 		sf::RenderWindow window(sf::VideoMode(WIN_WIDTH, WIN_HEIGHT), "OpenCL and SFML", sf::Style::Default);
-		window.setMouseCursorVisible(false);
+		//window.setMouseCursorVisible(false);
 
 		EventManager event_manager(window);
 
@@ -57,38 +57,23 @@ int main()
 		camera.view_angle = glm::vec2(0.0f);
 		camera.fov = 1.0f;
 
-
-		sf::Mouse::setPosition(sf::Vector2i(WIN_WIDTH / 2, WIN_HEIGHT / 2), window);
 		FpsController controller;
 		controller.updateCameraView(glm::vec2(0.0f), camera);
 
 		while (window.isOpen())
 		{
-			//std::cout << camera.camera_vec.x << " " << camera.camera_vec.y << " " << camera.position.z << std::endl;
 			sf::Vector2i mouse_pos = sf::Mouse::getPosition(window);
-			event_manager.processEvents(controller, camera, svo, raytracer.render_mode);
 
-			if (event_manager.mouse_control) {
-				sf::Mouse::setPosition(sf::Vector2i(WIN_WIDTH / 2, WIN_HEIGHT / 2), window);
-				const float mouse_sensitivity = 0.0015f;
-				controller.updateCameraView(mouse_sensitivity * glm::vec2(mouse_pos.x - WIN_WIDTH * 0.5f, (WIN_HEIGHT  * 0.5f) - mouse_pos.y), camera);
-			}
+			event_manager.processEvents();
 
-			if (event_manager.mutate_waiting) {
-				event_manager.mutate_waiting = false;
-				raytracer.mutate(event_manager.index, event_manager.child_index);
-			}
-
-			raytracer.updateKernelArgs(camera);
 			raytracer.render();
 
 			window.clear();
 
-			tex_albedo.loadFromImage(raytracer.getAlbedo());
+			tex_albedo.loadFromImage(raytracer.getResult());
 			sf::Sprite albedo_sprite(tex_albedo);
 
 			window.draw(albedo_sprite);
-			//window.draw(albedo_sprite, &median);
 
 			const float aim_size = 2.0f;
 			sf::RectangleShape aim(sf::Vector2f(aim_size, aim_size));
