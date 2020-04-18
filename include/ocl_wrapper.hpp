@@ -265,26 +265,23 @@ namespace oclw
 
 		void setArgument(uint32_t arg_num, MemoryObject& object)
 		{
-			int32_t err_num = clSetKernelArg(m_kernel, arg_num, sizeof(cl_mem), &(object.getRaw()));
 			std::stringstream ssx;
 			ssx << "Cannot set argument [" << arg_num << "] of kernel '" << m_name << "'";
-			checkError(err_num, ssx.str());
+			checkError(clSetKernelArg(m_kernel, arg_num, sizeof(cl_mem), &(object.getRaw())), ssx.str());
 		}
 
 		template<typename T>
 		void setArgument(uint32_t arg_num, const T& arg_value)
 		{
-			int32_t err_num = clSetKernelArg(m_kernel, arg_num, sizeof(T), &arg_value);
 			std::stringstream ssx;
 			ssx << "Cannot set argument [" << arg_num << "] of kernel '" << m_name << "'";
-			checkError(err_num, ssx.str());
+			checkError(clSetKernelArg(m_kernel, arg_num, sizeof(T), &arg_value), ssx.str());
 		}
 
 		Kernel& operator=(const Kernel& other)
 		{
 			m_name = other.m_name;
 			m_kernel = other.m_kernel;
-
 			checkError(clRetainKernel(m_kernel), "Cannot retain kernel");
 			return *this;
 		}
@@ -365,6 +362,17 @@ namespace oclw
 			cl_int err_num;
 			m_command_queue = clCreateCommandQueue(context, device, 0, &err_num);
 			checkError(err_num, "Cannot create command queue");
+		}
+
+		CommandQueue& operator=(const CommandQueue& other)
+		{
+			m_command_queue = other.m_command_queue;
+			checkError(clRetainCommandQueue(m_command_queue), "Cannot retain command queue");
+		}
+
+		~CommandQueue()
+		{
+			checkError(clReleaseCommandQueue(m_command_queue), "Cannot create command queue");
 		}
 
 		operator bool() const
