@@ -212,6 +212,9 @@ namespace oclw
 	};
 
 
+	class CommandQueue;
+
+
 	class MemoryObject
 	{
 	public:
@@ -267,7 +270,18 @@ namespace oclw
 			return m_total_size;
 		}
 
-	private:
+		std::size_t getSize() const
+		{
+			return m_element_count;
+		}
+
+		template<typename T>
+		void read(CommandQueue& queue, std::vector<T>& result_container, bool blocking)
+		{
+
+		}
+
+	protected:
 		cl_mem m_memory_object;
 		std::size_t m_element_count;
 		std::size_t m_total_size;
@@ -278,6 +292,13 @@ namespace oclw
 			m_memory_object = clCreateBuffer(context, mode, m_total_size, data, &err_num);
 			Utils::checkError(err_num, "Cannot create memory object");
 		}
+	};
+
+
+	class Image : public MemoryObject
+	{
+	public:
+		Image() = default;
 	};
 
 
@@ -635,6 +656,22 @@ namespace oclw
 		void runKernel(Kernel& kernel, const Size& global_size, const Size& local_size, const std::size_t* global_work_offset = nullptr)
 		{
 			m_command_queue.addKernel(kernel, global_size.dimension, global_size.sizes, local_size.sizes, global_work_offset);
+		}
+
+		template<typename T>
+		void readMemoryObject(const MemoryObject& mem_object, std::vector<T>& result_container, bool blocking_read = true)
+		{
+			m_command_queue.readMemoryObject(mem_object, blocking_read, result_container);
+		}
+
+		template<typename T>
+		void safeReadMemoryObject(const MemoryObject& mem_object, std::vector<T>& result_container, bool blocking_read = true)
+		{
+			const std::size_t mem_object_size = mem_object.getSize();
+			if (result_container.size() < mem_object_size) {
+				result_container.resize(mem_object_size);
+			}
+			readMemoryObject(mem_object, result_container, blocking_read);
 		}
 
 		Context getContext()
