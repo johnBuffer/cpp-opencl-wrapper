@@ -95,15 +95,6 @@ namespace oclw
 	};
 
 
-	const std::string& getErrorString(cl_int err_num);
-
-
-	const std::string loadSourceFromFile(const std::string& filename);
-
-
-	void checkError(cl_int err_num, const std::string& err_message);
-
-
 	enum PlatformType {
 		CPU = CL_DEVICE_TYPE_CPU,
 		GPU = CL_DEVICE_TYPE_GPU
@@ -177,6 +168,50 @@ namespace oclw
 	};
 
 
+	struct Utils
+	{
+		static const std::string& getErrorString(cl_int err_num)
+		{
+			const int32_t error_code = -(err_num < -19 ? err_num + 10 : err_num);
+			return oclw::cl_errors[error_code];
+		}
+
+		static const std::string loadSourceFromFile(const std::string& filename)
+		{
+			std::ifstream kernel_file(filename, std::ios::in);
+			if (!kernel_file.is_open()) {
+				throw Exception(-1, "Cannot open source file '" + filename + "'");
+			}
+			std::ostringstream oss;
+			oss << kernel_file.rdbuf();
+
+			return oss.str();
+		}
+
+		static void checkError(cl_int err_num, const std::string& err_message)
+		{
+			if (err_num != CL_SUCCESS) {
+				throw oclw::Exception(err_num, err_message + " [" + getErrorString(err_num) + "]");
+			}
+		}
+
+		static cl_image_desc getDefaultImageDesc()
+		{
+			cl_image_desc image_desc;
+			image_desc.image_width = 0;
+			image_desc.image_height = 0;
+			image_desc.image_depth = 0;
+			image_desc.num_mip_levels = 0;
+			image_desc.num_samples = 0;
+			image_desc.buffer = nullptr;
+			image_desc.image_row_pitch = 0;
+			image_desc.image_slice_pitch = 0;
+			image_desc.image_array_size = 0;
+			return image_desc;
+		}
+	};
+
+
 	class MemoryObject
 	{
 	public:
@@ -208,13 +243,13 @@ namespace oclw
 			m_element_count = other.m_element_count;
 			m_total_size = other.m_total_size;
 			cl_int err_num = clRetainMemObject(m_memory_object);
-			checkError(err_num, "Cannot retain memory object");
+			Utils::checkError(err_num, "Cannot retain memory object");
 			return *this;
 		}
 
 		~MemoryObject()
 		{
-			checkError(clReleaseMemObject(m_memory_object), "Cannot delete memory object");
+			Utils::checkError(clReleaseMemObject(m_memory_object), "Cannot delete memory object");
 		}
 
 		operator bool() const
@@ -241,7 +276,7 @@ namespace oclw
 		{
 			cl_int err_num;
 			m_memory_object = clCreateBuffer(context, mode, m_total_size, data, &err_num);
-			checkError(err_num, "Cannot create memory object");
+			Utils::checkError(err_num, "Cannot create memory object");
 		}
 	};
 
@@ -260,14 +295,14 @@ namespace oclw
 		{
 			cl_int err_num;
 			m_kernel = clCreateKernel(program, name.c_str(), &err_num);
-			checkError(err_num, "Cannot create kernel '" + name + "'");
+			Utils::checkError(err_num, "Cannot create kernel '" + name + "'");
 		}
 
 		void setArgument(uint32_t arg_num, MemoryObject& object)
 		{
 			std::stringstream ssx;
 			ssx << "Cannot set argument [" << arg_num << "] of kernel '" << m_name << "'";
-			checkError(clSetKernelArg(m_kernel, arg_num, sizeof(cl_mem), &(object.getRaw())), ssx.str());
+			Utils::checkError(clSetKernelArg(m_kernel, arg_num, sizeof(cl_mem), &(object.getRaw())), ssx.str());
 		}
 
 		template<typename T>
@@ -282,7 +317,7 @@ namespace oclw
 		{
 			m_name = other.m_name;
 			m_kernel = other.m_kernel;
-			checkError(clRetainKernel(m_kernel), "Cannot retain kernel");
+			Utils::checkError(clRetainKernel(m_kernel), "Cannot retain kernel");
 			return *this;
 		}
 
@@ -290,7 +325,7 @@ namespace oclw
 		{
 			cl_int err_num;
 			err_num = clReleaseKernel(m_kernel);
-			checkError(err_num, "Cannot release kernel");
+			Utils::checkError(err_num, "Cannot release kernel");
 		}
 
 		cl_kernel& getRaw()
@@ -322,7 +357,7 @@ namespace oclw
 			int32_t err_num;
 			const char *src_str = source.c_str();
 			m_program = clCreateProgramWithSource(context, 1, (const char**)&src_str, NULL, &err_num);
-			checkError(err_num, "Cannot create program");
+			Utils::checkError(err_num, "Cannot create program");
 
 			err_num = clBuildProgram(m_program, 0, NULL, NULL, NULL, NULL);
 			if (err_num != CL_SUCCESS) {
@@ -330,19 +365,20 @@ namespace oclw
 				char buildLog[32000];
 				clGetProgramBuildInfo(m_program, device, CL_PROGRAM_BUILD_LOG, sizeof(buildLog), buildLog, NULL);
 				clReleaseProgram(m_program);
-				checkError(err_num, "Cannot build program: '" + std::string(buildLog) + "'");
+				Utils::checkError(err_num, "Cannot build program: '" + std::string(buildLog) + "'");
 			}
 		}
 
 		Program& operator=(const Program& other)
 		{
 			m_program = other.m_program;
-			checkError(clRetainProgram(m_program), "Cannot retain program");
+			Utils::checkError(clRetainProgram(m_program), "Cannot retain program");
+			return *this;
 		}
 
 		~Program()
 		{
-			checkError(clReleaseProgram(m_program), "Cannot release program");
+			Utils::checkError(clReleaseProgram(m_program), "Cannot release program");
 		}
 
 		operator bool() const
@@ -372,19 +408,19 @@ namespace oclw
 		{
 			cl_int err_num;
 			m_command_queue = clCreateCommandQueue(context, device, 0, &err_num);
-			checkError(err_num, "Cannot create command queue");
+			Utils::checkError(err_num, "Cannot create command queue");
 		}
 
 		CommandQueue& operator=(const CommandQueue& other)
 		{
 			m_command_queue = other.m_command_queue;
-			checkError(clRetainCommandQueue(m_command_queue), "Cannot retain command queue");
+			Utils::checkError(clRetainCommandQueue(m_command_queue), "Cannot retain command queue");
 			return *this;
 		}
 
 		~CommandQueue()
 		{
-			checkError(clReleaseCommandQueue(m_command_queue), "Cannot create command queue");
+			Utils::checkError(clReleaseCommandQueue(m_command_queue), "Cannot create command queue");
 		}
 
 		operator bool() const
@@ -395,7 +431,7 @@ namespace oclw
 		void addKernel(Kernel& kernel, uint32_t work_dimension, const std::size_t* global_work_offset, const size_t* global_work_size, const size_t* local_work_size)
 		{
 			const int32_t err_num = clEnqueueNDRangeKernel(m_command_queue, kernel.getRaw(), work_dimension, global_work_offset, global_work_size, local_work_size, 0, 0, 0);
-			checkError(err_num, "Cannot add kernel '" + kernel.getName() + "' to command queue");
+			Utils::checkError(err_num, "Cannot add kernel '" + kernel.getName() + "' to command queue");
 		}
 
 		template<typename T>
@@ -438,18 +474,18 @@ namespace oclw
 
 			m_context = clCreateContextFromType(contextProperties, type, NULL, NULL, &err_num);
 
-			checkError(err_num, "Cannot create context");
+			Utils::checkError(err_num, "Cannot create context");
 		}
 
 		~Context()
 		{
-			checkError(clReleaseContext(m_context), "Cannot release context");
+			Utils::checkError(clReleaseContext(m_context), "Cannot release context");
 		}
 
 		Context& operator=(const Context& other)
 		{
 			m_context = other.m_context;
-			checkError(clRetainContext(m_context), "Cannot retain context");
+			Utils::checkError(clRetainContext(m_context), "Cannot retain context");
 			return *this;
 		}
 
@@ -463,12 +499,12 @@ namespace oclw
 			cl_int err_num;
 			std::size_t device_buffer_size = 0;
 			err_num = clGetContextInfo(m_context, CL_CONTEXT_DEVICES, 0, NULL, &device_buffer_size);
-			checkError(err_num, "Cannot get devices");
+			Utils::checkError(err_num, "Cannot get devices");
 			
 			const uint64_t devices_count = device_buffer_size / sizeof(cl_device_id);
 			std::vector<cl_device_id> devices(devices_count);
 			err_num = clGetContextInfo(m_context, CL_CONTEXT_DEVICES, device_buffer_size, devices.data(), NULL);
-			checkError(err_num, "Cannot get devices");
+			Utils::checkError(err_num, "Cannot get devices");
 
 			for (cl_device_id id : devices) {
 				uint64_t value_size;
@@ -516,9 +552,15 @@ namespace oclw
 			cl_image_format image_format;
 			image_format.image_channel_order = format;
 			image_format.image_channel_data_type = datatype;
+
+			cl_image_desc image_desc = Utils::getDefaultImageDesc();
+			image_desc.image_type = CL_MEM_OBJECT_IMAGE2D;
+			image_desc.image_width = width;
+			image_desc.image_height = height;
+
 			cl_int err_num;
-			cl_mem image = clCreateImage2D(m_context, mode, &image_format, width, height, 0, data, &err_num);
-			checkError(err_num, "Cannot create image");
+			const cl_mem image = clCreateImage(m_context, mode, &image_format, &image_desc, data, &err_num);
+			Utils::checkError(err_num, "Cannot create 2D image");
 			return MemoryObject(image, width * height, 4u);
 		}
 
@@ -527,9 +569,15 @@ namespace oclw
 			cl_image_format image_format;
 			image_format.image_channel_order = format;
 			image_format.image_channel_data_type = datatype;
+
+			cl_image_desc image_desc = Utils::getDefaultImageDesc();
+			image_desc.image_type = CL_MEM_OBJECT_IMAGE3D;
+			image_desc.image_width = width;
+			image_desc.image_height = height;
+			image_desc.image_depth = depth;
 			cl_int err_num;
-			cl_mem image = clCreateImage2D(m_context, mode, &image_format, width, height, 0, data, &err_num);
-			checkError(err_num, "Cannot create 2D image");
+			const cl_mem image = clCreateImage(m_context, mode, &image_format, &image_desc, data, &err_num);
+			Utils::checkError(err_num, "Cannot create 3D image");
 			return MemoryObject(image, width * height, 4u);
 		}
 
@@ -538,9 +586,14 @@ namespace oclw
 			cl_image_format image_format;
 			image_format.image_channel_order = format;
 			image_format.image_channel_data_type = datatype;
+			cl_image_desc image_desc = Utils::getDefaultImageDesc();
+			image_desc.image_type = CL_MEM_OBJECT_IMAGE3D;
+			image_desc.image_width = width;
+			image_desc.image_height = height;
+			image_desc.image_depth = depth;
 			cl_int err_num;
-			cl_mem image = clCreateImage3D(m_context, MemoryObjectReadMode::ReadWrite, &image_format, width, height, depth, 0, 0, nullptr, &err_num);
-			checkError(err_num, "Cannot create 3D image");
+			cl_mem image = clCreateImage(m_context, MemoryObjectReadMode::ReadWrite, &image_format, &image_desc, nullptr, &err_num);
+			Utils::checkError(err_num, "Cannot create 3D image");
 			return MemoryObject(image, width * height, 4u);
 		}
 
@@ -565,7 +618,7 @@ namespace oclw
 		{
 			std::vector<cl_platform_id> platforms(num);
 			cl_int err_num = clGetPlatformIDs(num, platforms.data(), platforms_count);
-			checkError(err_num, "Cannot fetch platforms");
+			Utils::checkError(err_num, "Cannot fetch platforms");
 			return platforms;
 		}
 
