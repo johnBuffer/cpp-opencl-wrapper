@@ -510,6 +510,11 @@ namespace oclw
 			return *this;
 		}
 
+		operator cl_context() const
+		{
+			return m_context;
+		}
+
 		operator bool() const
 		{
 			return m_context;
@@ -648,9 +653,14 @@ namespace oclw
 			return Context(platform_id, type);
 		}
 
-		Program createProgram(const std::string& filename)
+		Program createProgramFromFile(const std::string& filename)
 		{
 			return m_context.createProgram(m_device, filename);
+		}
+
+		Program createProgram(const std::string& source)
+		{
+			return Program(m_context, source, m_device);
 		}
 
 		void runKernel(Kernel& kernel, const Size& global_size, const Size& local_size, const std::size_t* global_work_offset = nullptr)
