@@ -24,6 +24,6 @@ const std::string oclw::loadSourceFromFile(const std::string& filename)
 void oclw::checkError(cl_int err_num, const std::string& err_message)
 {
 	if (err_num != CL_SUCCESS) {
-		throw oclw::Exception(err_num, err_message);
+		throw oclw::Exception(err_num, err_message + " [" + getErrorString(err_num) + "]");
 	}
 }

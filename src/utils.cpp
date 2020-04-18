@@ -10,7 +10,7 @@
 
 oclw::Context createDefaultContext(oclw::Wrapper& wrapper)
 {
-	auto platforms = wrapper.getPlatforms();
+	auto platforms = wrapper.getPlatforms(1u);
 	if (platforms.empty()) {
 		return nullptr;
 	}

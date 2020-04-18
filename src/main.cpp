@@ -46,9 +46,6 @@ int main()
 		tex_lighting_upscale.setSmooth(true);
 		Blur blur(WIN_WIDTH, WIN_HEIGHT, 1.0f);
 
-		sf::Shader median; 
-		median.loadFromFile("../res/median_3.frag", sf::Shader::Fragment);
-
 		// Camera
 		Camera camera;
 		camera.position = glm::vec3(68.7249f, 60, 60);
@@ -87,7 +84,7 @@ int main()
 	}
 	catch (const oclw::Exception& error)
 	{
-		std::cout << "Error: " << error.getReadableError() << std::endl;
+		std::cout << "Error: " << error.what() << std::endl;
 	}
 
 	return 0;

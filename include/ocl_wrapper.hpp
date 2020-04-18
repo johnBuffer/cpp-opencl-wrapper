@@ -5,10 +5,33 @@
 #include <fstream>
 #include <sstream>
 #include <iostream>
+#include <CL/cl.hpp>
 
 
 namespace oclw
 {
+	struct Size
+	{
+		Size(std::size_t x)
+			: dimension(1u)
+			, sizes{x, 0, 0}
+		{}
+		
+		Size(std::size_t x, std::size_t y)
+			: dimension(2u)
+			, sizes{ x, y, 0 }
+		{}
+
+		Size(std::size_t x, std::size_t y, std::size_t z)
+			: dimension(3u)
+			, sizes{ x, y, z }
+		{}
+
+		const uint8_t dimension;
+		const std::size_t sizes[3];
+	};
+
+
 	const std::vector<std::string> cl_errors = {
 		"CL_SUCCESS",
 		"CL_DEVICE_NOT_FOUND",
@@ -143,19 +166,14 @@ namespace oclw
 			return m_message.c_str();
 		}
 
-		const std::string getReadableError() const
-		{
-			return (m_message + " [" + getErrorString(m_error) + "]").c_str();
-		}
-
 		cl_int getErrorCode() const
 		{
 			return m_error;
 		}
 
 	private:
-		cl_int m_error;
-		std::string m_message;
+		const cl_int m_error;
+		const std::string m_message;
 	};
 
 
@@ -167,7 +185,6 @@ namespace oclw
 			, m_element_count(element_count)
 			, m_total_size(element_count * element_size)
 		{
-			initializeRefCounting();
 		}
 
 		template<typename T>
@@ -187,18 +204,17 @@ namespace oclw
 
 		MemoryObject& operator=(const MemoryObject& other)
 		{
-			m_element_count = other.m_element_count;
 			m_memory_object = other.m_memory_object;
+			m_element_count = other.m_element_count;
 			m_total_size = other.m_total_size;
-			m_ref_count = other.m_ref_count;
-			++(*m_ref_count);
-
+			cl_int err_num = clRetainMemObject(m_memory_object);
+			checkError(err_num, "Cannot retain memory object");
 			return *this;
 		}
 
 		~MemoryObject()
 		{
-			m_memory_object = nullptr;
+			checkError(clReleaseMemObject(m_memory_object), "Cannot delete memory object");
 		}
 
 		operator bool() const
@@ -206,7 +222,7 @@ namespace oclw
 			return m_memory_object != nullptr;
 		}
 
-		std::shared_ptr<_cl_mem>& getRaw()
+		cl_mem& getRaw()
 		{
 			return m_memory_object;
 		}
@@ -217,24 +233,15 @@ namespace oclw
 		}
 
 	private:
-		uint64_t* m_ref_count;
-
-		std::shared_ptr<struct _cl_mem> m_memory_object;
+		cl_mem m_memory_object;
 		std::size_t m_element_count;
 		std::size_t m_total_size;
-
-		void initializeRefCounting()
-		{
-			m_ref_count = new uint64_t;
-			*m_ref_count = 1u;
-		}
 
 		void initialize(cl_context context, int32_t mode, uint64_t total_size, void* data)
 		{
 			cl_int err_num;
-			m_memory_object.reset(clCreateBuffer(context, mode, m_total_size, data, &err_num));
+			m_memory_object = clCreateBuffer(context, mode, m_total_size, data, &err_num);
 			checkError(err_num, "Cannot create memory object");
-			initializeRefCounting();
 		}
 	};
 
@@ -271,6 +278,22 @@ namespace oclw
 			std::stringstream ssx;
 			ssx << "Cannot set argument [" << arg_num << "] of kernel '" << m_name << "'";
 			checkError(err_num, ssx.str());
+		}
+
+		Kernel& operator=(const Kernel& other)
+		{
+			m_name = other.m_name;
+			m_kernel = other.m_kernel;
+
+			checkError(clRetainKernel(m_kernel), "Cannot retain kernel");
+			return *this;
+		}
+
+		~Kernel()
+		{
+			cl_int err_num;
+			err_num = clReleaseKernel(m_kernel);
+			checkError(err_num, "Cannot release kernel");
 		}
 
 		cl_kernel& getRaw()
@@ -351,7 +374,7 @@ namespace oclw
 
 		void addKernel(Kernel& kernel, uint32_t work_dimension, const std::size_t* global_work_offset, const size_t* global_work_size, const size_t* local_work_size)
 		{
-			int32_t err_num = clEnqueueNDRangeKernel(m_command_queue, kernel.getRaw(), work_dimension, global_work_offset, global_work_size, local_work_size, 0, 0, 0);
+			const int32_t err_num = clEnqueueNDRangeKernel(m_command_queue, kernel.getRaw(), work_dimension, global_work_offset, global_work_size, local_work_size, 0, 0, 0);
 			checkError(err_num, "Cannot add kernel '" + kernel.getName() + "' to command queue");
 		}
 
@@ -499,26 +522,21 @@ namespace oclw
 	class Wrapper
 	{
 	public:
-		Wrapper(const uint32_t num = 1u)
+		Wrapper()
 		{
-			fetchPlatforms(num);
 		}
 
-		void fetchPlatforms(const uint32_t num)
+		Wrapper(PlatformType type)
 		{
-			m_platforms.resize(num);
-			cl_int err_num = clGetPlatformIDs(num, m_platforms.data(), &m_platforms_count);
+			initializeContext(type);
+		}
+
+		std::vector<cl_platform_id> getPlatforms(const uint32_t num, cl_uint* platforms_count = nullptr)
+		{
+			std::vector<cl_platform_id> platforms(num);
+			cl_int err_num = clGetPlatformIDs(num, platforms.data(), platforms_count);
 			checkError(err_num, "Cannot fetch platforms");
-		}
-
-		uint32_t getPlatformCount() const
-		{
-			return m_platforms_count;
-		}
-
-		const std::vector<cl_platform_id>& getPlatforms() const
-		{
-			return m_platforms;
+			return platforms;
 		}
 
 		Context createContext(cl_platform_id platform_id, PlatformType type) const
@@ -526,8 +544,48 @@ namespace oclw
 			return Context(platform_id, type);
 		}
 
+		Program createProgram(const std::string& filename)
+		{
+			return m_context.createProgram(m_device, filename);
+		}
+
+		void runKernel(Kernel& kernel, const Size& global_size, const Size& local_size, const std::size_t* global_work_offset = nullptr)
+		{
+			m_command_queue.addKernel(kernel, global_size.dimension, global_size.sizes, local_size.sizes, global_work_offset);
+		}
+
+		Context getContext()
+		{
+			return m_context;
+		}
+
 	private:
-		uint32_t m_platforms_count;
-		std::vector<cl_platform_id> m_platforms;
+		Context m_context;
+		cl_device_id m_device;
+		CommandQueue m_command_queue;
+
+		void initializeContext(PlatformType type)
+		{
+			auto platforms = getPlatforms(1u);
+			if (!platforms.empty()) {
+				m_context = createContext(platforms.front(), type);
+				if (!m_context) {
+					std::cout << "Cannot create context." << std::endl;
+				}
+				initializeCommandQueue();
+			}
+			else {
+				std::cout << "Cannot find platform." << std::endl;
+			}
+		}
+
+		void initializeCommandQueue()
+		{
+			if (m_context) {
+				auto& devices_list = m_context.getDevices();
+				m_device = devices_list.front();
+				m_command_queue = m_context.createQueue(m_device);
+			}
+		}
 	};
 }
