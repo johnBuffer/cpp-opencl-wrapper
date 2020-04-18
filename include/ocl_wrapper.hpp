@@ -330,8 +330,19 @@ namespace oclw
 				char buildLog[32000];
 				clGetProgramBuildInfo(m_program, device, CL_PROGRAM_BUILD_LOG, sizeof(buildLog), buildLog, NULL);
 				clReleaseProgram(m_program);
-				throw Exception(err_num, "Cannot build program: '" + std::string(buildLog) + "'");
+				checkError(err_num, "Cannot build program: '" + std::string(buildLog) + "'");
 			}
+		}
+
+		Program& operator=(const Program& other)
+		{
+			m_program = other.m_program;
+			checkError(clRetainProgram(m_program), "Cannot retain program");
+		}
+
+		~Program()
+		{
+			checkError(clReleaseProgram(m_program), "Cannot release program");
 		}
 
 		operator bool() const
@@ -368,6 +379,7 @@ namespace oclw
 		{
 			m_command_queue = other.m_command_queue;
 			checkError(clRetainCommandQueue(m_command_queue), "Cannot retain command queue");
+			return *this;
 		}
 
 		~CommandQueue()
@@ -417,11 +429,6 @@ namespace oclw
 			: m_context(raw_context)
 		{}
 
-		operator bool() const
-		{
-			return m_context;
-		}
-
 		Context(cl_platform_id platform_id, PlatformType type)
 		{
 			cl_int err_num;
@@ -434,20 +441,36 @@ namespace oclw
 			checkError(err_num, "Cannot create context");
 		}
 
-		const std::vector<cl_device_id>& getDevices()
+		~Context()
 		{
-			m_devices.clear();
+			checkError(clReleaseContext(m_context), "Cannot release context");
+		}
+
+		Context& operator=(const Context& other)
+		{
+			m_context = other.m_context;
+			checkError(clRetainContext(m_context), "Cannot retain context");
+			return *this;
+		}
+
+		operator bool() const
+		{
+			return m_context;
+		}
+
+		const std::vector<cl_device_id> getDevices()
+		{
 			cl_int err_num;
 			std::size_t device_buffer_size = 0;
 			err_num = clGetContextInfo(m_context, CL_CONTEXT_DEVICES, 0, NULL, &device_buffer_size);
 			checkError(err_num, "Cannot get devices");
 			
 			const uint64_t devices_count = device_buffer_size / sizeof(cl_device_id);
-			m_devices.resize(devices_count);
-			err_num = clGetContextInfo(m_context, CL_CONTEXT_DEVICES, device_buffer_size, m_devices.data(), NULL);
+			std::vector<cl_device_id> devices(devices_count);
+			err_num = clGetContextInfo(m_context, CL_CONTEXT_DEVICES, device_buffer_size, devices.data(), NULL);
 			checkError(err_num, "Cannot get devices");
 
-			for (cl_device_id id : m_devices) {
+			for (cl_device_id id : devices) {
 				uint64_t value_size;
 				clGetDeviceInfo(id, CL_DEVICE_NAME, 0, NULL, &value_size);
 				char* value = (char*)malloc(value_size);
@@ -456,7 +479,7 @@ namespace oclw
 				free(value);
 			}
 
-			return m_devices;
+			return devices;
 		}
 
 		CommandQueue createQueue(cl_device_id device)
@@ -523,7 +546,6 @@ namespace oclw
 
 	private:
 		cl_context m_context;
-		std::vector<cl_device_id> m_devices;
 	};
 
 
