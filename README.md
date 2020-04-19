@@ -11,7 +11,7 @@ In order to use this wrapper you just need to include `ocl_wrapper.hpp`
 ```
 
 # Example
-In this example we will create a very simple hello worldish opencl application which sums up to array and writes the result in a third one.
+In this example we will create a very simple hello worldish opencl application which sums up two arrays and writes the result in a third one.
 
 ### First, some includes
 ```cpp
@@ -77,15 +77,15 @@ int main()
 }
 ```
 
-Note that it is also possible to create a program from a file. In this case the code becomes
+Note that it is also possible to create a program **from a file**. In this case the code becomes
 ```cpp
 oclw::Program program = wrapper.createProgramFromFile("source_file.cl");
 ```
 
-# Exception
+# Exceptions
 When an OpenCL api call fails, an `oclw::Exception` is raised. It contains the error string corresponding to the OpenCL error code.
 
-For example if in the previous example one argument wasn't set, the std output would show this
+For example if in the previous example one argument **wasn't set**, the std output would show this
 ```
 Error: Cannot add kernel 'test' to command queue [CL_INVALID_KERNEL_ARGS]
 ```
