@@ -227,14 +227,16 @@ namespace oclw
 
 		template<typename T>
 		MemoryObject(cl_context context, std::vector<T>& data, int32_t mode)
-			: m_element_count(data.size())
+			: m_memory_object(nullptr)
+			, m_element_count(data.size())
 			, m_total_size(sizeof(T) * data.size())
 		{
 			initialize(context, mode, m_total_size, data.data());
 		}
 
 		MemoryObject(cl_context context, uint32_t element_size, uint64_t element_count, int32_t mode)
-			: m_element_count(element_count)
+			: m_memory_object(nullptr)
+			, m_element_count(element_count)
 			, m_total_size(element_size * element_count)
 		{
 			initialize(context, mode, m_total_size, NULL);
@@ -245,14 +247,18 @@ namespace oclw
 			m_memory_object = other.m_memory_object;
 			m_element_count = other.m_element_count;
 			m_total_size = other.m_total_size;
-			cl_int err_num = clRetainMemObject(m_memory_object);
-			Utils::checkError(err_num, "Cannot retain memory object");
+			if (m_memory_object) {
+				cl_int err_num = clRetainMemObject(m_memory_object);
+				Utils::checkError(err_num, "Cannot retain memory object");
+			}
 			return *this;
 		}
 
 		~MemoryObject()
 		{
-			Utils::checkError(clReleaseMemObject(m_memory_object), "Cannot delete memory object");
+			if (m_memory_object) {
+				Utils::checkError(clReleaseMemObject(m_memory_object), "Cannot delete memory object");
+			}
 		}
 
 		operator bool() const
