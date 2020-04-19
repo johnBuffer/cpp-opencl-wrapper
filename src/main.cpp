@@ -29,7 +29,7 @@ int main()
 		oclw::Program program = wrapper.createProgram(program_source);
 		oclw::Kernel kernel = program.createKernel("test");
 		// Create kernel
-		//kernel.setArgument(0, a_buff);
+		kernel.setArgument(0, a_buff);
 		kernel.setArgument(1, b_buff);
 		kernel.setArgument(2, c_buff);
 		// Execute the kernel
