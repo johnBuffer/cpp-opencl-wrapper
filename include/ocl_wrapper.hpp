@@ -27,7 +27,7 @@ namespace oclw
 			, sizes{ x, y, z }
 		{}
 
-		const uint8_t dimension;
+		const uint32_t dimension;
 		const std::size_t sizes[3];
 	};
 
@@ -95,7 +95,7 @@ namespace oclw
 	};
 
 
-	enum PlatformType {
+	enum DeviceType {
 		CPU = CL_DEVICE_TYPE_CPU,
 		GPU = CL_DEVICE_TYPE_GPU
 	};
@@ -459,14 +459,14 @@ namespace oclw
 		void readMemoryObject(MemoryObject& object, bool blocking_read, std::vector<T>& result)
 		{
 			int32_t err_num = clEnqueueReadBuffer(m_command_queue, object.getRaw(), blocking_read ? CL_TRUE : CL_FALSE, 0, object.getBytesSize(), result.data(), 0, NULL, NULL);
-			checkError(err_num, "Cannot read from buffer");
+			Utils::checkError(err_num, "Cannot read from buffer");
 		}
 
 		template<typename T>
 		void writeInMemoryObject(MemoryObject& object, bool blocking_write, const T* data)
 		{
 			int32_t err_num = clEnqueueWriteBuffer(m_command_queue, object.getRaw(), blocking_write ? CL_TRUE : CL_FALSE, 0, object.getBytesSize(), data, 0, NULL, NULL);
-			checkError(err_num, "Cannot write in buffer");
+			Utils::checkError(err_num, "Cannot write in buffer");
 		}
 
 		void waitCompletion()
@@ -486,7 +486,7 @@ namespace oclw
 			: m_context(raw_context)
 		{}
 
-		Context(cl_platform_id platform_id, PlatformType type)
+		Context(cl_platform_id platform_id, DeviceType type)
 		{
 			cl_int err_num;
 			cl_context_properties contextProperties[] = {
@@ -631,11 +631,9 @@ namespace oclw
 	class Wrapper
 	{
 	public:
-		Wrapper()
-		{
-		}
+		Wrapper() = default;
 
-		Wrapper(PlatformType type)
+		Wrapper(DeviceType type)
 		{
 			initializeContext(type);
 		}
@@ -648,7 +646,7 @@ namespace oclw
 			return platforms;
 		}
 
-		Context createContext(cl_platform_id platform_id, PlatformType type) const
+		Context createContext(cl_platform_id platform_id, DeviceType type) const
 		{
 			return Context(platform_id, type);
 		}
@@ -665,17 +663,17 @@ namespace oclw
 
 		void runKernel(Kernel& kernel, const Size& global_size, const Size& local_size, const std::size_t* global_work_offset = nullptr)
 		{
-			m_command_queue.addKernel(kernel, global_size.dimension, global_size.sizes, local_size.sizes, global_work_offset);
+			m_command_queue.addKernel(kernel, global_size.dimension, global_work_offset, global_size.sizes, local_size.sizes);
 		}
 
 		template<typename T>
-		void readMemoryObject(const MemoryObject& mem_object, std::vector<T>& result_container, bool blocking_read = true)
+		void readMemoryObject(MemoryObject& mem_object, std::vector<T>& result_container, bool blocking_read = true)
 		{
 			m_command_queue.readMemoryObject(mem_object, blocking_read, result_container);
 		}
 
 		template<typename T>
-		void safeReadMemoryObject(const MemoryObject& mem_object, std::vector<T>& result_container, bool blocking_read = true)
+		void safeReadMemoryObject(MemoryObject& mem_object, std::vector<T>& result_container, bool blocking_read = true)
 		{
 			const std::size_t mem_object_size = mem_object.getSize();
 			if (result_container.size() < mem_object_size) {
@@ -689,12 +687,24 @@ namespace oclw
 			return m_context;
 		}
 
+		template<typename T>
+		MemoryObject createMemoryObject(std::vector<T>& data, int32_t mode = oclw::ReadWrite)
+		{
+			return m_context.createMemoryObject(data, mode);
+		}
+
+		template<typename T>
+		MemoryObject createMemoryObject(std::size_t element_count, int32_t mode = oclw::ReadWrite)
+		{
+			return m_context.createMemoryObject<T>(element_count, mode);
+		}
+
 	private:
 		Context m_context;
 		cl_device_id m_device;
 		CommandQueue m_command_queue;
 
-		void initializeContext(PlatformType type)
+		void initializeContext(DeviceType type)
 		{
 			auto platforms = getPlatforms(1u);
 			if (!platforms.empty()) {
@@ -715,6 +725,9 @@ namespace oclw
 				auto& devices_list = m_context.getDevices();
 				m_device = devices_list.front();
 				m_command_queue = m_context.createQueue(m_device);
+			}
+			else {
+				std::cout << "Cannot create queue." << std::endl;
 			}
 		}
 	};
