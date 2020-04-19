@@ -76,3 +76,16 @@ int main()
     return 0;
 }
 ```
+
+Note that it is also possible to create a program from a file. In this case the code becomes
+```cpp
+oclw::Program program = wrapper.createProgramFromFile("source_file.cl");
+```
+
+# Exception
+When an OpenCL api call fails, an `oclw::Exception` is raised. It contains the error string corresponding to the OpenCL error code.
+
+For example if in the previous example one argument wasn't set, the std output would show this
+```
+Error: Cannot add kernel 'test' to command queue [CL_INVALID_KERNEL_ARGS]
+```
