@@ -8,29 +8,6 @@
 #include <cmath>
 
 
-oclw::Context createDefaultContext(oclw::Wrapper& wrapper)
-{
-	auto platforms = wrapper.getPlatforms(1u);
-	if (platforms.empty()) {
-		return nullptr;
-	}
-	// Trying to create GPU context
-	std::cout << "Creating context on GPU..." << std::endl;
-	oclw::Context context = wrapper.createContext(platforms.front(), oclw::GPU);
-	if (!context) {
-		// If not available try on CPU
-		std::cout << "Creating context on CPU..." << std::endl;
-		context = wrapper.createContext(platforms.front(), oclw::CPU);
-		if (!context) {
-			std::cout << "Cannot create context." << std::endl;
-			return nullptr;
-		}
-	}
-	std::cout << "Done." << std::endl;
-	return context;
-}
-
-
 void generateSVO(uint8_t max_depth, SVO& svo)
 {
 	const uint32_t size = 1 << max_depth;
@@ -56,18 +33,8 @@ void generateSVO(uint8_t max_depth, SVO& svo)
 
 			volume_raw->setCell(Cell::Solid, Cell::Grass, x, 0, z);
 
-			if (x == 1 || x == grid_size_x - 2 || z == 1 || z == grid_size_x - 2)
-			for (uint32_t y = 1; y < 32; y++) {
-				volume_raw->setCell(Cell::Solid, Cell::Grass, x, y, z);
-			}
-			else {
-				for (uint8_t y(1); y<5; ++y)
-				volume_raw->setCell(Cell::Mirror, Cell::Grass, x, y, z);
-			}
+			const int32_t height = int32_t(64.0f * myNoise.GetNoise(float(0.75f * x), float(0.75f * z)) + 32);
 
-			const int32_t height = float(terrain_height_map.getPixel(x, z).r / 255.0f) * 128.0f;
-			const int32_t margin = 40;
-			if (x > margin && x < grid_size_x - margin && z > margin && z < grid_size_x - margin)
 			for (uint32_t y = 1; y < std::max(0, std::min(height, grid_size_y) - 1); y++) {
 				volume_raw->setCell(Cell::Solid, Cell::Grass, x, y, z);
 			}

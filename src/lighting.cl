@@ -11,10 +11,10 @@ __constant sampler_t tex_sampler = CLK_NORMALIZED_COORDS_TRUE | CLK_FILTER_LINEA
 __constant sampler_t exact_sampler = CLK_NORMALIZED_COORDS_FALSE | CLK_FILTER_NEAREST | CLK_ADDRESS_CLAMP;
 __constant float EPS = 0x1.fffffep-1f;
 __constant float NORMAL_EPS = 0.0078125f * 0.0078125f * 0.0078125f;
-__constant float SUN_INTENSITY = 0.0f;
+__constant float SUN_INTENSITY = 1.0f;
 __constant float3 SKY_COLOR = (float3)(153.0f, 223.0f, 255.0f);
-//__constant float3 SKY_COLOR = (float3)(0.0f);
-__constant float time_su = 0.5f;
+//constant float3 SKY_COLOR = (float3)(0.0f);
+__constant float time_su = 0.0f;
 __constant float NEAR = 0.5f;
 __constant float GOLDEN_RATIO = 1.61803398875f;
 __constant float G = 1.0f / 1.22074408460575947536f;
@@ -106,19 +106,9 @@ float3 getRandomizedNormal(float3 normal, image2d_t noise, uint32_t frame_count)
 float3 getColorFromIntersection(HitPoint intersection)
 {
 	if (intersection.emissive) {
-		if (intersection.normal.x) {
-			return (float3)(1.0f, 0.0f, 0.0f);
-		}
-		
-		if (intersection.normal.y) {
-			return (float3)(0.0f, 1.0f, 0.0f);
-		}
-
-		if (intersection.normal.z) {
-			return (float3)(0.0f, 0.0f, 1.0f);
-		}
+		return (float3)(1.0f, 0.0f, 0.0f);
 	}
-	return (float3)(1.0f);
+	return (float3)1.0f;
 }
 
 
@@ -270,7 +260,7 @@ float3 getGlobalIllumination(__global Node* svo_data, const float3 position, con
     const HitPoint gi_intersection = castRay(svo_data, position, noise_normal);
     if (gi_intersection.hit) {
 		if (gi_intersection.emissive) {
-			return 2.0f * getColorFromIntersection(gi_intersection);
+			return 3.0f * getColorFromIntersection(gi_intersection);
 		}
 
         const float3 gi_normal = gi_intersection.normal;

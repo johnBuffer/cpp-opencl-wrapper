@@ -281,12 +281,6 @@ namespace oclw
 			return m_element_count;
 		}
 
-		template<typename T>
-		void read(CommandQueue& queue, std::vector<T>& result_container, bool blocking)
-		{
-
-		}
-
 	protected:
 		cl_mem m_memory_object;
 		std::size_t m_element_count;
@@ -337,7 +331,7 @@ namespace oclw
 		{
 			std::stringstream ssx;
 			ssx << "Cannot set argument [" << arg_num << "] of kernel '" << m_name << "'";
-			checkError(clSetKernelArg(m_kernel, arg_num, sizeof(T), &arg_value), ssx.str());
+			Utils::checkError(clSetKernelArg(m_kernel, arg_num, sizeof(T), &arg_value), ssx.str());
 		}
 
 		Kernel& operator=(const Kernel& other)
@@ -351,8 +345,10 @@ namespace oclw
 		~Kernel()
 		{
 			cl_int err_num;
-			err_num = clReleaseKernel(m_kernel);
-			Utils::checkError(err_num, "Cannot release kernel");
+			if (m_kernel) {
+				err_num = clReleaseKernel(m_kernel);
+				Utils::checkError(err_num, "Cannot release kernel");
+			}
 		}
 
 		cl_kernel& getRaw()
@@ -405,7 +401,9 @@ namespace oclw
 
 		~Program()
 		{
-			Utils::checkError(clReleaseProgram(m_program), "Cannot release program");
+			if (m_program) {
+				Utils::checkError(clReleaseProgram(m_program), "Cannot release program");
+			}
 		}
 
 		operator bool() const
@@ -447,7 +445,9 @@ namespace oclw
 
 		~CommandQueue()
 		{
-			Utils::checkError(clReleaseCommandQueue(m_command_queue), "Cannot create command queue");
+			if (m_command_queue) {
+				Utils::checkError(clReleaseCommandQueue(m_command_queue), "Cannot create command queue");
+			}
 		}
 
 		operator bool() const
@@ -465,6 +465,13 @@ namespace oclw
 		void readMemoryObject(MemoryObject& object, bool blocking_read, std::vector<T>& result)
 		{
 			int32_t err_num = clEnqueueReadBuffer(m_command_queue, object.getRaw(), blocking_read ? CL_TRUE : CL_FALSE, 0, object.getBytesSize(), result.data(), 0, NULL, NULL);
+			Utils::checkError(err_num, "Cannot read from buffer");
+		}
+
+		template<typename T>
+		void readImageObject(Image& image, bool blocking_read, std::vector<T>& result)
+		{
+			int32_t err_num = clEnqueueReadImage(m_command_queue, object.getRaw(), blocking_read ? CL_TRUE : CL_FALSE, 0, object.getBytesSize(), result.data(), 0, NULL, NULL);
 			Utils::checkError(err_num, "Cannot read from buffer");
 		}
 
@@ -506,7 +513,9 @@ namespace oclw
 
 		~Context()
 		{
-			Utils::checkError(clReleaseContext(m_context), "Cannot release context");
+			if (m_context) {
+				Utils::checkError(clReleaseContext(m_context), "Cannot release context");
+			}
 		}
 
 		Context& operator=(const Context& other)
@@ -688,7 +697,7 @@ namespace oclw
 			readMemoryObject(mem_object, result_container, blocking_read);
 		}
 
-		Context getContext()
+		Context& getContext()
 		{
 			return m_context;
 		}
@@ -703,6 +712,12 @@ namespace oclw
 		MemoryObject createMemoryObject(std::size_t element_count, int32_t mode = oclw::ReadWrite)
 		{
 			return m_context.createMemoryObject<T>(element_count, mode);
+		}
+
+		template<typename T>
+		void writeInMemoryObject(MemoryObject& object, const T* data, bool blocking_write)
+		{
+			m_command_queue.writeInMemoryObject(object, blocking_write, data);
 		}
 
 	private:

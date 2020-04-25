@@ -18,8 +18,14 @@ typedef struct Node
 __kernel void mutate(
 		__global Node* svo,
 		uint32_t node_index,
-		uint8_t  child_index
+		uint8_t  child_index,
+		uint8_t  value
 	)
 {
-	svo[node_index].emissive ^= (1u << child_index);
+	if (value) {
+		svo[node_index].emissive |= (1u << child_index);
+	} else {
+		const uint8_t mask = 255 ^ (1u << child_index);
+		svo[node_index].emissive &= mask;
+	}
 }

@@ -11,8 +11,8 @@ __constant sampler_t tex_sampler = CLK_NORMALIZED_COORDS_TRUE | CLK_FILTER_NEARE
 //__constant float3 light_position = (float3)(0.0f, 1.0f, 0.0f);
 __constant float EPS = 0x1.fffffep-1f;
 __constant float NORMAL_EPS = 0.0078125f * 0.0078125f * 0.0078125f;
-__constant float AMBIENT = 0.02f;
-__constant float SUN_INTENSITY = 20.0f;
+__constant float AMBIENT = 0.0f;
+__constant float SUN_INTENSITY = 1.0f;
 __constant float3 SKY_COLOR = (float3)(153.0f, 223.0f, 255.0f);
 //__constant float3 SKY_COLOR = (float3)(51.0f, 204.0f, 255.0f);
 //__constant float3 SKY_COLOR = (float3)(0.0f);
@@ -21,7 +21,7 @@ __constant float3 WATER_COLOR = (float3)(28.0f / 255.0f, 194.0f / 255.0f, 255.0f
 __constant float REFRACTION_COEF = 0.4f;
 __constant float REFLECTION_COEF = 0.6f;
 __constant float R0 = 0.0204f;
-__constant float time_su = 0.5f;
+__constant float time_su = 0.0f;
 __constant float NEAR = 0.5f;
 
 
@@ -262,20 +262,9 @@ float getLightIntensity(HitPoint intersection, __global Node* svo_data, float3 l
 float3 getColorFromIntersection(HitPoint intersection, image2d_t top_image, image2d_t side_image)
 {
 	if (intersection.emissive) {
-		if (intersection.normal.x) {
-			return (float3)(1.0f, 0.0f, 0.0f);
-		}
-		
-		if (intersection.normal.y) {
-			return (float3)(0.0f, 1.0f, 0.0f);
-		}
-
-		if (intersection.normal.z) {
-			return (float3)(0.0f, 0.0f, 1.0f);
-		}
+		return (float3)(1.0f, 0.0f, 0.0f);
 	}
-
-	return 1.0f;
+	return (float3)1.0f;
 }
 
 float3 getColorAndLightFromIntersection(HitPoint intersection, image2d_t top_image, image2d_t side_image, __global Node* svo_data, float3 light_position, bool under_water)
@@ -284,7 +273,7 @@ float3 getColorAndLightFromIntersection(HitPoint intersection, image2d_t top_ima
 	if (!intersection.emissive) {
 		light_intensity = getLightIntensity(intersection, svo_data, light_position, under_water);
 	}
-	return getColorFromIntersection(intersection, top_image, side_image) * light_intensity;
+	return light_intensity;
 }
 
 
