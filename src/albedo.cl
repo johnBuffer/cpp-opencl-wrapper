@@ -11,12 +11,13 @@ __constant sampler_t tex_sampler = CLK_NORMALIZED_COORDS_TRUE | CLK_FILTER_NEARE
 //__constant float3 light_position = (float3)(0.0f, 1.0f, 0.0f);
 __constant float EPS = 0x1.fffffep-1f;
 __constant float NORMAL_EPS = 0.0078125f * 0.0078125f * 0.0078125f;
-__constant float AMBIENT = 0.0f;
-__constant float SUN_INTENSITY = 3.0f;
+__constant float AMBIENT = 0.25f;
+__constant float SUN_INTENSITY = 1.5f;
 __constant float3 SKY_COLOR = (float3)(153.0f, 223.0f, 255.0f);
 //__constant float3 SKY_COLOR = (float3)(51.0f, 204.0f, 255.0f);
 //__constant float3 SKY_COLOR = (float3)(0.0f);
-__constant float3 WATER_COLOR = (float3)(28.0f / 255.0f, 194.0f / 255.0f, 255.0f / 255.0f);
+__constant float3 WATER_COLOR = (float3)(1.0f);
+//__constant float3 WATER_COLOR = (float3)(28.0f / 255.0f, 194.0f / 255.0f, 255.0f / 255.0f);
 //__constant float3 WATER_COLOR = (float3)(128.0f / 255.0f, 194.0f / 255.0f, 255.0f / 255.0f);
 __constant float REFRACTION_COEF = 0.4f;
 __constant float REFLECTION_COEF = 0.6f;
@@ -271,9 +272,9 @@ float3 getColorAndLightFromIntersection(HitPoint intersection, image2d_t top_ima
 {
 	float light_intensity = 1.0f;
 	if (!intersection.emissive) {
-		light_intensity = getLightIntensity(intersection, svo_data, light_position, under_water);
+		light_intensity = min(1.0f, getLightIntensity(intersection, svo_data, light_position, under_water));
 	}
-	return light_intensity;
+	return light_intensity * (float3)255.0f;
 }
 
 
@@ -334,14 +335,14 @@ __kernel void albedo(
 			const float3 reflection_d = reflect(d, normal);
 			const HitPoint reflection_ray = castRay(svo_data, reflection_start, reflection_d, false);
 			if (reflection_ray.hit) {
-				color = WATER_COLOR * transmitted *  getColorAndLightFromIntersection(reflection_ray, top_image, side_image, svo_data, light_position, false);
+				color = transmitted * getColorAndLightFromIntersection(reflection_ray, top_image, side_image, svo_data, light_position, false);
 			}
 			else {
 				color *= transmitted * mirror_color;
 			}
 
 			// Refraction
-			const float refraction_intensity = (1.0f - transmitted);
+			/*const float refraction_intensity = (1.0f - transmitted);
 			if (refraction_intensity > 0.05f) {
 				const float3 refraction_start = intersection.position - NORMAL_EPS * normal;
 				const float3 refraction_d = normalize(refract(d, normal, 1.0f / 1.83333f));
@@ -352,7 +353,7 @@ __kernel void albedo(
 				} else {
 					color += SKY_COLOR * refraction_intensity * deep_coef * mirror_color;
 				}
-			}
+			}*/
 		}
 		else {
 			const float normal_number = normalToNumber(intersection.normal);

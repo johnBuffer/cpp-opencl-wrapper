@@ -47,13 +47,14 @@ void generateSVO(uint8_t max_depth, SVO& svo)
 		}
 
 		const uint64_t points_count = buffer.size() / 3;
-		const uint32_t skip = 4;
+		const uint32_t skip = 1;
 		points.resize(points_count);
 		for (uint32_t i(0); i < points_count; i+=skip) {
 			points[i].x = buffer[3 * i];
 			points[i].y = buffer[3 * i + 1];
 			points[i].z = buffer[3 * i + 2];
 		}
+		buffer.clear();
 		std::cout << "Conversion complete" << std::endl;
 
 		glm::vec3 min_val(0.0f);
@@ -70,23 +71,23 @@ void generateSVO(uint8_t max_depth, SVO& svo)
 
 		std::cout << min_val.z << " " << max_val.z << std::endl;
 
-		const float scale = 16.0f;
+		const float scale = 64.0f;
 		for (const glm::vec3 pt_raw : points) {
 			const glm::vec3 pt = (pt_raw - min_val) * scale;
 			const float x = std::max(1.0f, std::min(pt.x, float(grid_size_x - 1)));
 			const float y = std::max(1.0f, std::min(pt.y, float(grid_size_x - 1)));
-			const float z = std::max(1.0f, std::min(pt.z - 555.0f, float(grid_size_x - 1)));
+			const float z = std::max(1.0f, std::min(pt.z - 555.0f*2.0f, float(grid_size_x - 1)));
 			volume_raw->setCell(Cell::Solid, Cell::Grass, x, z, y);
 		}
 
-		for (uint32_t x(1); x < grid_size_x - 1; ++x) {
+		/*for (uint32_t x(1); x < grid_size_x - 1; ++x) {
 			for (uint32_t z(1); z < grid_size_x - 1; ++z) {
 				const uint32_t water_height = 1;
 				for (uint32_t y(0); y < water_height; ++y) {
 					volume_raw->setCell(Cell::Mirror, Cell::Grass, x, y, z);
 				}
 			}
-		}
+		}*/
 
 		data_file.close();
 	}

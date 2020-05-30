@@ -19,7 +19,7 @@ __constant float NEAR = 0.5f;
 __constant float GOLDEN_RATIO = 1.61803398875f;
 __constant float G = 1.0f / 1.22074408460575947536f;
 __constant float PI = 3.141592653f;
-__constant float ACC_COUNT = 50.0f;
+__constant float ACC_COUNT = 10.0f;
 __constant float ACC_RATIO = 1.0f - 1.0f / 50.0f;
 
 
@@ -113,7 +113,7 @@ float3 getColorFromIntersection(HitPoint intersection)
 
 
 // Raytracing functions
-HitPoint castRay(__global Node* svo_data, float3 position, float3 d)
+HitPoint castRay(__global Node* svo_data, float3 position, float3 d, float max_dist)
 {
 	HitPoint result;
 	result.hit = 0;
@@ -152,7 +152,7 @@ HitPoint castRay(__global Node* svo_data, float3 position, float3 d)
 	uint8_t normal = 0u;
 	uint16_t child_infos = 0u;
 	// Explore octree
-	while (scale < SVO_MAX_DEPTH) {
+	while (scale < SVO_MAX_DEPTH && t_min < max_dist) {
 		++result.complexity;
 		const Node parent_ref = svo_data[parent_id];
 		// Compute new T span
@@ -252,31 +252,29 @@ HitPoint castRay(__global Node* svo_data, float3 position, float3 d)
 }
 
 
-float3 getGlobalIllumination(__global Node* svo_data, const float3 position, const float3 normal, const float3 light_position, image2d_t noise, uint32_t frame_count)
+float3 getAO(__global Node* svo_data, const float3 position, const float3 normal, image2d_t noise, uint32_t frame_count)
 {
-	float3 gi_add = (float3)0.0f;
-    // First bounce
-    const float3 noise_normal = getRandomizedNormal(normal, noise, frame_count);
-    const HitPoint gi_intersection = castRay(svo_data, position, noise_normal);
-    if (gi_intersection.hit) {
-		if (gi_intersection.emissive) {
-			return 3.0f * getColorFromIntersection(gi_intersection);
+	const uint8_t samples_count = 2;
+	const float max_dist = 0.005f;
+    float ao_sum = 0.0f;
+    for (uint8_t i = samples_count; i--;) {
+		const float3 noise_normal = getRandomizedNormal(normal, noise, frame_count + i*i);
+		const HitPoint ao_intersection = castRay(svo_data, position, noise_normal, max_dist);
+		if (ao_intersection.hit) {
+			ao_sum += ao_intersection.distance / max_dist;
+		} else {
+			ao_sum += 1.0f; 
 		}
-
-        const float3 gi_normal = gi_intersection.normal;
-        const float3 gi_light_start = gi_intersection.position + NORMAL_EPS * gi_normal;
-        const float3 gi_light_direction = normalize(light_position - gi_light_start);
-        const HitPoint gi_light_intersection = castRay(svo_data, gi_light_start, gi_light_direction);
-        if (!gi_light_intersection.hit) {
-            gi_add += fmax(0.0f, fmin(SUN_INTENSITY, SUN_INTENSITY * dot(gi_light_direction, gi_normal))) * getColorFromIntersection(gi_intersection) / PI;
-        }
-    } else {
-        gi_add += 0.2f * SKY_COLOR / 255.0f / PI;
-    }
+	}
 	
-	return gi_add;
+	return ao_sum / (float)(samples_count);
 }
 
+float3 normalFromNumber(const float number)
+{
+	const int32_t n = fabs(number);
+	return sign(number) * (float3)(n & 1, (n >> 1u) & 1, (n >> 2u) & 1);
+}
 
 float2 projectPoint(const float3 in)
 {
@@ -287,14 +285,6 @@ float2 projectPoint(const float3 in)
 
 	return (float2) ((NEAR * in.x * inv_z), (aspect_ratio * NEAR * in.y * inv_z)) + offset;
 }
-
-
-float3 normalFromNumber(const float number)
-{
-	const int32_t n = fabs(number);
-	return sign(number) * (float3)(n & 1, (n >> 1u) & 1, (n >> 2u) & 1);
-}
-
 
 float4 getOldValue(image2d_t last_frame_color, image2d_t last_frame_depth, __constant float* last_view_matrix, const float3 last_position, const float4 intersection)
 {
@@ -311,7 +301,6 @@ float4 getOldValue(image2d_t last_frame_color, image2d_t last_frame_depth, __con
     
 	return (float4)(0.0f);
 }
-
 
 __kernel void lighting(
     global Node* svo_data
@@ -339,21 +328,13 @@ __kernel void lighting(
 	const float4 intersection = read_imagef(screen_space_positions, exact_sampler, gid);
 	if (intersection.w) {
 		const float3 normal = normalFromNumber(intersection.w);
-		const float3 gi_start = intersection.xyz + normal * NORMAL_EPS;
-		const float3 gi = getGlobalIllumination(svo_data, gi_start, normal, light_position, noise, frame_count);
-		// Accumulation
-		const float4 old = getOldValue(last_frame_color, last_depth, last_view_matrix, last_position, intersection);
-		
-		if (old.w >= ACC_COUNT) {
-			color = gi + old.xyz * ACC_RATIO;
-			acc = ACC_COUNT;
-		} else {
-			color = gi + old.xyz;
-			acc = old.w + 1.0f;
-		}
+		const float3 ao_start = intersection.xyz + normal * NORMAL_EPS;
 
-		// color = gi;
-		// acc = 1.0f;
+		const float4 old_ao = getOldValue(last_frame_color, last_depth, last_view_matrix, last_position, intersection);
+		const float3 new_ao = (float3)getAO(svo_data, ao_start, normal, noise, frame_count);
+
+		color = new_ao + old_ao.xyz;
+		acc = old_ao.w + 1.0f;
 	}
 
 	const float4 out_color = (float4)(color, acc);

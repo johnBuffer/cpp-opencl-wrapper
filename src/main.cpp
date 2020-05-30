@@ -17,14 +17,14 @@
 
 int main()
 {
-	constexpr uint32_t WIN_WIDTH = 1600;
-	constexpr uint32_t WIN_HEIGHT = 900;
+	constexpr uint32_t WIN_WIDTH = 1920;
+	constexpr uint32_t WIN_HEIGHT = 1080;
 
 	try
 	{
 		const float lighting_quality = 1.0f;
 
-		const uint8_t max_depth = 12;
+		const uint8_t max_depth = 14;
 		SVO* builder = new SVO(max_depth);
 		generateSVO(max_depth, *builder);
 		LSVO svo(*builder, max_depth);
