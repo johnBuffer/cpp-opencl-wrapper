@@ -6,6 +6,14 @@
 #include <SFML/Graphics.hpp>
 #include <sstream>
 #include <cmath>
+#include <fstream>
+#include <string>
+
+
+float getValueAt(const std::string& str, uint32_t start, uint32_t end)
+{
+	return 0.0f;
+}
 
 
 void generateSVO(uint8_t max_depth, SVO& svo)
@@ -17,57 +25,61 @@ void generateSVO(uint8_t max_depth, SVO& svo)
 	using Volume = SVO;
 	Volume* volume_raw = &svo;
 
-	sf::Image terrain_height_map;
-	terrain_height_map.loadFromFile("../height_map.png");
-	//terrain_height_map.loadFromFile("../terrain_3.jpg");
+	//std::ifstream data_file("../res/Pointcloud_2m/tq2575_DSM_2M.asc");
+	//std::ifstream data_file("../res/Pointcloud_50cm/tq3580_DSM_50CM.asc");
+	std::ifstream data_file("../res/cloud.xyz");
+	if (data_file.is_open()) {
+		std::string line;
 
-	FastNoise myNoise;
-	myNoise.SetNoiseType(FastNoise::SimplexFractal);
-	for (uint32_t x = 1; x < grid_size_x - 1; x++) {
-		for (uint32_t z = 1; z < grid_size_z - 1; z++) {
-			int32_t max_height = grid_size_y;
-			
-			const float PI = 3.141592653f;
-			const float ratio_x = x / float(grid_size_x);
-			const float ratio_z = z / float(grid_size_x);
+		uint32_t current_coord = 0;
+		uint32_t current_line = 0;
+		// Skip header
+		while (current_line++ < 6) {
+			std::getline(data_file, line);
+		}
 
-			volume_raw->setCell(Cell::Solid, Cell::Grass, x, 0, z);
+		const float scale = 1.0f;
+		const float no_value_value = -9999;
+		uint32_t valid_coords_count = 0;
 
-			const int32_t height = int32_t(64.0f * myNoise.GetNoise(float(0.75f * x), float(0.75f * z)) + 32);
+		std::vector<float> coords;
 
-			for (uint32_t y = 1; y < std::max(0, std::min(height, grid_size_y) - 1); y++) {
-				volume_raw->setCell(Cell::Solid, Cell::Grass, x, y, z);
+		while (std::getline(data_file, line)) {
+			const uint32_t line_size = line.size();
+			uint32_t start_position = 0;
+			for (uint32_t i(0); i < line_size; ++i) {
+				if (line[i] == ' ' || i == line_size-1) {
+					const uint32_t offset = (i == line_size - 1) ? 1 : 0;
+					const std::string value_str = line.substr(start_position, (i + offset) - start_position);
+					const float value = std::max(1.0f, std::min(scale * (std::stof(value_str)), float(grid_size_x - 2)));
+					start_position = ++i;
+					++valid_coords_count;
+
+					coords.push_back(value);
+				}
 			}
 		}
-	}
 
-	for (uint32_t u(1); u < grid_size_y; ++u) {
-		//volume_raw->setCell(Cell::Solid, Cell::Grass, 255, u, 255);
-	}
-
-	uint32_t b_start_x = 200;
-	uint32_t b_start_y = 1;
-	uint32_t b_start_z = 200;
-
-	uint32_t b_size = 20;
-
-	/*for (uint32_t x = 0; x < b_size + 10; x++) {
-		for (uint32_t y = 0; y < b_size + 20; y++) {
-			if (x > 0 && y > 0 && x < b_size + 9 && y < b_size + 19)
-				volume_raw->setCell(Cell::Mirror, Cell::Grass, x + b_start_x - 5, y + b_start_y, b_start_z - 5);
-			else
-				volume_raw->setCell(Cell::Solid, Cell::Grass, x + b_start_x - 5, y + b_start_y, b_start_z - 5);
+		for (uint32_t x(1); x < (grid_size_x/2000)*2000; ++x) {
+			for (uint32_t z(1); z < (grid_size_x / 2000) * 2000; ++z) {
+				volume_raw->setCell(Cell::Solid, Cell::Grass, x, 1, z);
+			}
 		}
-	}*/
 
-	/*for (uint32_t x = 220; x < 230; x++) {
-		volume_raw->setCell(Cell::Solid, Cell::Grass, x, 1, 250);
+		data_file.close();
+		const uint32_t coords_count = coords.size();
+		for (uint32_t i(0); i < coords_count; ++i) {
+			float height = coords[i];
+			float x = (i % 2000);
+			float z = i / 2000.0f;
+			if (x > 1.0f && x < grid_size_x - 1 && z > 1.0f && z < grid_size_x - 1) {
+				volume_raw->setCell(Cell::Solid, Cell::Grass, x, height, z);
+			}
+		}
+
+		std::cout << valid_coords_count << std::endl;
+		//exit(0);
 	}
-
-	for (uint32_t x = 220; x < 230; x++) {
-		volume_raw->setCell(Cell::Solid, Cell::Grass, x, 1, 240);
-		volume_raw->setCell(Cell::Solid, Cell::Grass, x, 2, 240);
-	}*/
 }
 
 

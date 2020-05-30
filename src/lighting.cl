@@ -11,7 +11,7 @@ __constant sampler_t tex_sampler = CLK_NORMALIZED_COORDS_TRUE | CLK_FILTER_LINEA
 __constant sampler_t exact_sampler = CLK_NORMALIZED_COORDS_FALSE | CLK_FILTER_NEAREST | CLK_ADDRESS_CLAMP;
 __constant float EPS = 0x1.fffffep-1f;
 __constant float NORMAL_EPS = 0.0078125f * 0.0078125f * 0.0078125f;
-__constant float SUN_INTENSITY = 1.0f;
+__constant float SUN_INTENSITY = 3.0f;
 __constant float3 SKY_COLOR = (float3)(153.0f, 223.0f, 255.0f);
 //constant float3 SKY_COLOR = (float3)(0.0f);
 __constant float time_su = 0.0f;
@@ -268,7 +268,7 @@ float3 getGlobalIllumination(__global Node* svo_data, const float3 position, con
         const float3 gi_light_direction = normalize(light_position - gi_light_start);
         const HitPoint gi_light_intersection = castRay(svo_data, gi_light_start, gi_light_direction);
         if (!gi_light_intersection.hit) {
-            gi_add += fmax(0.0f, fmin(1.0f, SUN_INTENSITY * dot(gi_light_direction, gi_normal))) * getColorFromIntersection(gi_intersection) / PI;
+            gi_add += fmax(0.0f, fmin(SUN_INTENSITY, SUN_INTENSITY * dot(gi_light_direction, gi_normal))) * getColorFromIntersection(gi_intersection) / PI;
         }
     } else {
         gi_add += 0.2f * SKY_COLOR / 255.0f / PI;
