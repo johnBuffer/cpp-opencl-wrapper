@@ -40,7 +40,7 @@ __kernel void blur(
             const int2 coords = gid + (int2)(x, y);
             const float3 point_position = read_imagef(screen_space_positions, tex_position_sampler, coords).xyz;
             if ((point_position.x == current_position.x || point_position.y == current_position.y || point_position.z == current_position.z)) {
-                const float kernel_val = KERNEL[abs(x)][abs(y)];
+                const float kernel_val = KERNEL[x + 2][y + 2];
                 const float4 point_color = read_imagef(input, tex_sampler, coords);
                 sum += kernel_val;
                 color += kernel_val * point_color.xyz;

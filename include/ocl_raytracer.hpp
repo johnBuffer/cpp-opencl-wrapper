@@ -85,7 +85,7 @@ public:
 		renderLighting();
 		normalize();
 		biblur();
-		median();
+		//median();
 		//blur();
 		combine();
 

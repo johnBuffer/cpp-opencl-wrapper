@@ -30,6 +30,25 @@ void generateSVO(uint8_t max_depth, SVO& svo)
 	using Volume = SVO;
 	Volume* volume_raw = &svo;
 
+	/*FastNoise myNoise;
+	myNoise.SetNoiseType(FastNoise::SimplexFractal);
+	for (uint32_t x = 1; x < grid_size_x - 1; x++) {
+		for (uint32_t z = 1; z < grid_size_z - 1; z++) {
+			int32_t max_height = grid_size_y;
+
+			float amp_x = x - grid_size_x * 0.5f;
+			float amp_z = z - grid_size_z * 0.5f;
+			float ratio = std::pow(1.0f - sqrt(amp_x * amp_x + amp_z * amp_z) / (10.0f * grid_size_x), 256.0f);
+			int32_t height = int32_t(128.0f * myNoise.GetNoise(float(0.75f * x), float(0.75f * z)) + 32);
+
+			volume_raw->setCell(Cell::Solid, Cell::Grass, x, 0, z);
+
+			for (int y(0); y < std::min(max_height, height); ++y) {
+				volume_raw->setCell(Cell::Solid, Cell::Grass, x, y, z);
+			}
+		}
+	}*/
+
 	//std::ifstream data_file("../res/Pointcloud_2m/tq2575_DSM_2M.asc");
 	//std::ifstream data_file("../res/Pointcloud_50cm/tq3580_DSM_50CM.asc");
 	std::ifstream data_file("../res/cloud.bin", std::ios::binary | std::ios::ate);
@@ -47,7 +66,7 @@ void generateSVO(uint8_t max_depth, SVO& svo)
 		}
 
 		const uint64_t points_count = buffer.size() / 3;
-		const uint32_t skip = 1;
+		const uint32_t skip = 2;
 		points.resize(points_count);
 		for (uint32_t i(0); i < points_count; i+=skip) {
 			points[i].x = buffer[3 * i];
@@ -71,23 +90,14 @@ void generateSVO(uint8_t max_depth, SVO& svo)
 
 		std::cout << min_val.z << " " << max_val.z << std::endl;
 
-		const float scale = 64.0f;
+		const float scale = 8.0f;
 		for (const glm::vec3 pt_raw : points) {
 			const glm::vec3 pt = (pt_raw - min_val) * scale;
 			const float x = std::max(1.0f, std::min(pt.x, float(grid_size_x - 1)));
 			const float y = std::max(1.0f, std::min(pt.y, float(grid_size_x - 1)));
-			const float z = std::max(1.0f, std::min(pt.z - 555.0f*2.0f, float(grid_size_x - 1)));
+			const float z = std::max(1.0f, std::min(pt.z, float(grid_size_x - 1)));
 			volume_raw->setCell(Cell::Solid, Cell::Grass, x, z, y);
 		}
-
-		/*for (uint32_t x(1); x < grid_size_x - 1; ++x) {
-			for (uint32_t z(1); z < grid_size_x - 1; ++z) {
-				const uint32_t water_height = 1;
-				for (uint32_t y(0); y < water_height; ++y) {
-					volume_raw->setCell(Cell::Mirror, Cell::Grass, x, y, z);
-				}
-			}
-		}*/
 
 		data_file.close();
 	}

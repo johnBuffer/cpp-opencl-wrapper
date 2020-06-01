@@ -20,7 +20,6 @@ __constant float GOLDEN_RATIO = 1.61803398875f;
 __constant float G = 1.0f / 1.22074408460575947536f;
 __constant float PI = 3.141592653f;
 __constant float ACC_COUNT = 10.0f;
-__constant float ACC_RATIO = 1.0f - 1.0f / 50.0f;
 
 
 // Structs declaration
@@ -88,15 +87,15 @@ float3 getRandomizedNormal(float3 normal, image2d_t noise, uint32_t frame_count)
 	const float coord_2 = (fmod(noise_value.y + (G*G)   * (frame_count % 1000), 1.0f) - 0.5f);
 	const float coord_3 = (fmod(noise_value.z + (G*G*G) * (frame_count % 1000), 0.5f));
 	if (normal.x) {
-		return normalize((float3)(sign(normal.x) * coord_3, coord_1, coord_2));
+		return normalize((float3)(sign(normal.x), coord_1, coord_2));
 	}
 	
 	if (normal.y) {
-		return normalize((float3)(coord_1, sign(normal.y) * coord_3, coord_2));
+		return normalize((float3)(coord_1, sign(normal.y), coord_2));
 	}
 	
 	if (normal.z) {
-		return normalize((float3)(coord_1, coord_2, sign(normal.z) * coord_3));
+		return normalize((float3)(coord_1, coord_2, sign(normal.z)));
 	}
 
 	return (float3)(0.0f);
@@ -252,10 +251,10 @@ HitPoint castRay(__global Node* svo_data, float3 position, float3 d, float max_d
 }
 
 
-float3 getAO(__global Node* svo_data, const float3 position, const float3 normal, image2d_t noise, uint32_t frame_count)
+float getAO(__global Node* svo_data, const float3 position, const float3 normal, image2d_t noise, uint32_t frame_count)
 {
-	const uint8_t samples_count = 2;
-	const float max_dist = 0.005f;
+	const uint8_t samples_count = 1;
+	const float max_dist = 0.05f;
     float ao_sum = 0.0f;
     for (uint8_t i = samples_count; i--;) {
 		const float3 noise_normal = getRandomizedNormal(normal, noise, frame_count + i*i);
@@ -270,10 +269,25 @@ float3 getAO(__global Node* svo_data, const float3 position, const float3 normal
 	return ao_sum / (float)(samples_count);
 }
 
-float3 normalFromNumber(const float number)
+float3 getGlobalIllumination(__global Node* svo_data, const float3 position, const float3 normal, const float3 light_position, image2d_t noise, uint32_t frame_count)
 {
-	const int32_t n = fabs(number);
-	return sign(number) * (float3)(n & 1, (n >> 1u) & 1, (n >> 2u) & 1);
+	float3 gi_add = (float3)0.0f;
+    // First bounce
+    const float3 noise_normal = getRandomizedNormal(normal, noise, frame_count);
+    const HitPoint gi_intersection = castRay(svo_data, position, noise_normal, 0.2f);
+    if (gi_intersection.hit) {
+        const float3 gi_normal = gi_intersection.normal;
+        const float3 gi_light_start = gi_intersection.position + NORMAL_EPS * gi_normal;
+        const float3 gi_light_direction = normalize(light_position - gi_light_start);
+        const HitPoint gi_light_intersection = castRay(svo_data, gi_light_start, gi_light_direction, 2.0f);
+        if (!gi_light_intersection.hit) {
+            gi_add += fmax(0.0f, fmin(1.0f, SUN_INTENSITY * dot(gi_light_direction, gi_normal))) * getColorFromIntersection(gi_intersection);
+        }
+    } else {
+        gi_add += 0.2f * SKY_COLOR / 255.0f;
+    }
+	
+	return gi_add;
 }
 
 float2 projectPoint(const float3 in)
@@ -286,21 +300,30 @@ float2 projectPoint(const float3 in)
 	return (float2) ((NEAR * in.x * inv_z), (aspect_ratio * NEAR * in.y * inv_z)) + offset;
 }
 
+
+float3 normalFromNumber(const float number)
+{
+	const int32_t n = fabs(number);
+	return sign(number) * (float3)(n & 1, (n >> 1u) & 1, (n >> 2u) & 1);
+}
+
+
 float4 getOldValue(image2d_t last_frame_color, image2d_t last_frame_depth, __constant float* last_view_matrix, const float3 last_position, const float4 intersection)
 {
-	const int2 gid = (int2)(get_global_id(0), get_global_id(1));
     const float3 last_view_pos = preMultVec3Mat3(intersection.xyz - last_position, last_view_matrix);
     const float2 last_screen_pos = projectPoint(last_view_pos);
 
 	const float4 last_color = read_imagef(last_frame_color, tex_sampler, last_screen_pos);
 	const float2 last_depth = read_imagef(last_frame_depth, tex_sampler, last_screen_pos).xy;
 	float acc = 0.0f;
+
 	if (fabs(length(last_view_pos) - last_depth.x) < 0.0001f && intersection.w == last_depth.y) {
-		return last_color;
+		return last_color;	
 	}
-    
+	
 	return (float4)(0.0f);
 }
+
 
 __kernel void lighting(
     global Node* svo_data
@@ -331,10 +354,11 @@ __kernel void lighting(
 		const float3 ao_start = intersection.xyz + normal * NORMAL_EPS;
 
 		const float4 old_ao = getOldValue(last_frame_color, last_depth, last_view_matrix, last_position, intersection);
+		//const float3 new_ao = getGlobalIllumination(svo_data, ao_start, normal, light_position, noise, frame_count);
 		const float3 new_ao = (float3)getAO(svo_data, ao_start, normal, noise, frame_count);
-
-		color = new_ao + old_ao.xyz;
+		
 		acc = old_ao.w + 1.0f;
+		color = new_ao + old_ao.xyz;
 	}
 
 	const float4 out_color = (float4)(color, acc);
