@@ -23,7 +23,7 @@ __kernel void combine(
 
 	const float4 gi_value = read_imagef(lighting, tex_sampler, gid);
 	const float3 gi_intensity = gi_value.xyz;
-	const float3 light_intensity = gi_intensity * (float3)(fmax(0.0f, shadow[index]));
+	const float3 light_intensity = gi_intensity + (float3)(fmax(0.0f, shadow[index]));
 	//const float3 light_intensity = gi_intensity;
 
 	albedo[4*index + 0] *= fmin(1.0f, light_intensity.x);

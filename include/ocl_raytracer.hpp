@@ -84,8 +84,8 @@ public:
 		// Run lighting kernel
 		renderLighting();
 		normalize();
-		biblur();
 		//median();
+		biblur();
 		//blur();
 		combine();
 
@@ -127,12 +127,11 @@ public:
 		const size_t work_group_height = static_cast<size_t>(m_render_dimension.y * m_lighting_quality);
 
 		bool current_buffer = 0;
-		for (uint8_t i(1); i--;) {
+		for (uint8_t i(3); i--;) {
 			m_biblur.setArgument(0, m_buff_final_lighting[m_current_final_buffer]);
 			m_biblur.setArgument(2, m_buff_final_lighting[!m_current_final_buffer]);
 			swapFinalBuffers();
 			m_wrapper.runKernel(m_biblur, oclw::Size(work_group_width, work_group_height), oclw::Size(20, 20));
-
 			current_buffer = !current_buffer;
 		}
 	}

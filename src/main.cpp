@@ -17,14 +17,14 @@
 
 int main()
 {
-	constexpr uint32_t WIN_WIDTH = 1280;
-	constexpr uint32_t WIN_HEIGHT = 720;
+	constexpr uint32_t WIN_WIDTH = 1920;
+	constexpr uint32_t WIN_HEIGHT = 1080;
 
 	try
 	{
 		const float lighting_quality = 1.0f;
 
-		const uint8_t max_depth = 11;
+		const uint8_t max_depth = 13;
 		SVO* builder = new SVO(max_depth);
 		generateSVO(max_depth, *builder);
 		LSVO svo(*builder, max_depth);
@@ -33,7 +33,7 @@ int main()
 		Raytracer raytracer(WIN_WIDTH, WIN_HEIGHT, max_depth, svo.data, lighting_quality);
 
 		// Main loop
-		sf::RenderWindow window(sf::VideoMode(WIN_WIDTH, WIN_HEIGHT), "OpenCL and SFML", sf::Style::Default);
+		sf::RenderWindow window(sf::VideoMode(WIN_WIDTH, WIN_HEIGHT), "OpenCL and SFML", sf::Style::Fullscreen);
 		window.setMouseCursorVisible(false);
 
 		EventManager event_manager(window);
@@ -91,12 +91,12 @@ int main()
 			window.draw(albedo_sprite);
 			//window.draw(albedo_sprite, &median);
 
-			const float aim_size = 2.0f;
+			/*const float aim_size = 2.0f;
 			sf::RectangleShape aim(sf::Vector2f(aim_size, aim_size));
 			aim.setOrigin(aim_size * 0.5f, aim_size * 0.5f);
 			aim.setPosition(WIN_WIDTH*0.5f, WIN_HEIGHT*0.5f);
 			aim.setFillColor(sf::Color::Green);
-			window.draw(aim);
+			window.draw(aim);*/
 
 			window.display();
 		}

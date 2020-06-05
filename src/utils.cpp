@@ -39,7 +39,7 @@ void generateSVO(uint8_t max_depth, SVO& svo)
 			float amp_x = x - grid_size_x * 0.5f;
 			float amp_z = z - grid_size_z * 0.5f;
 			float ratio = std::pow(1.0f - sqrt(amp_x * amp_x + amp_z * amp_z) / (10.0f * grid_size_x), 256.0f);
-			int32_t height = int32_t(128.0f * myNoise.GetNoise(float(0.75f * x), float(0.75f * z)) + 32);
+			int32_t height = int32_t(32.0f * myNoise.GetNoise(float(0.75f * x), float(0.75f * z)) + 32);
 
 			volume_raw->setCell(Cell::Solid, Cell::Grass, x, 0, z);
 
@@ -66,7 +66,7 @@ void generateSVO(uint8_t max_depth, SVO& svo)
 		}
 
 		const uint64_t points_count = buffer.size() / 3;
-		const uint32_t skip = 2;
+		const uint32_t skip = 1;
 		points.resize(points_count);
 		for (uint32_t i(0); i < points_count; i+=skip) {
 			points[i].x = buffer[3 * i];
@@ -74,7 +74,7 @@ void generateSVO(uint8_t max_depth, SVO& svo)
 			points[i].z = buffer[3 * i + 2];
 		}
 		buffer.clear();
-		std::cout << "Conversion complete" << std::endl;
+		std::cout << "Conversion complete, " << points.size() << " points" << std::endl;
 
 		glm::vec3 min_val(0.0f);
 		glm::vec3 max_val(0.0f);
@@ -90,7 +90,7 @@ void generateSVO(uint8_t max_depth, SVO& svo)
 
 		std::cout << min_val.z << " " << max_val.z << std::endl;
 
-		const float scale = 8.0f;
+		const float scale = 32.0f;
 		for (const glm::vec3 pt_raw : points) {
 			const glm::vec3 pt = (pt_raw - min_val) * scale;
 			const float x = std::max(1.0f, std::min(pt.x, float(grid_size_x - 1)));

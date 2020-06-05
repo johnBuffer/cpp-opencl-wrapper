@@ -11,7 +11,7 @@ __constant sampler_t tex_sampler = CLK_NORMALIZED_COORDS_TRUE | CLK_FILTER_LINEA
 __constant sampler_t exact_sampler = CLK_NORMALIZED_COORDS_FALSE | CLK_FILTER_NEAREST | CLK_ADDRESS_CLAMP;
 __constant float EPS = 0x1.fffffep-1f;
 __constant float NORMAL_EPS = 0.0078125f * 0.0078125f * 0.0078125f;
-__constant float SUN_INTENSITY = 3.0f;
+__constant float SUN_INTENSITY = 2.0f;
 __constant float3 SKY_COLOR = (float3)(153.0f, 223.0f, 255.0f);
 //constant float3 SKY_COLOR = (float3)(0.0f);
 __constant float time_su = 0.0f;
@@ -112,7 +112,7 @@ float3 getColorFromIntersection(HitPoint intersection)
 
 
 // Raytracing functions
-HitPoint castRay(__global Node* svo_data, float3 position, float3 d, float max_dist)
+HitPoint castRay(__global Node* svo_data, float3 position, float3 d, float max_dist, float ray_coef, float ray_bias)
 {
 	HitPoint result;
 	result.hit = 0;
@@ -167,7 +167,7 @@ HitPoint castRay(__global Node* svo_data, float3 position, float3 d, float max_d
 			const uint8_t leaf_mask = (parent_ref.leaf_mask >> child_shift) & 1u;
 			const uint8_t watr_mask = (parent_ref.reflective_mask >> child_shift) & 1u;
 			// We hit a leaf
-			if (leaf_mask) {
+			if (leaf_mask || tc_max * ray_coef + ray_bias >= scale_f) {
 				result.hit = 1u;
 				// Could use mirror mask
 				result.normal = -sign(d) * (float3)(normal & 1u, normal & 2u, normal & 4u);
@@ -251,7 +251,7 @@ HitPoint castRay(__global Node* svo_data, float3 position, float3 d, float max_d
 }
 
 
-float getAO(__global Node* svo_data, const float3 position, const float3 normal, image2d_t noise, uint32_t frame_count)
+/*float getAO(__global Node* svo_data, const float3 position, const float3 normal, image2d_t noise, uint32_t frame_count)
 {
 	const uint8_t samples_count = 1;
 	const float max_dist = 0.05f;
@@ -267,27 +267,27 @@ float getAO(__global Node* svo_data, const float3 position, const float3 normal,
 	}
 	
 	return ao_sum / (float)(samples_count);
-}
+}*/
 
 float3 getGlobalIllumination(__global Node* svo_data, const float3 position, const float3 normal, const float3 light_position, image2d_t noise, uint32_t frame_count)
 {
 	float3 gi_add = (float3)0.0f;
     // First bounce
     const float3 noise_normal = getRandomizedNormal(normal, noise, frame_count);
-    const HitPoint gi_intersection = castRay(svo_data, position, noise_normal, 0.2f);
+    const HitPoint gi_intersection = castRay(svo_data, position, noise_normal, 2.0f, 0.2f, 0.0f);
     if (gi_intersection.hit) {
         const float3 gi_normal = gi_intersection.normal;
         const float3 gi_light_start = gi_intersection.position + NORMAL_EPS * gi_normal;
         const float3 gi_light_direction = normalize(light_position - gi_light_start);
-        const HitPoint gi_light_intersection = castRay(svo_data, gi_light_start, gi_light_direction, 2.0f);
+        const HitPoint gi_light_intersection = castRay(svo_data, gi_light_start, gi_light_direction, 2.0f, 0.2f, 0.0f);
         if (!gi_light_intersection.hit) {
             gi_add += fmax(0.0f, fmin(1.0f, SUN_INTENSITY * dot(gi_light_direction, gi_normal))) * getColorFromIntersection(gi_intersection);
         }
-    } else {
-        gi_add += 0.2f * SKY_COLOR / 255.0f;
+    } else if (noise_normal.y < 0.0f) {
+        gi_add += SKY_COLOR / 255.0f;
     }
 	
-	return gi_add;
+	return gi_add / PI;
 }
 
 float2 projectPoint(const float3 in)
@@ -317,7 +317,7 @@ float4 getOldValue(image2d_t last_frame_color, image2d_t last_frame_depth, __con
 	const float2 last_depth = read_imagef(last_frame_depth, tex_sampler, last_screen_pos).xy;
 	float acc = 0.0f;
 
-	if (fabs(length(last_view_pos) - last_depth.x) < 0.0001f && intersection.w == last_depth.y) {
+	if (fabs(length(last_view_pos) - last_depth.x) < 0.000001f && intersection.w == last_depth.y) {
 		return last_color;	
 	}
 	
@@ -343,7 +343,7 @@ __kernel void lighting(
 	
 	const float time_of = -1.5f;
 	const float light_radius = 6.0f;
-	const float3 light_position = (float3)(light_radius * cos(time_su * time + time_of) + 1.5f, -3.0f, light_radius * sin(time_su * time + time_of) + 1.5f);
+	const float3 light_position = (float3)(light_radius * cos(time_su * time + time_of) + 1.5f, -0.5f, light_radius * sin(time_su * time + time_of) + 1.5f);
 
 	float3 color = 1.0f;
 	float acc = 1.0f;
@@ -354,8 +354,8 @@ __kernel void lighting(
 		const float3 ao_start = intersection.xyz + normal * NORMAL_EPS;
 
 		const float4 old_ao = getOldValue(last_frame_color, last_depth, last_view_matrix, last_position, intersection);
-		//const float3 new_ao = getGlobalIllumination(svo_data, ao_start, normal, light_position, noise, frame_count);
-		const float3 new_ao = (float3)getAO(svo_data, ao_start, normal, noise, frame_count);
+		const float3 new_ao = getGlobalIllumination(svo_data, ao_start, normal, light_position, noise, frame_count);
+		//const float3 new_ao = (float3)getAO(svo_data, ao_start, normal, noise, frame_count);
 		
 		acc = old_ao.w + 1.0f;
 		color = new_ao + old_ao.xyz;

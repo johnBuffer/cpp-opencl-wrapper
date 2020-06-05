@@ -11,8 +11,8 @@ __constant sampler_t tex_sampler = CLK_NORMALIZED_COORDS_TRUE | CLK_FILTER_NEARE
 //__constant float3 light_position = (float3)(0.0f, 1.0f, 0.0f);
 __constant float EPS = 0x1.fffffep-1f;
 __constant float NORMAL_EPS = 0.0078125f * 0.0078125f * 0.0078125f;
-__constant float AMBIENT = 0.25f;
-__constant float SUN_INTENSITY = 1.2f;
+__constant float AMBIENT = 0.05f;
+__constant float SUN_INTENSITY = 2.0f;
 __constant float3 SKY_COLOR = (float3)(153.0f, 223.0f, 255.0f);
 //__constant float3 SKY_COLOR = (float3)(51.0f, 204.0f, 255.0f);
 //__constant float3 SKY_COLOR = (float3)(0.0f);
@@ -83,6 +83,9 @@ HitPoint castRay(__global Node* svo_data, float3 position, float3 d, bool in_wat
 	result.hit = 0;
 	result.complexity = 0;
 
+	const float ray_coef = 0.002f;
+	const float ray_bias = 0.0f;
+
 	const float EPS = 1.0f / (float)(1 << SVO_MAX_DEPTH);
 	
 	// Initialize stack
@@ -132,7 +135,7 @@ HitPoint castRay(__global Node* svo_data, float3 position, float3 d, bool in_wat
 			const uint8_t leaf_mask = (parent_ref.leaf_mask >> child_shift) & 1u;
 			const uint8_t watr_mask = (parent_ref.reflective_mask >> child_shift) & 1u;
 			// We hit a leaf
-			if (leaf_mask && (!watr_mask || (watr_mask != in_water))) {
+			if (leaf_mask && (!watr_mask || (watr_mask != in_water)) || tc_max * ray_coef + ray_bias >= scale_f) {
 				result.hit = 1u;
 				// Could use mirror mask
 				result.normal = -sign(d) * (float3)(normal & 1u, (normal>>1u) & 1u, (normal>>2u) & 1u);
@@ -143,9 +146,11 @@ HitPoint castRay(__global Node* svo_data, float3 position, float3 d, bool in_wat
 				if ((mirror_mask & 1) == 0) pos.x = 3.0f - scale_f - pos.x;
 				if ((mirror_mask & 2) == 0) pos.y = 3.0f - scale_f - pos.y;
 				if ((mirror_mask & 4) == 0) pos.z = 3.0f - scale_f - pos.z;
-				result.position.x = fmin(fmax(position.x + t_min * d.x, pos.x + EPS), pos.x + scale_f - EPS);
-				result.position.y = fmin(fmax(position.y + t_min * d.y, pos.y + EPS), pos.y + scale_f - EPS);
-				result.position.z = fmin(fmax(position.z + t_min * d.z, pos.z + EPS), pos.z + scale_f - EPS);
+				//result.position.x = fmin(fmax(position.x + t_min * d.x, pos.x + EPS), pos.x + scale_f - EPS);
+				//result.position.y = fmin(fmax(position.y + t_min * d.y, pos.y + EPS), pos.y + scale_f - EPS);
+				//result.position.z = fmin(fmax(position.z + t_min * d.z, pos.z + EPS), pos.z + scale_f - EPS);
+
+				result.position = fmin(fmax(position + t_min * d, pos + (float3)EPS), pos + (float3)(scale_f - EPS));
 
 				const float tex_scale = (float)(1 << (SVO_MAX_DEPTH - scale));
 				if (result.normal.x) {
@@ -334,7 +339,7 @@ __kernel void albedo(
 	// Light
 	const float time_of = -1.5f;
 	const float light_radius = 6.0f;
-	const float3 light_position = (float3)(light_radius * cos(time_su * time + time_of) + 1.5f, 0.0f, light_radius * sin(time_su * time + time_of) + 1.5f);
+	const float3 light_position = (float3)(light_radius * cos(time_su * time + time_of) + 1.5f, -0.5f, light_radius * sin(time_su * time + time_of) + 1.5f);
 	// Cast ray
 	const float3 d = normalize(multVec3Mat3(screen_position, view_matrix));
 	const HitPoint intersection = castRay(svo_data, position, d, false);

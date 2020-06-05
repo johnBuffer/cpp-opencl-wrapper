@@ -29,7 +29,7 @@ struct FpsController : public CameraController
 		
 
 		if (boost || 1) {
-			const float speed = boost ? 100.0f : 5.0f;
+			const float speed = boost ? 150.0f : 8.0f;
 			camera.move(speed * move_vector * movement_speed * elapsed_time);
 		}
 		else {
