@@ -94,7 +94,6 @@ public:
 			const uint32_t start_y = thread_id / 4;
 			for (uint32_t x(start_x * area_width); x < (start_x + 1) * area_width; ++x) {
 				for (uint32_t y(start_y * area_height); y < (start_y + 1) * area_height; ++y) {
-					// Computing ray coordinates in 'lens' space ie in normalized screen space
 					const uint32_t index = 4 * (x + y * m_render_dimension.x);
 					uint8_t r = m_result_albedo[index + 0];
 					uint8_t g = m_result_albedo[index + 1];
@@ -123,33 +122,23 @@ public:
 	void biblur()
 	{
 		m_biblur.setArgument(1, m_buff_position);
+		m_biblur_diso.setArgument(1, m_buff_position);
 		const size_t work_group_width = static_cast<size_t>(m_render_dimension.x * m_lighting_quality);
 		const size_t work_group_height = static_cast<size_t>(m_render_dimension.y * m_lighting_quality);
 
-		bool current_buffer = 0;
 		for (uint8_t i(3); i--;) {
 			m_biblur.setArgument(0, m_buff_final_lighting[m_current_final_buffer]);
 			m_biblur.setArgument(2, m_buff_final_lighting[!m_current_final_buffer]);
 			swapFinalBuffers();
 			m_wrapper.runKernel(m_biblur, oclw::Size(work_group_width, work_group_height), oclw::Size(20, 20));
-			current_buffer = !current_buffer;
 		}
-	}
 
-	void blur()
-	{
-		const size_t work_group_width = static_cast<size_t>(m_render_dimension.x * m_lighting_quality);
-		const size_t work_group_height = static_cast<size_t>(m_render_dimension.y * m_lighting_quality);
-
-		for (uint8_t i(3); i--;) {
-			m_blur_v.setArgument(0, m_buff_result_lighting[m_current_lighting_buffer]);
-			m_blur_v.setArgument(1, m_buff_result_lighting[!m_current_lighting_buffer]);
-			m_wrapper.runKernel(m_blur_v, oclw::Size(work_group_width, work_group_height), oclw::Size(10, 10));
-
-			m_blur_h.setArgument(0, m_buff_result_lighting[!m_current_lighting_buffer]);
-			m_blur_h.setArgument(1, m_buff_result_lighting[m_current_lighting_buffer]);
-			m_wrapper.runKernel(m_blur_h, oclw::Size(work_group_width, work_group_height), oclw::Size(10, 10));
-		}
+		/*for (uint8_t i(3); i--;) {
+			m_biblur_diso.setArgument(0, m_buff_final_lighting[m_current_final_buffer]);
+			m_biblur_diso.setArgument(2, m_buff_final_lighting[!m_current_final_buffer]);
+			swapFinalBuffers();
+			m_wrapper.runKernel(m_biblur_diso, oclw::Size(work_group_width, work_group_height), oclw::Size(20, 20));
+		}*/
 	}
 
 	void median()
@@ -211,6 +200,7 @@ private:
 	oclw::Program m_program;
 	oclw::Program m_program_gi;
 	oclw::Program m_program_biblur;
+	oclw::Program m_program_biblur_diso;
 	oclw::Program m_program_combinator;
 	oclw::Program m_program_blur;
 	oclw::Program m_program_median;
@@ -219,9 +209,8 @@ private:
 	oclw::Kernel m_albedo;
 	oclw::Kernel m_lighting;
 	oclw::Kernel m_biblur;
+	oclw::Kernel m_biblur_diso;
 	oclw::Kernel m_combinator;
-	oclw::Kernel m_blur_v;
-	oclw::Kernel m_blur_h;
 	oclw::Kernel m_median;
 	oclw::Kernel m_normalizer;
 	oclw::Kernel m_mutator;
@@ -280,6 +269,7 @@ private:
 		m_program = m_wrapper.createProgramFromFile("../src/albedo.cl");
 		m_program_gi = m_wrapper.createProgramFromFile("../src/lighting.cl");
 		m_program_biblur = m_wrapper.createProgramFromFile("../src/bilateral_blur.cl");
+		m_program_biblur_diso = m_wrapper.createProgramFromFile("../src/bilateral_blur_diso.cl");
 		m_program_combinator = m_wrapper.createProgramFromFile("../src/combinator.cl");
 		m_program_blur = m_wrapper.createProgramFromFile("../src/blur.cl");
 		m_program_median = m_wrapper.createProgramFromFile("../src/median.cl");
@@ -315,14 +305,13 @@ private:
 		m_normalizer = m_program_gi.createKernel("normalizer");
 
 		m_biblur = m_program_biblur.createKernel("blur");
-		//m_biblur.setArgument(1, m_buff_depth);
+		m_biblur_diso = m_program_biblur_diso.createKernel("blur");
 
 		m_combinator = m_program_combinator.createKernel("combine");
 		m_combinator.setArgument(0, m_buff_result_albedo);
 		m_combinator.setArgument(1, m_buff_shadow);
 
-		m_blur_v = m_program_blur.createKernel("blur_v");
-		m_blur_h = m_program_blur.createKernel("blur_h");
+		
 
 		m_median = m_program_median.createKernel("median");
 

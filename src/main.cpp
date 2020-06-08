@@ -17,14 +17,14 @@
 
 int main()
 {
-	constexpr uint32_t WIN_WIDTH = 1920;
-	constexpr uint32_t WIN_HEIGHT = 1080;
+	constexpr uint32_t WIN_WIDTH = 1600;
+	constexpr uint32_t WIN_HEIGHT = 900;
 
 	try
 	{
 		const float lighting_quality = 1.0f;
 
-		const uint8_t max_depth = 13;
+		const uint8_t max_depth = 9;
 		SVO* builder = new SVO(max_depth);
 		generateSVO(max_depth, *builder);
 		LSVO svo(*builder, max_depth);
@@ -52,16 +52,15 @@ int main()
 
 		// Camera
 		Camera camera;
-		camera.position = glm::vec3(68.7249f, 60, 60);
+		camera.position = glm::vec3(345.317f, 322.447f, 432.477f);
 		camera.last_move = glm::vec3(0.0f);
-		//camera.view_angle = glm::vec2(0.395287f, 0.00f);
-		camera.view_angle = glm::vec2(0.0f);
+		camera.view_angle = glm::vec2(3.61429, -0.72);
+		//camera.view_angle = glm::vec2(0.0f);
 		camera.fov = 1.0f;
-
 
 		sf::Mouse::setPosition(sf::Vector2i(WIN_WIDTH / 2, WIN_HEIGHT / 2), window);
 		FpsController controller;
-		controller.updateCameraView(glm::vec2(0.0f), camera);
+		//controller.updateCameraView(glm::vec2(0.0f), camera);
 
 		while (window.isOpen())
 		{
@@ -74,6 +73,9 @@ int main()
 				const float mouse_sensitivity = 0.0015f;
 				controller.updateCameraView(mouse_sensitivity * glm::vec2(mouse_pos.x - WIN_WIDTH * 0.5f, (WIN_HEIGHT  * 0.5f) - mouse_pos.y), camera);
 			}
+
+			//std::cout << camera.view_angle.x << " " << camera.view_angle.y << std::endl;
+			//std::cout << camera.position.x << " " << camera.position.y << " " << camera.position.z << std::endl;
 
 			if (event_manager.mutate_waiting) {
 				event_manager.mutate_waiting = false;
