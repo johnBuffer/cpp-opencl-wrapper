@@ -123,15 +123,15 @@ public:
 		const size_t work_group_width = static_cast<size_t>(m_render_dimension.x * m_lighting_quality);
 		const size_t work_group_height = static_cast<size_t>(m_render_dimension.y * m_lighting_quality);
 
-		for (uint8_t i(3); i--;) {
+		for (uint8_t i(2); i--;) {
 			m_biblur.setArgument(0, m_buff_final_lighting[m_current_final_buffer]);
 			m_biblur.setArgument(2, m_buff_final_lighting[!m_current_final_buffer]);
 			swapFinalBuffers();
 			m_wrapper.runKernel(m_biblur, oclw::Size(work_group_width, work_group_height), oclw::Size(20, 20));
 		}
 
-		//m_biblur_diso.setArgument(1, m_buff_position);
-		/*for (uint8_t i(3); i--;) {
+		/*m_biblur_diso.setArgument(1, m_buff_position);
+		for (uint8_t i(3); i--;) {
 			m_biblur_diso.setArgument(0, m_buff_final_lighting[m_current_final_buffer]);
 			m_biblur_diso.setArgument(2, m_buff_final_lighting[!m_current_final_buffer]);
 			swapFinalBuffers();

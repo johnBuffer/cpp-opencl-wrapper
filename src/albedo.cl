@@ -19,7 +19,7 @@ __constant float3 SKY_COLOR = (float3)(153.0f, 223.0f, 255.0f);
 __constant float3 WATER_COLOR = (float3)(28.0f / 255.0f, 194.0f / 255.0f, 255.0f / 255.0f);
 //__constant float3 WATER_COLOR = (float3)(128.0f / 255.0f, 194.0f / 255.0f, 255.0f / 255.0f);
 __constant float R0 = 0.0204f;
-__constant float time_su = 1.5f;
+__constant float time_su = 1.0f;
 
 
 // Structs declaration
@@ -304,7 +304,7 @@ __kernel void albedo(
 	// Light
 	const float time_of = -1.5f;
 	const float light_radius = 6.0f;
-	const float3 light_position = (float3)(1.5f + 1.4f * sin(time * time_su), 1.0f + sin(time * 0.67 * time_su), 0.0f);
+	const float3 light_position = (float3)(1.5f + 1.6f * sin(time * time_su), 0.65f + sin(time * 0.67 * time_su), 1.5f + 1.6f * cos(time * time_su));
 	// Cast ray
 	const float3 d = normalize(multVec3Mat3(screen_position, view_matrix));
 	const HitPoint intersection = castRay(svo_data, position, d, false);

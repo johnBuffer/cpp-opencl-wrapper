@@ -14,7 +14,7 @@ __constant float NORMAL_EPS = 0.0078125f * 0.0078125f * 0.0078125f;
 __constant float SUN_INTENSITY = 1.8f;
 __constant float3 SKY_COLOR = (float3)(153.0f, 223.0f, 255.0f);
 //constant float3 SKY_COLOR = (float3)(0.0f);
-__constant float time_su = 1.5f;
+__constant float time_su = 1.0f;
 __constant float NEAR = 0.5f;
 __constant float GOLDEN_RATIO = 1.61803398875f;
 __constant float G = 1.0f / 1.22074408460575947536f;
@@ -272,7 +272,7 @@ float3 getGlobalIllumination(__global Node* svo_data, const float3 position, con
         const float3 gi_light_direction = normalize(light_position - gi_light_start);
         const HitPoint gi_light_intersection = castRay(svo_data, gi_light_start, gi_light_direction, 2.0f, 0.2f, 0.0f);
         if (!gi_light_intersection.hit) {
-            gi_add += fmax(0.0f, 0.5f * SUN_INTENSITY * dot(gi_light_direction, gi_normal));
+            gi_add += 0.5f * fmax(0.0f, SUN_INTENSITY * dot(gi_light_direction, gi_normal));
         }
     } else if (noise_normal.y < 0.0f) {
         gi_add += SKY_COLOR / 255.0f;
@@ -323,10 +323,11 @@ float getLightIntensity(__global Node* svo_data, const float3 position, const fl
 
 	const float3 ray_start = position + normal * NORMAL_EPS;
 
-	const float light_offset_1 = (fmod(noise_value.x + G * (frame_count%10000), 1.0f) - 0.5f);
-	const float light_offset_2 = (fmod(noise_value.y + G * G * (frame_count%10000), 1.0f) - 0.5f);
-	const float3 shadow_ray = normalize(light_position + light_radius * (float3)(light_offset_1, light_offset_2, 0.0f) - position);
-	const HitPoint light_intersection = castRay(svo_data, ray_start, shadow_ray, 2.0f, 0.0f, 0.0f);
+	const float light_offset_1 = (fmod(noise_value.x + G         * (frame_count%10000), 1.0f) - 0.5f);
+	const float light_offset_2 = (fmod(noise_value.y + G * G     * (frame_count%10000), 1.0f) - 0.5f);
+	const float light_offset_3 = (fmod(noise_value.z + G * G * G * (frame_count%10000), 1.0f) - 0.5f);
+	const float3 shadow_ray = normalize(light_position + light_radius * (float3)(light_offset_1, light_offset_2, light_offset_3) - position);
+	const HitPoint light_intersection = castRay(svo_data, ray_start, shadow_ray, 2.0f, 0.02f, 0.0f);
 	if (light_intersection.hit) {
 		return 0.0f;
 	}
@@ -351,8 +352,8 @@ __kernel void lighting(
 	const int2 gid = (int2)(get_global_id(0), get_global_id(1));
 	
 	const float time_of = -1.5f;
-	const float light_radius = 2.0f;
-	const float3 light_position = (float3)(1.5f + 1.6f * sin(time * time_su), 1.0f + sin(time * 0.67 * time_su), 0.0f);
+	const float light_radius = 0.25f;
+	const float3 light_position = (float3)(1.5f + 1.6f * sin(time * time_su), 0.65f + sin(time * 0.67 * time_su), 1.5f + 1.6f * cos(time * time_su));
 
 	float3 color = 1.0f;
 	float acc = 1.0f;
