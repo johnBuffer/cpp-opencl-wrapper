@@ -11,7 +11,7 @@ __constant sampler_t tex_sampler = CLK_NORMALIZED_COORDS_TRUE | CLK_FILTER_LINEA
 __constant sampler_t exact_sampler = CLK_NORMALIZED_COORDS_FALSE | CLK_FILTER_NEAREST | CLK_ADDRESS_CLAMP;
 __constant float EPS = 0x1.fffffep-1f;
 __constant float NORMAL_EPS = 0.0078125f * 0.0078125f * 0.0078125f;
-__constant float SUN_INTENSITY = 2.0f;
+__constant float SUN_INTENSITY = 1.8f;
 __constant float3 SKY_COLOR = (float3)(153.0f, 223.0f, 255.0f);
 //constant float3 SKY_COLOR = (float3)(0.0f);
 __constant float time_su = 1.5f;
@@ -99,15 +99,6 @@ float3 getRandomizedNormal(float3 normal, image2d_t noise, uint32_t frame_count)
 	}
 
 	return (float3)(0.0f);
-}
-
-
-float3 getColorFromIntersection(HitPoint intersection)
-{
-	if (intersection.emissive) {
-		return (float3)(1.0f, 0.0f, 0.0f);
-	}
-	return (float3)1.0f;
 }
 
 
@@ -281,7 +272,7 @@ float3 getGlobalIllumination(__global Node* svo_data, const float3 position, con
         const float3 gi_light_direction = normalize(light_position - gi_light_start);
         const HitPoint gi_light_intersection = castRay(svo_data, gi_light_start, gi_light_direction, 2.0f, 0.2f, 0.0f);
         if (!gi_light_intersection.hit) {
-            gi_add += fmax(0.0f, fmin(1.0f, SUN_INTENSITY * dot(gi_light_direction, gi_normal))) * getColorFromIntersection(gi_intersection);
+            gi_add += fmax(0.0f, 0.5f * SUN_INTENSITY * dot(gi_light_direction, gi_normal));
         }
     } else if (noise_normal.y < 0.0f) {
         gi_add += SKY_COLOR / 255.0f;
@@ -360,8 +351,8 @@ __kernel void lighting(
 	const int2 gid = (int2)(get_global_id(0), get_global_id(1));
 	
 	const float time_of = -1.5f;
-	const float light_radius = 0.2f;
-	const float3 light_position = (float3)(1.5f + 1.4f * sin(time * time_su), 1.0f, 0.0f);
+	const float light_radius = 2.0f;
+	const float3 light_position = (float3)(1.5f + 1.6f * sin(time * time_su), 1.0f + sin(time * 0.67 * time_su), 0.0f);
 
 	float3 color = 1.0f;
 	float acc = 1.0f;
@@ -379,9 +370,10 @@ __kernel void lighting(
 		if (acc < ACC_COUNT) {
 			color = ((float3)(light_intensity) + new_gi) + old_gi.xyz;
 		} else {
+			const float conservation_coef = 0.9f;
 			const float div = ACC_COUNT - 1.0f;
 			acc = div;
-			color = ((float3)(light_intensity) + new_gi) * div * 0.05f + old_gi.xyz * 0.95f;
+			color = ((float3)(light_intensity) + new_gi) * div * (1.0f - conservation_coef) + old_gi.xyz * conservation_coef;
 		}
 		//acc = 1.0f;
 		//color = (float3)(light_intensity) + new_gi;

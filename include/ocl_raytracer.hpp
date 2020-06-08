@@ -114,15 +114,12 @@ public:
 	{
 		const size_t work_group_width = static_cast<size_t>(m_render_dimension.x * m_lighting_quality);
 		const size_t work_group_height = static_cast<size_t>(m_render_dimension.y * m_lighting_quality);
-		//std::cout << work_gorup_width << " " << work_gorup_height << std::endl;
-
 		m_wrapper.runKernel(m_lighting, oclw::Size(work_group_width, work_group_height), oclw::Size(20, 20));
 	}
 
 	void biblur()
 	{
 		m_biblur.setArgument(1, m_buff_position);
-		m_biblur_diso.setArgument(1, m_buff_position);
 		const size_t work_group_width = static_cast<size_t>(m_render_dimension.x * m_lighting_quality);
 		const size_t work_group_height = static_cast<size_t>(m_render_dimension.y * m_lighting_quality);
 
@@ -133,6 +130,7 @@ public:
 			m_wrapper.runKernel(m_biblur, oclw::Size(work_group_width, work_group_height), oclw::Size(20, 20));
 		}
 
+		//m_biblur_diso.setArgument(1, m_buff_position);
 		/*for (uint8_t i(3); i--;) {
 			m_biblur_diso.setArgument(0, m_buff_final_lighting[m_current_final_buffer]);
 			m_biblur_diso.setArgument(2, m_buff_final_lighting[!m_current_final_buffer]);
