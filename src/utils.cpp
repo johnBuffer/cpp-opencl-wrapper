@@ -30,7 +30,7 @@ void generateSVO(uint8_t max_depth, SVO& svo)
 	using Volume = SVO;
 	Volume* volume_raw = &svo;
 
-	/*FastNoise myNoise;
+	FastNoise myNoise;
 	myNoise.SetNoiseType(FastNoise::SimplexFractal);
 	for (uint32_t x = 1; x < grid_size_x - 1; x++) {
 		for (uint32_t z = 1; z < grid_size_z - 1; z++) {
@@ -49,11 +49,11 @@ void generateSVO(uint8_t max_depth, SVO& svo)
 				volume_raw->setCell(Cell::Solid, Cell::Grass, x, y, z);
 			}
 		}
-	}*/
+	}
 
 	//std::ifstream data_file("../res/Pointcloud_2m/tq2575_DSM_2M.asc");
 	//std::ifstream data_file("../res/Pointcloud_50cm/tq3580_DSM_50CM.asc");
-	std::ifstream data_file("../res/cloud.bin", std::ios::binary | std::ios::ate);
+	/*std::ifstream data_file("../res/cloud.bin", std::ios::binary | std::ios::ate);
 	if (data_file.is_open()) {
 		std::streamsize size = data_file.tellg();
 		data_file.seekg(0, std::ios::beg);
@@ -102,7 +102,7 @@ void generateSVO(uint8_t max_depth, SVO& svo)
 		}
 
 		data_file.close();
-	}
+	}*/
 }
 
 

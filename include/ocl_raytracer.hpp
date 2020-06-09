@@ -4,9 +4,11 @@
 #include "ocl_wrapper.hpp"
 #include "utils.hpp"
 #include "camera_controller.hpp"
+#include "scene.hpp"
 
 
 constexpr uint32_t CPU_THREADS = 16u;
+
 
 class Raytracer
 {
@@ -25,7 +27,7 @@ public:
 		initialize(max_depth, svo_data);
 	}
 
-	void updateKernelArgs(const Camera& camera)
+	void updateKernelArgs(const Camera& camera, SceneSettings scene)
 	{
 		// Swap lighting buffers
 		m_current_lighting_buffer = !m_current_lighting_buffer;
@@ -44,24 +46,24 @@ public:
 		m_wrapper.writeInMemoryObject(m_buff_view_matrix_old, &old_view[0], true);
 		m_wrapper.writeInMemoryObject(m_buff_view_matrix, &camera.rot_mat[0], true);
 
+		scene.camera_position = camera_position;
+		scene.time = m_time;
+
 		uint32_t albedo_index_count = 0u;
 		m_albedo.setArgument(albedo_index_count++, m_buff_svo);
+		m_albedo.setArgument(albedo_index_count++, scene);
 		m_albedo.setArgument(albedo_index_count++, m_buff_result_albedo);
-		m_albedo.setArgument(albedo_index_count++, camera_position);
 		m_albedo.setArgument(albedo_index_count++, m_buff_view_matrix);
 		m_albedo.setArgument(albedo_index_count++, m_buff_image_top);
 		m_albedo.setArgument(albedo_index_count++, m_buff_image_side);
-		m_albedo.setArgument(albedo_index_count++, render_mode);
-		m_albedo.setArgument(albedo_index_count++, m_time);
-		m_albedo.setArgument(albedo_index_count++, m_buff_shadow);
 		m_albedo.setArgument(albedo_index_count++, m_buff_position);
 		m_albedo.setArgument(albedo_index_count++, m_buff_depth[m_current_lighting_buffer]);
 
 		uint32_t gi_index_count = 0u;
 		m_lighting.setArgument(gi_index_count++, m_buff_svo);
+		m_lighting.setArgument(gi_index_count++, scene);
 		m_lighting.setArgument(gi_index_count++, m_buff_result_lighting[m_current_lighting_buffer]);
 		m_lighting.setArgument(gi_index_count++, m_buff_noise);
-		m_lighting.setArgument(gi_index_count++, m_time);
 		m_lighting.setArgument(gi_index_count++, m_buff_result_lighting[!m_current_lighting_buffer]);
 		m_lighting.setArgument(gi_index_count++, m_buff_view_matrix_old);
 		m_lighting.setArgument(gi_index_count++, old_pos);
@@ -123,20 +125,12 @@ public:
 		const size_t work_group_width = static_cast<size_t>(m_render_dimension.x * m_lighting_quality);
 		const size_t work_group_height = static_cast<size_t>(m_render_dimension.y * m_lighting_quality);
 
-		for (uint8_t i(2); i--;) {
+		for (uint8_t i(3); i--;) {
 			m_biblur.setArgument(0, m_buff_final_lighting[m_current_final_buffer]);
 			m_biblur.setArgument(2, m_buff_final_lighting[!m_current_final_buffer]);
 			swapFinalBuffers();
 			m_wrapper.runKernel(m_biblur, oclw::Size(work_group_width, work_group_height), oclw::Size(20, 20));
 		}
-
-		/*m_biblur_diso.setArgument(1, m_buff_position);
-		for (uint8_t i(3); i--;) {
-			m_biblur_diso.setArgument(0, m_buff_final_lighting[m_current_final_buffer]);
-			m_biblur_diso.setArgument(2, m_buff_final_lighting[!m_current_final_buffer]);
-			swapFinalBuffers();
-			m_wrapper.runKernel(m_biblur_diso, oclw::Size(work_group_width, work_group_height), oclw::Size(20, 20));
-		}*/
 	}
 
 	void median()
@@ -153,7 +147,7 @@ public:
 
 	void combine()
 	{
-		m_combinator.setArgument(2, m_buff_final_lighting[m_current_final_buffer]);
+		m_combinator.setArgument(1, m_buff_final_lighting[m_current_final_buffer]);
 		const size_t globalWorkSize[2] = { m_render_dimension.x, m_render_dimension.y };
 		const size_t localWorkSize[2] = { 20, 20 };
 		m_wrapper.runKernel(m_combinator, oclw::Size(m_render_dimension.x, m_render_dimension.y), oclw::Size(20, 20));
@@ -227,7 +221,6 @@ private:
 	oclw::MemoryObject m_buff_image_side;
 	oclw::MemoryObject m_buff_noise;
 	oclw::MemoryObject m_buff_seeds;
-	oclw::MemoryObject m_buff_shadow;
 	bool m_current_lighting_buffer;
 
 	std::vector<float> m_result_albedo;
@@ -286,7 +279,6 @@ private:
 		const uint64_t light_render_pxl_count = albedo_render_pxl_count * m_lighting_quality * m_lighting_quality;
 		m_result_albedo.resize(albedo_render_pxl_count * 4);
 		m_buff_result_albedo = m_wrapper.createMemoryObject<float>(m_result_albedo.size(), oclw::ReadWrite);
-		m_buff_shadow = m_wrapper.createMemoryObject<float>(albedo_render_pxl_count, oclw::ReadWrite);
 		m_result_lighting.resize(light_render_pxl_count * 4);
 		m_buff_result_lighting[0] = m_wrapper.getContext().createImage2D(m_render_dimension.x * m_lighting_quality, m_render_dimension.y * m_lighting_quality, nullptr, oclw::ReadWrite, oclw::RGBA, oclw::Float);
 		m_buff_result_lighting[1] = m_wrapper.getContext().createImage2D(m_render_dimension.x * m_lighting_quality, m_render_dimension.y * m_lighting_quality, nullptr, oclw::ReadWrite, oclw::RGBA, oclw::Float);
@@ -307,9 +299,6 @@ private:
 
 		m_combinator = m_program_combinator.createKernel("combine");
 		m_combinator.setArgument(0, m_buff_result_albedo);
-		m_combinator.setArgument(1, m_buff_shadow);
-
-		
 
 		m_median = m_program_median.createKernel("median");
 
@@ -324,6 +313,9 @@ private:
 
 	void loadImagesToDevice()
 	{
+		//m_image_side.loadFromFile("../res/marble.jpg");
+		//m_image_top.loadFromFile("../res/marble.jpg");
+
 		m_image_side.loadFromFile("../res/grass_side_16x16.bmp");
 		m_image_top.loadFromFile("../res/grass_top_16x16.bmp");
 

@@ -11,15 +11,15 @@ __constant sampler_t tex_sampler = CLK_NORMALIZED_COORDS_TRUE | CLK_FILTER_LINEA
 __constant sampler_t exact_sampler = CLK_NORMALIZED_COORDS_FALSE | CLK_FILTER_NEAREST | CLK_ADDRESS_CLAMP;
 __constant float EPS = 0x1.fffffep-1f;
 __constant float NORMAL_EPS = 0.0078125f * 0.0078125f * 0.0078125f;
-__constant float SUN_INTENSITY = 1.8f;
+__constant float SUN_INTENSITY = 1.5f;
 __constant float3 SKY_COLOR = (float3)(153.0f, 223.0f, 255.0f);
 //constant float3 SKY_COLOR = (float3)(0.0f);
-__constant float time_su = 1.0f;
+__constant float time_su = 0.0f;
 __constant float NEAR = 0.5f;
 __constant float GOLDEN_RATIO = 1.61803398875f;
 __constant float G = 1.0f / 1.22074408460575947536f;
 __constant float PI = 3.141592653f;
-__constant float ACC_COUNT = 32.0f;
+__constant float ACC_COUNT = 48.0f;
 
 
 // Structs declaration
@@ -49,6 +49,16 @@ typedef struct HitPoint
 	bool     emissive;
 	uint16_t complexity;
 } HitPoint;
+
+
+typedef struct  __attribute__ ((packed)) _SceneSettings
+{
+	float3 camera_position;
+	float3 light_position;
+	float light_intensity;
+	float light_radius;
+	float time;
+} SceneSettings;
 
 
 // Utils functions
@@ -337,9 +347,9 @@ float getLightIntensity(__global Node* svo_data, const float3 position, const fl
 
 __kernel void lighting(
     global Node* svo_data
+	, read_only SceneSettings scene
     , write_only image2d_t result
 	, read_only image2d_t noise
-	, float time
 	, read_only image2d_t last_frame_color
 	, constant float* last_view_matrix
     , float3 last_position
@@ -351,9 +361,7 @@ __kernel void lighting(
 {
 	const int2 gid = (int2)(get_global_id(0), get_global_id(1));
 	
-	const float time_of = -1.5f;
-	const float light_radius = 0.25f;
-	const float3 light_position = (float3)(1.5f + 1.6f * sin(time * time_su), 0.65f + sin(time * 0.67 * time_su), 1.5f + 1.6f * cos(time * time_su));
+	const float3 light_position = scene.light_position;
 
 	float3 color = 1.0f;
 	float acc = 1.0f;
@@ -365,7 +373,7 @@ __kernel void lighting(
 
 		const float4 old_gi = getOldValue(last_frame_color, last_depth, last_view_matrix, last_position, intersection);
 		const float3 new_gi = getGlobalIllumination(svo_data, gi_start, normal, light_position, noise, frame_count);
-		const float light_intensity = getLightIntensity(svo_data, intersection.xyz, normal, light_position, light_radius, noise, frame_count);
+		const float light_intensity = getLightIntensity(svo_data, intersection.xyz, normal, light_position, scene.light_radius, noise, frame_count);
 
 		acc = old_gi.w + 1.0f;
 		if (acc < ACC_COUNT) {

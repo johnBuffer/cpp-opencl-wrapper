@@ -2,6 +2,7 @@
 
 #include <SFML/Graphics.hpp>
 #include "camera_controller.hpp"
+#include "scene.hpp"
 
 
 struct EventManager
@@ -20,14 +21,14 @@ struct EventManager
 	{
 	}
 
-	void processEvents(CameraController& controller, Camera& camera, LSVO& svo, uint8_t& render_mode)
+	void processEvents(CameraController& controller, Camera& camera, LSVO& svo, SceneSettings& scene, sf::Vector2f& sun)
 	{
 		glm::vec3 move = glm::vec3(0.0f);
 		sf::Event event;
 		while (window.pollEvent(event)) {
-			if (event.type == sf::Event::Closed)
+			if (event.type == sf::Event::Closed) {
 				window.close();
-
+			}
 			else if (event.type == sf::Event::MouseButtonPressed) {
 				emissive = true;
 				if (event.mouseButton.button == sf::Mouse::Left) {
@@ -51,6 +52,25 @@ struct EventManager
 				case sf::Keyboard::S:
 					backward = true;
 					break;
+				case sf::Keyboard::P:
+					scene.light_radius += 0.02f;
+					break;
+				case sf::Keyboard::O:
+					scene.light_radius -= 0.02f;
+					scene.light_radius = std::max(0.0f, scene.light_radius);
+					break;
+				case sf::Keyboard::Numpad4:
+					sun.x += 0.2f;
+					break;
+				case sf::Keyboard::Numpad6:
+					sun.x -= 0.2f;
+					break;
+				case sf::Keyboard::Numpad8:
+					sun.y -= 0.2f;
+					break;
+				case sf::Keyboard::Numpad2:
+					sun.y += 0.2f;
+					break;
 				case sf::Keyboard::F:
 				{
 					const uint32_t svo_size = 1 << svo.max_depth;
@@ -68,9 +88,6 @@ struct EventManager
 					break;
 				case sf::Keyboard::D:
 					right = true;
-					break;
-				case sf::Keyboard::O:
-					render_mode = !render_mode;
 					break;
 				case sf::Keyboard::Space:
 					up = true;
