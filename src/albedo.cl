@@ -257,17 +257,17 @@ void colorToResultBuffer(float3 color, uint32_t index, __global float* buffer)
 
 float3 getColorFromIntersection(HitPoint intersection, image2d_t top_image, image2d_t side_image)
 {
-	const float scale = 256.0f;
-	float3 color;
-	if (intersection.normal.y) {
-		color = convert_float3(read_imagei(top_image, tex_sampler, intersection.tex_coords).xyz);
-	}
-	else {
-		color = convert_float3(read_imagei(side_image, tex_sampler, intersection.tex_coords).xyz);
-	}
+	// const float scale = 256.0f;
+	// float3 color;
+	// if (intersection.normal.y) {
+	// 	color = convert_float3(read_imagei(top_image, tex_sampler, intersection.tex_coords).xyz);
+	// }
+	// else {
+	// 	color = convert_float3(read_imagei(side_image, tex_sampler, intersection.tex_coords).xyz);
+	// }
 
-	return color;
-	//return 255.0f;
+	// return color;
+	return 255.0f;
 }
 
 float3 getColorAndLightFromIntersection(HitPoint intersection, image2d_t top_image, image2d_t side_image, __global Node* svo_data, float3 light_position, bool under_water)

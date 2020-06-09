@@ -18,7 +18,7 @@ __constant float NEAR = 0.5f;
 __constant float GOLDEN_RATIO = 1.61803398875f;
 __constant float G = 1.0f / 1.22074408460575947536f;
 __constant float PI = 3.141592653f;
-__constant float ACC_COUNT = 48.0f;
+__constant float ACC_COUNT = 32.0f;
 
 
 // Structs declaration
@@ -91,19 +91,19 @@ float3 getRandomizedNormal(float3 normal, image2d_t noise, uint32_t frame_count)
 	const int2 tex_coords = (int2)(get_global_id(0) % 512u, get_global_id(1) % 512u);
 	const float3 noise_value = convert_float3(read_imagei(noise, exact_sampler, tex_coords).xyz) / 255.0f;
 
-	const float coord_1 = (fmod(noise_value.x + G       * (frame_count % 1000), 1.0f) - 0.5f);
-	const float coord_2 = (fmod(noise_value.y + (G*G)   * (frame_count % 1000), 1.0f) - 0.5f);
-	const float coord_3 = (fmod(noise_value.z + (G*G*G) * (frame_count % 1000), 0.5f));
+	const float coord_1 = 1024.0f * (fmod(noise_value.x + G       * (frame_count % 1000), 1.0f) - 0.5f);
+	const float coord_2 = 1024.0f * (fmod(noise_value.y + (G*G)   * (frame_count % 1000), 1.0f) - 0.5f);
+	const float coord_3 = 1024.0f * (fmod(noise_value.z + (G*G*G) * (frame_count % 1000), 0.5f));
 	if (normal.x) {
-		return normalize((float3)(sign(normal.x), coord_1, coord_2));
+		return normalize((float3)(sign(normal.x) * coord_3, coord_1, coord_2));
 	}
 	
 	if (normal.y) {
-		return normalize((float3)(coord_1, sign(normal.y), coord_2));
+		return normalize((float3)(coord_1, sign(normal.y) * coord_3, coord_2));
 	}
 	
 	if (normal.z) {
-		return normalize((float3)(coord_1, coord_2, sign(normal.z)));
+		return normalize((float3)(coord_1, coord_2, sign(normal.z) * coord_3));
 	}
 
 	return (float3)(0.0f);
@@ -249,25 +249,6 @@ HitPoint castRay(__global Node* svo_data, float3 position, float3 d, float max_d
 	return result;
 }
 
-
-float getAO(__global Node* svo_data, const float3 position, const float3 normal, image2d_t noise, uint32_t frame_count)
-{
-	const uint8_t samples_count = 1;
-	const float max_dist = 2.0f;
-    float ao_sum = 0.0f;
-    for (uint8_t i = samples_count; i--;) {
-		const float3 noise_normal = getRandomizedNormal(normal, noise, frame_count + i*i);
-		const HitPoint ao_intersection = castRay(svo_data, position, noise_normal, max_dist, 0.2f, 0.0f);
-		if (ao_intersection.hit) {
-			ao_sum += ao_intersection.distance / max_dist;
-		} else {
-			ao_sum += 1.0f; 
-		}
-	}
-	
-	return ao_sum / (float)(samples_count);
-}
-
 float3 getGlobalIllumination(__global Node* svo_data, const float3 position, const float3 normal, const float3 light_position, const float light_intensity, image2d_t noise, uint32_t frame_count)
 {
 	float3 gi_add = (float3)0.0f;
@@ -275,13 +256,13 @@ float3 getGlobalIllumination(__global Node* svo_data, const float3 position, con
     const float3 noise_normal = getRandomizedNormal(normal, noise, frame_count);
     const HitPoint gi_intersection = castRay(svo_data, position, noise_normal, 2.0f, 0.2f, 0.0f);
     if (gi_intersection.hit) {
-        const float3 gi_normal = gi_intersection.normal;
-        const float3 gi_light_start = gi_intersection.position + NORMAL_EPS * gi_normal;
-        const float3 gi_light_direction = normalize(light_position - gi_light_start);
-        const HitPoint gi_light_intersection = castRay(svo_data, gi_light_start, gi_light_direction, 2.0f, 0.2f, 0.0f);
-        if (!gi_light_intersection.hit) {
-            gi_add += 0.5f * fmax(0.0f, light_intensity * dot(gi_light_direction, gi_normal));
-        }
+		const float3 gi_normal = gi_intersection.normal;
+		const float3 gi_light_start = gi_intersection.position + NORMAL_EPS * gi_normal;
+		const float3 gi_light_direction = normalize(light_position - gi_light_start);
+		const HitPoint gi_light_intersection = castRay(svo_data, gi_light_start, gi_light_direction, 2.0f, 0.2f, 0.0f);
+		if (!gi_light_intersection.hit) {
+			gi_add += 0.5f * fmax(0.0f, light_intensity * dot(gi_light_direction, gi_normal));
+		}
     } else if (noise_normal.y < 0.0f) {
         gi_add += SKY_COLOR / 255.0f;
     }
@@ -343,6 +324,7 @@ float getLightIntensity(__global Node* svo_data, const float3 position, const fl
 	return light_intensity * fmin(1.0f, dot(normal, shadow_ray));
 }
 
+
 __kernel void lighting(
     global Node* svo_data
 	, read_only SceneSettings scene
@@ -377,10 +359,9 @@ __kernel void lighting(
 		if (acc < ACC_COUNT) {
 			color = ((float3)(light_intensity) + new_gi) + old_gi.xyz;
 		} else {
-			const float conservation_coef = 0.9f;
-			const float div = ACC_COUNT - 1.0f;
-			acc = div;
-			color = ((float3)(light_intensity) + new_gi) * div * (1.0f - conservation_coef) + old_gi.xyz * conservation_coef;
+			const float conservation_coef = 1.0f - 1.0f / ACC_COUNT;
+			acc = ACC_COUNT;
+			color = ((float3)(light_intensity) + new_gi) + old_gi.xyz * conservation_coef;
 		}
 		//acc = 1.0f;
 		//color = (float3)(light_intensity) + new_gi;

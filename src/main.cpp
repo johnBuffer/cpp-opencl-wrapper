@@ -22,15 +22,13 @@ int main()
 
 	try
 	{
-		const float lighting_quality = 1.0f;
-
-		const uint8_t max_depth = 9;
+		const uint8_t max_depth = 12;
 		SVO* builder = new SVO(max_depth);
 		generateSVO(max_depth, *builder);
 		LSVO svo(*builder, max_depth);
 		delete builder;
 
-		Raytracer raytracer(WIN_WIDTH, WIN_HEIGHT, max_depth, svo.data, lighting_quality);
+		Raytracer raytracer(WIN_WIDTH, WIN_HEIGHT, max_depth, svo.data, 1.0f);
 
 		// Main loop
 		sf::RenderWindow window(sf::VideoMode(WIN_WIDTH, WIN_HEIGHT), "OpenCL and SFML", sf::Style::Default);
@@ -88,12 +86,12 @@ int main()
 
 			window.draw(albedo_sprite);
 
-			/*const float aim_size = 2.0f;
+			const float aim_size = 2.0f;
 			sf::RectangleShape aim(sf::Vector2f(aim_size, aim_size));
 			aim.setOrigin(aim_size * 0.5f, aim_size * 0.5f);
 			aim.setPosition(WIN_WIDTH*0.5f, WIN_HEIGHT*0.5f);
 			aim.setFillColor(sf::Color::Green);
-			window.draw(aim);*/
+			window.draw(aim);
 
 			window.display();
 		}
