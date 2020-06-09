@@ -30,7 +30,7 @@ void generateSVO(uint8_t max_depth, SVO& svo)
 	using Volume = SVO;
 	Volume* volume_raw = &svo;
 
-	/*FastNoise myNoise;
+	FastNoise myNoise;
 	myNoise.SetNoiseType(FastNoise::SimplexFractal);
 	for (uint32_t x = 1; x < grid_size_x - 1; x++) {
 		for (uint32_t z = 1; z < grid_size_z - 1; z++) {
@@ -49,59 +49,6 @@ void generateSVO(uint8_t max_depth, SVO& svo)
 				volume_raw->setCell(Cell::Solid, Cell::Grass, x, y, z);
 			}
 		}
-	}*/
-
-	//std::ifstream data_file("../res/Pointcloud_2m/tq2575_DSM_2M.asc");
-	//std::ifstream data_file("../res/Pointcloud_50cm/tq3580_DSM_50CM.asc");
-	std::ifstream data_file("../res/cloud.bin", std::ios::binary | std::ios::ate);
-	if (data_file.is_open()) {
-		std::streamsize size = data_file.tellg();
-		data_file.seekg(0, std::ios::beg);
-		std::cout << "File size " << size << std::endl;
-		std::vector<glm::vec3> points;
-		std::vector<float> buffer(size/4);
-		if (data_file.read((char*)buffer.data(), size)) {
-			std::cout << "Load complete" << std::endl;
-		}
-		else {
-			std::cout << "Load failed" << std::endl;
-		}
-
-		const uint64_t points_count = buffer.size() / 3;
-		const uint32_t skip = 1;
-		points.resize(points_count);
-		for (uint32_t i(0); i < points_count; i+=skip) {
-			points[i].x = buffer[3 * i];
-			points[i].y = buffer[3 * i + 1];
-			points[i].z = buffer[3 * i + 2];
-		}
-		buffer.clear();
-		std::cout << "Conversion complete, " << points.size() << " points" << std::endl;
-
-		glm::vec3 min_val(0.0f);
-		glm::vec3 max_val(0.0f);
-		for (const glm::vec3 pt : points) {
-			min_val.x = std::min(min_val.x, pt.x);
-			min_val.y = std::min(min_val.y, pt.y);
-			min_val.z = std::min(min_val.z, pt.z);
-
-			max_val.x = std::max(max_val.x, pt.x);
-			max_val.y = std::max(max_val.y, pt.y);
-			max_val.z = std::max(max_val.z, pt.z);
-		}
-
-		std::cout << min_val.z << " " << max_val.z << std::endl;
-
-		const float scale = 16.0f;
-		for (const glm::vec3 pt_raw : points) {
-			const glm::vec3 pt = (pt_raw - min_val) * scale;
-			const float x = std::max(1.0f, std::min(pt.x, float(grid_size_x - 1)));
-			const float y = std::max(1.0f, std::min(pt.y, float(grid_size_x - 1)));
-			const float z = std::max(1.0f, std::min(pt.z, float(grid_size_x - 1)));
-			volume_raw->setCell(Cell::Solid, Cell::Grass, x, z, y);
-		}
-
-		data_file.close();
 	}
 }
 

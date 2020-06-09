@@ -22,7 +22,7 @@ int main()
 
 	try
 	{
-		const uint8_t max_depth = 12;
+		const uint8_t max_depth = 9;
 		SVO* builder = new SVO(max_depth);
 		generateSVO(max_depth, *builder);
 		LSVO svo(*builder, max_depth);
