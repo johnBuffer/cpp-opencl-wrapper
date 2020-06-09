@@ -42,7 +42,7 @@ int main()
 
 		sf::Vector2f sun(0.0f, 0.0f);
 		SceneSettings scene;
-		scene.light_intensity = 1.0f;
+		scene.light_intensity = 1.5f;
 		scene.light_position = { 0.0f, 0.0f, 0.0f };
 		scene.light_radius = 0.0f;
 

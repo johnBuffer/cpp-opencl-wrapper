@@ -71,6 +71,13 @@ struct EventManager
 				case sf::Keyboard::Numpad2:
 					sun.y += 0.2f;
 					break;
+				case sf::Keyboard::Numpad7:
+					scene.light_intensity -= 0.1f;
+					scene.light_intensity = std::max(0.0f, scene.light_intensity);
+					break;
+				case sf::Keyboard::Numpad9:
+					scene.light_intensity += 0.1f;
+					break;
 				case sf::Keyboard::F:
 				{
 					const uint32_t svo_size = 1 << svo.max_depth;

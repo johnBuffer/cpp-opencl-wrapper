@@ -369,7 +369,7 @@ __kernel void albedo(
 		const float to_sun_intensity = dot(d, normalize(scene.light_position - scene.camera_position));
 		const float primary_intensity = pow(to_sun_intensity, 511.0f);
 		const float secondary_intensity = 0.2f * pow(to_sun_intensity, 1.0f);
-		color = max((float3)(50.0f), min((float3)(255.0f * (primary_intensity + secondary_intensity)) + color, (float3)(255.0f)));
+		color = max((float3)(24.0f, 59.0f, 75.0f), min((float3)(255.0f * (primary_intensity + secondary_intensity)) + color, (float3)(255.0f)));
 		write_imagef(screen_space_positions, gid, (float4)(0.0f));
 	}
 	
