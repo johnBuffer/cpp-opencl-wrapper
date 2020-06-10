@@ -91,9 +91,9 @@ float3 getRandomizedNormal(float3 normal, image2d_t noise, uint32_t frame_count)
 	const int2 tex_coords = (int2)(get_global_id(0) % 512u, get_global_id(1) % 512u);
 	const float3 noise_value = convert_float3(read_imagei(noise, exact_sampler, tex_coords).xyz) / 255.0f;
 
-	const float coord_1 = 1024.0f * (fmod(noise_value.x + G       * (frame_count % 1000), 1.0f) - 0.5f);
-	const float coord_2 = 1024.0f * (fmod(noise_value.y + (G*G)   * (frame_count % 1000), 1.0f) - 0.5f);
-	const float coord_3 = 1024.0f * (fmod(noise_value.z + (G*G*G) * (frame_count % 1000), 0.5f));
+	const float coord_1 = (fmod(noise_value.x + G       * (frame_count % 1000), 1.0f) - 0.5f);
+	const float coord_2 = (fmod(noise_value.y + (G*G)   * (frame_count % 1000), 1.0f) - 0.5f);
+	const float coord_3 = (fmod(noise_value.z + (G*G*G) * (frame_count % 1000), 0.5f));
 	if (normal.x) {
 		return normalize((float3)(sign(normal.x) * coord_3, coord_1, coord_2));
 	}
@@ -297,8 +297,9 @@ float4 getOldValue(image2d_t last_frame_color, image2d_t last_frame_depth, __con
 	const float2 last_depth = read_imagef(last_frame_depth, tex_sampler, last_screen_pos).xy;
 	float acc = 0.0f;
 
-	if (fabs(1.0f - length(last_view_pos) / last_depth.x) < 0.1f) {
-		return last_color;	
+	const float accuracy_threshold = 0.05f;
+	if (fabs(1.0f - length(last_view_pos) / last_depth.x) < accuracy_threshold && last_depth.y == intersection.w) {
+		return last_color;
 	}
 	
 	return (float4)(0.0f);
