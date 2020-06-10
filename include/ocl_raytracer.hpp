@@ -13,7 +13,7 @@ constexpr uint32_t CPU_THREADS = 16u;
 class Raytracer
 {
 public:
-	Raytracer(uint32_t render_width, uint32_t render_height, uint8_t max_depth, std::vector<LSVONode>& svo_data, float lighting_quality = 1.0f)
+	Raytracer(uint32_t render_width, uint32_t render_height, uint8_t max_depth, std::vector<uint8_t>& svo_data, float lighting_quality = 1.0f)
 		: m_render_dimension(render_width, render_height)
 		, m_lighting_quality(lighting_quality)
 		, m_wrapper(oclw::GPU)
@@ -97,6 +97,7 @@ public:
 	void renderAlbedo()
 	{
 		m_wrapper.runKernel(m_albedo, oclw::Size(m_render_dimension.x, m_render_dimension.y), oclw::Size(20, 20));
+		m_wrapper.readMemoryObject(m_buff_result_albedo, m_result_albedo, true);
 	}
 
 	void renderLighting()
@@ -138,7 +139,6 @@ public:
 		const size_t globalWorkSize[2] = { m_render_dimension.x, m_render_dimension.y };
 		const size_t localWorkSize[2] = { 20, 20 };
 		m_wrapper.runKernel(m_combinator, oclw::Size(m_render_dimension.x, m_render_dimension.y), oclw::Size(20, 20));
-		m_wrapper.readMemoryObject(m_buff_result_albedo, m_result_albedo, true);
 	}
 
 	void normalize()
@@ -227,7 +227,7 @@ private:
 
 
 private:
-	void initialize(uint8_t max_depth, std::vector<LSVONode>& svo)
+	void initialize(uint8_t max_depth, std::vector<uint8_t>& svo)
 	{
 		// Create OpenCL program from HelloWorld.cl kernel source
 		m_program = m_wrapper.createProgramFromFile("../src/albedo.cl");

@@ -3,6 +3,7 @@
 #include <SFML/Graphics.hpp>
 #include "camera_controller.hpp"
 #include "scene.hpp"
+#include "losvo.hpp"
 
 
 struct EventManager
@@ -22,7 +23,7 @@ struct EventManager
 	{
 	}
 
-	void processEvents(CameraController& controller, Camera& camera, LSVO& svo, SceneSettings& scene, sf::Vector2f& sun)
+	void processEvents(CameraController& controller, Camera& camera, Losvo& svo, SceneSettings& scene, sf::Vector2f& sun)
 	{
 		glm::vec3 move = glm::vec3(0.0f);
 		sf::Event event;
@@ -82,14 +83,14 @@ struct EventManager
 					break;
 				case sf::Keyboard::F:
 				{
-					const uint32_t svo_size = 1 << svo.max_depth;
+					/*const uint32_t svo_size = 1 << svo.max_depth;
 					const glm::vec3 ray = camera.camera_vec;
 					const HitPoint point = svo.castRay(camera.position, ray);
 					if (point.hit) {
 						mutate_waiting = true;
 						index = point.global_index;
 						child_index = point.child_index;
-					}
+					}*/
 					break;
 				}
 				case sf::Keyboard::Q:
@@ -183,7 +184,7 @@ struct EventManager
 
 		controller.move(move, camera, svo, boost);
 
-		if (mutate && mutate_ready) {
+		/*if (mutate && mutate_ready) {
 			mutate_ready = false;
 			const uint32_t svo_size = 1 << svo.max_depth;
 			const glm::vec3 ray = camera.camera_vec;
@@ -201,7 +202,7 @@ struct EventManager
 				}
 				svo.data[index].leaf_mask ^= (1u << child_index);
 			}
-		}
+		}*/
 	}
 
 	sf::Clock clock;

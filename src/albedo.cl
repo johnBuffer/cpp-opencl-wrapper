@@ -20,18 +20,16 @@ __constant float3 WATER_COLOR = (float3)(28.0f / 255.0f, 194.0f / 255.0f, 255.0f
 //__constant float3 WATER_COLOR = (float3)(128.0f / 255.0f, 194.0f / 255.0f, 255.0f / 255.0f);
 __constant float R0 = 0.0204f;
 __constant float time_su = 0.0f;
-__constant uint32_t LEVELS = {0, 8, 72, 584, 4680, 37448, 299592, 2396744, 19173960, 153391688, 1227133512};
+__constant uint32_t LEVELS[11] = {0u, 8u, 72u, 584u, 4680u, 37448u, 299592u, 2396744u, 19173960u, 153391688u, 1227133512u};
 
 
 // Structs declaration
-typedef struct Node
-{
-    uint8_t  child_mask;
-} Node;
+typedef uint8_t Node;
 
 typedef struct OctreeStack
 {
 	uint32_t parent_index;
+	uint32_t parent_level_index;
 	float t_max;
 } OctreeStack;
 
@@ -77,9 +75,6 @@ HitPoint castRay(__global Node* svo_data, float3 position, float3 d, bool in_wat
 	result.hit = 0;
 	result.complexity = 0;
 
-	const float ray_coef = 0.00002f;
-	const float ray_bias = 0.0f;
-
 	const float EPS = 1.0f / (float)(1 << SVO_MAX_DEPTH);
 	
 	// Initialize stack
@@ -103,10 +98,10 @@ HitPoint castRay(__global Node* svo_data, float3 position, float3 d, bool in_wat
 
 	// Init current voxel
 	uint32_t node_id = 0u;
+	uint32_t parent_id = 0u;
 	uint8_t child_offset = 0u;
 	int8_t scale = SVO_MAX_DEPTH - 1u;
 	
-	uint8_t level_id = 0u;
 	uint32_t level_index = 0u;
 
 	float3 pos = (float3)(1.0f);
@@ -116,23 +111,23 @@ HitPoint castRay(__global Node* svo_data, float3 position, float3 d, bool in_wat
 	if (1.5f * t_coef.y - t_offset.y > t_min) { child_offset ^= 2u, pos.y = 1.5f; }
 	if (1.5f * t_coef.z - t_offset.z > t_min) { child_offset ^= 4u, pos.z = 1.5f; }
 	uint8_t normal = 0u;
-	uint16_t child_infos = 0u;
+	
 	// Explore octree
 	while (scale < SVO_MAX_DEPTH) {
 		++result.complexity;
-		const Node node = svo_data[node_id];
+		const uint8_t node = svo_data[node_id];
 		// Compute new T span
 		const float3 t_corner = (float3)(pos.x * t_coef.x - t_offset.x, pos.y * t_coef.y - t_offset.y, pos.z * t_coef.z - t_offset.z);
 		const float tc_max = fmin(t_corner.x, fmin(t_corner.y, t_corner.z));
 		// Check if child exists here
 		const uint8_t child_shift = child_offset ^ mirror_mask;
-		const uint8_t child_mask = (parent_ref.child_mask >> child_shift) & 1u;
+		const uint8_t child_mask = (node >> child_shift) & 1u;
 		if (child_mask) {
 			const float tv_max = fmin(t_max, tc_max);
 			const float half_scale = scale_f * 0.5f;
 			const float3 t_half = half_scale * t_coef + t_corner;
 			// We hit a leaf
-			if (level_id == 10) {
+			if (scale == SVO_MAX_DEPTH - 10) {
 				result.hit = 1u;
 				// Could use mirror mask
 				result.normal = -sign(d) * (float3)(normal & 1u, (normal>>1u) & 1u, (normal>>2u) & 1u);
@@ -160,16 +155,17 @@ HitPoint castRay(__global Node* svo_data, float3 position, float3 d, bool in_wat
 			// Eventually add parent to the stack
 			if (tc_max < h) {
 				stack[scale-12].parent_index = node_id;
+				stack[scale-12].parent_level_index = parent_id;
 				stack[scale-12].t_max = t_max;
 			}
 			h = tc_max;
 			// Update current voxel
-			const uint32_t level_size = 1u << ( 3u * level_id);
-			const uint32_t current_index = node_id * level_size + child_shift;
+			const uint32_t current_index = parent_id * 8 + child_shift;
+			parent_id = current_index;
+			node_id = LEVELS[SVO_MAX_DEPTH - scale] + current_index + 1;
 			child_offset = 0u;
 			--scale;
-			++level_id;
-			node_id = LEVELS[level_id] + current_index;
+			// Need to fix LEVELS (+1 everywhere)
 			scale_f = half_scale;
 			if (t_half.x > t_min) { child_offset ^= 1u, pos.x += scale_f; }
 			if (t_half.y > t_min) { child_offset ^= 2u, pos.y += scale_f; }
@@ -179,6 +175,7 @@ HitPoint castRay(__global Node* svo_data, float3 position, float3 d, bool in_wat
 			
 		} // End of depth exploration
 
+		// Maybe remove the ifs ?
 		uint32_t step_mask = 0u;
 		if (t_corner.x <= tc_max) { step_mask ^= 1u, pos.x -= scale_f; }
 		if (t_corner.y <= tc_max) { step_mask ^= 2u, pos.y -= scale_f; }
@@ -197,10 +194,10 @@ HitPoint castRay(__global Node* svo_data, float3 position, float3 d, bool in_wat
 			if (step_mask & 2u) differing_bits |= (ipos_y ^ as_int(pos.y + scale_f));
 			if (step_mask & 4u) differing_bits |= (ipos_z ^ as_int(pos.z + scale_f));
 			scale = (as_int((float)differing_bits) >> SVO_MAX_DEPTH) - 127u;
-			level_id = SVO_MAX_DEPTH - scale;
 			scale_f = as_float((scale - SVO_MAX_DEPTH + 127u) << SVO_MAX_DEPTH);
 			const OctreeStack entry = stack[scale-12];
 			node_id = entry.parent_index;
+			parent_id = entry.parent_level_index;
 			t_max = entry.t_max;
 			const uint32_t shx = ipos_x >> scale;
 			const uint32_t shy = ipos_y >> scale;
@@ -240,7 +237,7 @@ float3 getColorFromIntersection(HitPoint intersection, image2d_t top_image, imag
 	return color;
 
 	// Uncomment to disable textures
-	//return 255.0f;
+	//return intersection.complexity;
 }
 
 float3 getColorAndLightFromIntersection(HitPoint intersection, image2d_t top_image, image2d_t side_image, __global Node* svo_data, float3 light_position, bool under_water)
@@ -265,7 +262,7 @@ float normalToNumber(const float3 normal)
 
 // Kernels
 __kernel void albedo(
-    global Node* svo_data
+    global uint8_t* svo_data
 	, SceneSettings scene
     , global float* albedo_result
 	, constant float* view_matrix
@@ -288,63 +285,19 @@ __kernel void albedo(
 	const HitPoint intersection = castRay(svo_data, scene.camera_position, d, false);
 	// Result
 	float3 color = 0.5f * SKY_COLOR;
-	float light_intensity = 1.0f;
 	if (intersection.hit) {
-		if (intersection.water) {
-			write_imagef(screen_space_positions, gid, (float4)(0.0f));
-			
-			light_intensity = 1.0f;
-			const float distortion_strength = 0.0015f;
-			float3 normal_distortion = (float3)(0.0f);
-			const float3 mirror_color = WATER_COLOR;
-			const float wave_speed = 0.05f;
-			if (intersection.normal.y) {
-				const float wave_time = scene.time * wave_speed;
-				normal_distortion = distortion_strength * (float3)(sin((intersection.position.z + wave_time) * 2400.0f), 0.0f, cos((intersection.position.x + wave_time) * 2400.0f));
-			}
-			const float3 normal = normalize(intersection.normal + normal_distortion);
-			const float cos_i = -dot(normal, d);
-			const float transmitted = R0 + (1.0f - R0)*pow(1.0f - cos_i, 5.0f);
-			// Reflection
-			const float3 reflection_start = intersection.position + NORMAL_EPS * normal;
-			const float3 reflection_d = reflect(d, normal);
-			const HitPoint reflection_ray = castRay(svo_data, reflection_start, reflection_d, false);
-			if (reflection_ray.hit) {
-				color = transmitted * getColorAndLightFromIntersection(reflection_ray, top_image, side_image, svo_data, scene.light_position, false);
-			}
-			else {
-				color *= transmitted * mirror_color;
-			}
-
-			// Refraction
-			const float refraction_intensity = (1.0f - transmitted);
-			if (refraction_intensity > 0.05f) {
-				const float3 refraction_start = intersection.position - NORMAL_EPS * normal;
-				const float3 refraction_d = normalize(refract(d, normal, 1.0f / 1.83333f));
-				const HitPoint refraction_ray = castRay(svo_data, refraction_start, refraction_d, true);
-				const float deep_coef = 1.0f / (1.0f + refraction_ray.distance * 128.0f);
-				if (refraction_ray.hit) {
-					color += deep_coef * refraction_intensity * (mirror_color * getColorAndLightFromIntersection(refraction_ray, top_image, side_image, svo_data, scene.light_position, true));
-				} else {
-					color += SKY_COLOR * refraction_intensity * deep_coef * mirror_color;
-				}
-			}
-		}
-		else {
-			const float normal_number = normalToNumber(intersection.normal);
-			write_imagef(screen_space_positions, gid, (float4)(intersection.position, normal_number));
-			write_imagef(depth, gid, (float4)(intersection.distance, normal_number, 0.0f, 0.0f));
-			color = getColorFromIntersection(intersection, top_image, side_image);
-		}
+		const float normal_number = normalToNumber(intersection.normal);
+		write_imagef(screen_space_positions, gid, (float4)(intersection.position, normal_number));
+		write_imagef(depth, gid, (float4)(intersection.distance, normal_number, 0.0f, 0.0f));
+		color = getColorFromIntersection(intersection, top_image, side_image);
 	}
 	else {
-		// SKY
 		const float to_sun_intensity = dot(d, normalize(scene.light_position - scene.camera_position));
 		const float primary_intensity = pow(to_sun_intensity, 511.0f);
 		const float secondary_intensity = 0.2f * pow(to_sun_intensity, 1.0f);
 		color = max((float3)(24.0f, 59.0f, 75.0f), min((float3)(255.0f * (primary_intensity + secondary_intensity)) + color, (float3)(255.0f)));
-		write_imagef(screen_space_positions, gid, (float4)(0.0f));
+		//write_imagef(screen_space_positions, gid, (float4)(0.0f));
 	}
-	
-    colorToResultBuffer(color, index, albedo_result);
+
+	colorToResultBuffer(color, index, albedo_result);
 }

@@ -3,7 +3,7 @@
 #include <glm/glm.hpp>
 #include <glm/gtx/transform.hpp>
 #include "utils.hpp"
-#include "lsvo.hpp"
+#include "losvo.hpp"
 
 
 constexpr float PI = 3.141592653f;
@@ -86,7 +86,7 @@ struct CameraController
 		camera.setViewAngle(new_angle);
 	}
 
-	virtual void move(const glm::vec3& move_vector, Camera& camera, const LSVO& svo, bool boost) = 0;
+	virtual void move(const glm::vec3& move_vector, Camera& camera, const Losvo& svo, bool boost) = 0;
 
 	virtual void forward() = 0;
 	virtual void jump() = 0;

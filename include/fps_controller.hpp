@@ -11,7 +11,7 @@ struct FpsController : public CameraController
 	{
 	}
 
-	void move(const glm::vec3& move_vector, Camera& camera, const LSVO& svo, bool boost) override
+	void move(const glm::vec3& move_vector, Camera& camera, const Losvo& svo, bool boost) override
 	{
 		const float body_height = 0.5f;
 		const float body_radius = 0.2f;
@@ -32,7 +32,7 @@ struct FpsController : public CameraController
 		}
 
 		// Ground check
-		const HitPoint yp_ray = svo.castRay(camera.position, glm::vec3(0.0f, 1.0f, 0.0f));
+		/*const HitPoint yp_ray = svo.castRay(camera.position, glm::vec3(0.0f, 1.0f, 0.0f));
 		if (yp_ray.hit) {
 			if (yp_ray.distance < body_height) {
 				can_jump = true;
@@ -77,7 +77,7 @@ struct FpsController : public CameraController
 			if (zn_ray.distance < body_radius) {
 				camera.position.z = zn_ray.position.z + body_radius;
 			}
-		}
+		}*/
 	}
 
 	void forward()
