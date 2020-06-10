@@ -161,3 +161,10 @@ std::string vecToString(const glm::vec3 & v)
 	return sx.str();
 }
 
+std::string vecToString(const glm::uvec3 & v)
+{
+	std::stringstream sx;
+	sx << "(" << v.x << ", " << v.y << ", " << v.z << ")";
+	return sx.str();
+}
+

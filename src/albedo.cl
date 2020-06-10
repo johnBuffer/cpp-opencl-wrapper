@@ -20,16 +20,13 @@ __constant float3 WATER_COLOR = (float3)(28.0f / 255.0f, 194.0f / 255.0f, 255.0f
 //__constant float3 WATER_COLOR = (float3)(128.0f / 255.0f, 194.0f / 255.0f, 255.0f / 255.0f);
 __constant float R0 = 0.0204f;
 __constant float time_su = 0.0f;
+__constant uint32_t LEVELS = {0, 8, 72, 584, 4680, 37448, 299592, 2396744, 19173960, 153391688, 1227133512};
 
 
 // Structs declaration
 typedef struct Node
 {
     uint8_t  child_mask;
-	uint8_t  leaf_mask;
-	uint32_t child_offset;
-	uint8_t  reflective_mask;
-	uint8_t  empty;
 } Node;
 
 typedef struct OctreeStack
@@ -73,11 +70,6 @@ float frac(float x)
 	return fmin(x - floor(x), EPS);
 }
 
-float ratio(float val1, float val2)
-{
-	return 1.0f - (val2 - val1) / val2;
-}
-
 // Raytracing functions
 HitPoint castRay(__global Node* svo_data, float3 position, float3 d, bool in_water)
 {
@@ -108,10 +100,15 @@ HitPoint castRay(__global Node* svo_data, float3 position, float3 d, bool in_wat
 	float h = t_max;
 	t_min = fmax(0.0f, t_min);
 	t_max = fmin(1.0f, t_max);
+
 	// Init current voxel
-	uint32_t parent_id = 0u;
+	uint32_t node_id = 0u;
 	uint8_t child_offset = 0u;
 	int8_t scale = SVO_MAX_DEPTH - 1u;
+	
+	uint8_t level_id = 0u;
+	uint32_t level_index = 0u;
+
 	float3 pos = (float3)(1.0f);
 	float scale_f = 0.5f;
 	// Initialize child position
@@ -123,7 +120,7 @@ HitPoint castRay(__global Node* svo_data, float3 position, float3 d, bool in_wat
 	// Explore octree
 	while (scale < SVO_MAX_DEPTH) {
 		++result.complexity;
-		const Node parent_ref = svo_data[parent_id];
+		const Node node = svo_data[node_id];
 		// Compute new T span
 		const float3 t_corner = (float3)(pos.x * t_coef.x - t_offset.x, pos.y * t_coef.y - t_offset.y, pos.z * t_coef.z - t_offset.z);
 		const float tc_max = fmin(t_corner.x, fmin(t_corner.y, t_corner.z));
@@ -134,15 +131,13 @@ HitPoint castRay(__global Node* svo_data, float3 position, float3 d, bool in_wat
 			const float tv_max = fmin(t_max, tc_max);
 			const float half_scale = scale_f * 0.5f;
 			const float3 t_half = half_scale * t_coef + t_corner;
-			const uint8_t leaf_mask = (parent_ref.leaf_mask >> child_shift) & 1u;
-			const uint8_t watr_mask = (parent_ref.reflective_mask >> child_shift) & 1u;
 			// We hit a leaf
-			if (leaf_mask && (!watr_mask || (watr_mask != in_water))) {
+			if (level_id == 10) {
 				result.hit = 1u;
 				// Could use mirror mask
 				result.normal = -sign(d) * (float3)(normal & 1u, (normal>>1u) & 1u, (normal>>2u) & 1u);
 				result.distance = t_min;
-				result.water = watr_mask;
+				result.water = false;
 
 				if ((mirror_mask & 1) == 0) pos.x = 3.0f - scale_f - pos.x;
 				if ((mirror_mask & 2) == 0) pos.y = 3.0f - scale_f - pos.y;
@@ -164,14 +159,17 @@ HitPoint castRay(__global Node* svo_data, float3 position, float3 d, bool in_wat
 			}
 			// Eventually add parent to the stack
 			if (tc_max < h) {
-				stack[scale-12].parent_index = parent_id;
+				stack[scale-12].parent_index = node_id;
 				stack[scale-12].t_max = t_max;
 			}
 			h = tc_max;
 			// Update current voxel
-			parent_id += parent_ref.child_offset + child_shift;
+			const uint32_t level_size = 1u << ( 3u * level_id);
+			const uint32_t current_index = node_id * level_size + child_shift;
 			child_offset = 0u;
 			--scale;
+			++level_id;
+			node_id = LEVELS[level_id] + current_index;
 			scale_f = half_scale;
 			if (t_half.x > t_min) { child_offset ^= 1u, pos.x += scale_f; }
 			if (t_half.y > t_min) { child_offset ^= 2u, pos.y += scale_f; }
@@ -199,9 +197,10 @@ HitPoint castRay(__global Node* svo_data, float3 position, float3 d, bool in_wat
 			if (step_mask & 2u) differing_bits |= (ipos_y ^ as_int(pos.y + scale_f));
 			if (step_mask & 4u) differing_bits |= (ipos_z ^ as_int(pos.z + scale_f));
 			scale = (as_int((float)differing_bits) >> SVO_MAX_DEPTH) - 127u;
+			level_id = SVO_MAX_DEPTH - scale;
 			scale_f = as_float((scale - SVO_MAX_DEPTH + 127u) << SVO_MAX_DEPTH);
 			const OctreeStack entry = stack[scale-12];
-			parent_id = entry.parent_index;
+			node_id = entry.parent_index;
 			t_max = entry.t_max;
 			const uint32_t shx = ipos_x >> scale;
 			const uint32_t shy = ipos_y >> scale;
@@ -216,17 +215,6 @@ HitPoint castRay(__global Node* svo_data, float3 position, float3 d, bool in_wat
 
 	result.distance = t_min;
 	return result;
-}
-
-float3 reflect(float3 v, float3 normal){
-	return v - 2.0f * dot(v, normal) * normal;
-}
-
-float3 refract(float3 v, float3 normal, float index)
-{
-	const float cos_i = -dot(normal, v);
-	const float cos_t2 = 1.0f - index * index * (1.0f - cos_i * cos_i);
-	return (index * v) + (index * cos_i - sqrt( cos_t2 )) * normal;
 }
 
 void colorToResultBuffer(float3 color, uint32_t index, __global float* buffer)

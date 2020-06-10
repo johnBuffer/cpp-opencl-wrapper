@@ -6,13 +6,11 @@
 #include "event_manager.hpp"
 #include <swarm.hpp>
 
-#include "utils.hpp"
 #include "fly_controller.hpp"
 #include "fps_controller.hpp"
 #include "ocl_raytracer.hpp"
 #include "dynamic_blur.hpp"
-#include "lsvo.hpp"
-
+#include "losvo.hpp"
 
 
 int main()
@@ -22,15 +20,15 @@ int main()
 
 	try {
 		// If your PC or Grapgic Cards has not enough Memory, reduce this.
-		const uint8_t max_depth = 13;
+		const uint8_t max_depth = 9;
 		SVO* builder = new SVO(max_depth);
 
 		// Use a procedural terrain
-		//generateSVO(max_depth, *builder);
-		
+		generateSVO(max_depth, *builder);
+
 		// Import point cloud
-		loadPointCloud("../res/cloud.bin", max_depth, *builder);
-		
+		//loadPointCloud("../res/cloud.bin", max_depth, *builder);
+
 		// Compile SVO
 		LSVO svo(*builder, max_depth);
 		delete builder;
@@ -93,6 +91,7 @@ int main()
 	catch (const oclw::Exception& error) {
 		std::cout << "Error: " << error.what() << std::endl;
 	}
-
+	
 	return 0;
 }
+
