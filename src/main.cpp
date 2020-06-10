@@ -20,20 +20,23 @@ int main()
 	constexpr uint32_t WIN_WIDTH = 1600;
 	constexpr uint32_t WIN_HEIGHT = 900;
 
-	try
-	{
-		const uint8_t max_depth = 10;
+	try {
+		// If your PC or Grapgic Cards has not enough Memory, reduce this.
+		const uint8_t max_depth = 13;
 		SVO* builder = new SVO(max_depth);
+
 		// Use a procedural terrain
 		//generateSVO(max_depth, *builder);
+		
 		// Import point cloud
 		loadPointCloud("../res/cloud.bin", max_depth, *builder);
+		
+		// Compile SVO
 		LSVO svo(*builder, max_depth);
 		delete builder;
 
 		Raytracer raytracer(WIN_WIDTH, WIN_HEIGHT, max_depth, svo.data, 1.0f);
 
-		// Main loop
 		sf::RenderWindow window(sf::VideoMode(WIN_WIDTH, WIN_HEIGHT), "OpenCL and SFML", sf::Style::Default);
 		window.setMouseCursorVisible(false);
 
@@ -71,9 +74,6 @@ int main()
 			const float sun_trajectory_radius = 2.0f;
 			scene.light_position = { 1.5f + sun_trajectory_radius * cos(sun.x), sun.y, 1.5f + sun_trajectory_radius * sin(sun.x) };
 
-			//std::cout << camera.view_angle.x << " " << camera.view_angle.y << std::endl;
-			//std::cout << camera.position.x << " " << camera.position.y << " " << camera.position.z << std::endl;
-
 			if (event_manager.mutate_waiting) {
 				event_manager.mutate_waiting = false;
 				raytracer.mutate(event_manager.index, event_manager.child_index, event_manager.value);
@@ -83,24 +83,14 @@ int main()
 			raytracer.render();
 
 			window.clear();
-
 			tex_albedo.loadFromImage(raytracer.getAlbedo());
 			sf::Sprite albedo_sprite(tex_albedo);
-
 			window.draw(albedo_sprite);
-
-			const float aim_size = 2.0f;
-			sf::RectangleShape aim(sf::Vector2f(aim_size, aim_size));
-			aim.setOrigin(aim_size * 0.5f, aim_size * 0.5f);
-			aim.setPosition(WIN_WIDTH*0.5f, WIN_HEIGHT*0.5f);
-			aim.setFillColor(sf::Color::Green);
-			window.draw(aim);
 
 			window.display();
 		}
 	}
-	catch (const oclw::Exception& error)
-	{
+	catch (const oclw::Exception& error) {
 		std::cout << "Error: " << error.what() << std::endl;
 	}
 
