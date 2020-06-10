@@ -15,8 +15,8 @@
 
 int main()
 {
-	constexpr uint32_t WIN_WIDTH = 1600;
-	constexpr uint32_t WIN_HEIGHT = 900;
+	constexpr uint32_t WIN_WIDTH = 1920;
+	constexpr uint32_t WIN_HEIGHT = 1080;
 
 	try {
 		// If your PC or Grapgic Cards has not enough Memory, reduce this.
@@ -44,9 +44,9 @@ int main()
 
 		// Camera
 		Camera camera;
-		camera.position = glm::vec3(0.0f, 0.0f, 0.0f);
+		camera.position = glm::vec3(0.0f, 800.0f, 0.0f);
 		camera.last_move = glm::vec3(0.0f);
-		camera.view_angle = glm::vec2(3.61429, -0.72);
+		camera.view_angle = glm::vec2(0.77021f, -0.4365f);
 		camera.fov = 1.0f;
 
 		sf::Mouse::setPosition(sf::Vector2i(WIN_WIDTH / 2, WIN_HEIGHT / 2), window);
@@ -62,6 +62,8 @@ int main()
 				const float mouse_sensitivity = 0.0015f;
 				controller.updateCameraView(mouse_sensitivity * glm::vec2(mouse_pos.x - WIN_WIDTH * 0.5f, (WIN_HEIGHT  * 0.5f) - mouse_pos.y), camera);
 			}
+
+			//std::cout << camera.view_angle.x << " " << camera.view_angle.y << std::endl;
 
 			const float sun_trajectory_radius = 2.0f;
 			scene.light_position = { 1.5f + sun_trajectory_radius * cos(sun.x), sun.y, 1.5f + sun_trajectory_radius * sin(sun.x) };

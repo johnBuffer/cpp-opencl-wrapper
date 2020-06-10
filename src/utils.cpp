@@ -40,7 +40,6 @@ void generateSVO(uint8_t max_depth, Losvo& svo)
 			int32_t height = int32_t(92.0f * myNoise.GetNoise(float(0.75f * x), float(0.75f * z)) + 32);
 
 			for (int y(1); y < height; ++y) {
-				if (x % 256)
 				svo.setCell(x, y, z, 1);
 			}
 		}
