@@ -162,7 +162,7 @@ HitPoint castRay(__global Node* svo_data, float3 position, float3 d, bool in_wat
 			// Update current voxel
 			const uint32_t current_index = parent_id * 8 + child_shift;
 			parent_id = current_index;
-			node_id = LEVELS[SVO_MAX_DEPTH - scale] + current_index + 1;
+			node_id = LEVELS[SVO_MAX_DEPTH - scale - 1] + current_index + 1;
 			child_offset = 0u;
 			--scale;
 			// Need to fix LEVELS (+1 everywhere)

@@ -34,22 +34,15 @@ void generateSVO(uint8_t max_depth, Losvo& svo)
 		for (uint32_t z = 1; z < grid_size_z - 1; z++) {
 			int32_t max_height = grid_size_y;
 
-			/*float amp_x = x - grid_size_x * 0.5f;
+			float amp_x = x - grid_size_x * 0.5f;
 			float amp_z = z - grid_size_z * 0.5f;
 			float ratio = std::pow(1.0f - sqrt(amp_x * amp_x + amp_z * amp_z) / (10.0f * grid_size_x), 256.0f);
-			int32_t height = int32_t(92.0f * myNoise.GetNoise(float(0.75f * x), float(0.75f * z)) + 32);*/
+			int32_t height = int32_t(92.0f * myNoise.GetNoise(float(0.75f * x), float(0.75f * z)) + 32);
 
-			/*for (int y(0); y < grid_size_y; ++y) {
+			for (int y(1); y < height; ++y) {
+				if (x % 256)
 				svo.setCell(x, y, z, 1);
-			}*/
-
-			if (x % 200 < 100) {
-				svo.setCell(x, x, z, 1);
 			}
-
-			/*for (int y(1); y < height; ++y) {
-				svo.setCell(x, y, z, 1);
-			}*/
 		}
 	}
 }

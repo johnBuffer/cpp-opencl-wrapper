@@ -25,6 +25,7 @@ int main()
 
 		// Use a procedural terrain
 		generateSVO(max_depth, builder);
+		//builder.setCell(1023, 1023, 1023, 1);
 
 		Raytracer raytracer(WIN_WIDTH, WIN_HEIGHT, max_depth, builder.node_data, 1.0f);
 

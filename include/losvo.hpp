@@ -13,7 +13,7 @@ struct Losvo
 		node_data.resize(nodes_count);
 
 		for (uint8_t& node : node_data) {
-			node = 0u;
+			node = 0;
 		}
 
 		std::cout << "Allocation done (" << node_data.size() << " Nodes)" << std::endl;
@@ -81,7 +81,7 @@ struct Losvo
 
 		// Set the actual leaf
 		//std::cout << "Leaf index: " << leaf_computed_index << std::endl;
-		node_data[leaf_computed_index] = cell_type;
+		//node_data[leaf_computed_index] = cell_type;
 	}
 
 	const uint32_t levels;
