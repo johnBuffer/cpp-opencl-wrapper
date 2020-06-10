@@ -2,7 +2,6 @@
 #include "camera_controller.hpp"
 #include <SFML/Graphics.hpp>
 #include <iostream>
-#include "sound_player.hpp"
 
 
 struct FpsController : public CameraController
@@ -10,13 +9,6 @@ struct FpsController : public CameraController
 	FpsController()
 		: can_jump(false)
 	{
-		steps.push_back(SoundPlayer::registerSound("../res/Sounds/step1.flac"));
-		steps.push_back(SoundPlayer::registerSound("../res/Sounds/step2.flac"));
-		steps.push_back(SoundPlayer::registerSound("../res/Sounds/step3.flac"));
-		steps.push_back(SoundPlayer::registerSound("../res/Sounds/step4.flac"));
-
-		fall = SoundPlayer::registerSound("../res/Sounds/fall.flac");
-		start_jump = SoundPlayer::registerSound("../res/Sounds/jump.flac");
 	}
 
 	void move(const glm::vec3& move_vector, Camera& camera, const LSVO& svo, bool boost) override
@@ -27,8 +19,9 @@ struct FpsController : public CameraController
 
 		const float elapsed_time = clock.restart().asSeconds();
 		
-
+		// Fly mode
 		if (boost || 1) {
+			// These values have to be ajusted with the svo's size
 			const float speed = boost ? 150.0f : 4.0f;
 			camera.move(speed * move_vector * movement_speed * elapsed_time);
 		}
@@ -44,9 +37,6 @@ struct FpsController : public CameraController
 			if (yp_ray.distance < body_height) {
 				can_jump = true;
 				camera.position.y = yp_ray.position.y - body_height;
-				if (v * elapsed_time > 0.1f && yp_ray.cell.type != Cell::Mirror) {
-					//SoundPlayer::playInstanceOf(fall);
-				}
 				v = 0.0f;
 			}
 		}
@@ -55,7 +45,6 @@ struct FpsController : public CameraController
 			const float dist = glm::distance(camera.position, last_position);
 			if (dist >= step_size && yp_ray.cell.type != Cell::Mirror) {
 				last_position = camera.position;
-				//SoundPlayer::playInstanceOf(steps[rand() % steps.size()]);
 			}
 		}
 
@@ -98,7 +87,6 @@ struct FpsController : public CameraController
 	void jump()
 	{
 		if (can_jump) {
-			//SoundPlayer::playInstanceOf(start_jump);
 			can_jump = false;
 			v = -8.5f;
 		}

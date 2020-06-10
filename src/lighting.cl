@@ -177,10 +177,8 @@ HitPoint castRay(__global Node* svo_data, float3 position, float3 d, float max_d
 				if ((mirror_mask & 1) == 0) pos.x = 3.0f - scale_f - pos.x;
 				if ((mirror_mask & 2) == 0) pos.y = 3.0f - scale_f - pos.y;
 				if ((mirror_mask & 4) == 0) pos.z = 3.0f - scale_f - pos.z;
-				result.position.x = fmin(fmax(position.x + t_min * d.x, pos.x + EPS), pos.x + scale_f - EPS);
-				result.position.y = fmin(fmax(position.y + t_min * d.y, pos.y + EPS), pos.y + scale_f - EPS);
-				result.position.z = fmin(fmax(position.z + t_min * d.z, pos.z + EPS), pos.z + scale_f - EPS);
-
+				result.position = fmin(fmax(position + t_min * d, pos + (float3)EPS), pos + (float3)(scale_f - EPS));
+				
 				const float tex_scale = (float)(1 << (SVO_MAX_DEPTH - scale));
 				if (result.normal.x) {
 					result.tex_coords = (float2)(frac(result.position.z * tex_scale), frac(result.position.y * tex_scale));

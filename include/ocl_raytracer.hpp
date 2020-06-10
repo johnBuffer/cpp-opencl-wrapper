@@ -97,9 +97,9 @@ public:
 			for (uint32_t x(start_x * area_width); x < (start_x + 1) * area_width; ++x) {
 				for (uint32_t y(start_y * area_height); y < (start_y + 1) * area_height; ++y) {
 					const uint32_t index = 4 * (x + y * m_render_dimension.x);
-					uint8_t r = m_result_albedo[index + 0];
-					uint8_t g = m_result_albedo[index + 1];
-					uint8_t b = m_result_albedo[index + 2];
+					uint8_t r = as<uint8_t>(m_result_albedo[index + 0]);
+					uint8_t g = as<uint8_t>(m_result_albedo[index + 1]);
+					uint8_t b = as<uint8_t>(m_result_albedo[index + 2]);
 					m_output_albedo.setPixel(x, y, sf::Color(r, g, b, 255));
 				}
 			}
@@ -215,24 +215,23 @@ private:
 	oclw::MemoryObject m_buff_result_albedo;
 	oclw::MemoryObject m_buff_result_lighting[2];
 	oclw::MemoryObject m_buff_final_lighting[2];
+	//oclw::MemoryObject m_buff_final_image;
 	oclw::MemoryObject m_buff_depth[2];
 	oclw::MemoryObject m_buff_position;
 	oclw::MemoryObject m_buff_image_top;
 	oclw::MemoryObject m_buff_image_side;
 	oclw::MemoryObject m_buff_noise;
-	oclw::MemoryObject m_buff_seeds;
 	bool m_current_lighting_buffer;
 
 	std::vector<float> m_result_albedo;
-	std::vector<float> m_result_lighting;
 	std::vector<int32_t> m_seeds;
+
 	// Ouput images
 	swrm::Swarm m_swarm;
 	sf::Image m_output_albedo;
 	sf::Image m_output_lighting;
 
 	// Dev
-	//const Camera* camera_ptr;
 	bool first = true;
 	glm::mat3 old_view;
 	cl_float3 old_pos;
@@ -243,19 +242,6 @@ private:
 private:
 	void initialize(uint8_t max_depth, std::vector<LSVONode>& svo)
 	{
-		/*oclw::Program test_prog = m_context.createProgram(device, "../src/test.cl");
-		oclw::Kernel test_kernel = test_prog.createKernel("test");
-		std::vector<float> data(4);
-		oclw::MemoryObject mem_object = m_context.createMemoryObject<float>(4, oclw::WriteOnly);
-		test_kernel.setArgument(0, mem_object);
-		const size_t globalWorkSize = 1;
-		const size_t localWorkSize = 1;
-		m_command_queue.addKernel(test_kernel, 1, NULL, &globalWorkSize, &localWorkSize);
-		m_command_queue.readMemoryObject(mem_object, true, data);
-		std::cout << "lol : " << data[0] << " " << data[1] << " " << data[2] << " " << data[3] << std::endl;
-		exit(0);*/
-
-
 		// Create OpenCL program from HelloWorld.cl kernel source
 		m_program = m_wrapper.createProgramFromFile("../src/albedo.cl");
 		m_program_gi = m_wrapper.createProgramFromFile("../src/lighting.cl");
@@ -271,22 +257,22 @@ private:
 		m_buff_svo = m_wrapper.createMemoryObject(svo, oclw::ReadOnly | oclw::CopyHostPtr);
 		m_buff_view_matrix = m_wrapper.createMemoryObject<float>(9, oclw::ReadOnly);
 		m_buff_view_matrix_old = m_wrapper.createMemoryObject<float>(9, oclw::ReadOnly);
-		initializeSeeds();
-		m_buff_seeds = m_wrapper.createMemoryObject(m_seeds, oclw::ReadWrite | oclw::CopyHostPtr);
 		// Create OpenCL buffers
 		initializeOutputImages();
 		const uint64_t albedo_render_pxl_count = m_render_dimension.x * m_render_dimension.y;
-		const uint64_t light_render_pxl_count = albedo_render_pxl_count * m_lighting_quality * m_lighting_quality;
+		const uint32_t lighting_render_width = as<uint32_t>(m_render_dimension.x * m_lighting_quality);
+		const uint32_t lighting_render_height = as<uint32_t>(m_render_dimension.y * m_lighting_quality);
+		
 		m_result_albedo.resize(albedo_render_pxl_count * 4);
 		m_buff_result_albedo = m_wrapper.createMemoryObject<float>(m_result_albedo.size(), oclw::ReadWrite);
-		m_result_lighting.resize(light_render_pxl_count * 4);
-		m_buff_result_lighting[0] = m_wrapper.getContext().createImage2D(m_render_dimension.x * m_lighting_quality, m_render_dimension.y * m_lighting_quality, nullptr, oclw::ReadWrite, oclw::RGBA, oclw::Float);
-		m_buff_result_lighting[1] = m_wrapper.getContext().createImage2D(m_render_dimension.x * m_lighting_quality, m_render_dimension.y * m_lighting_quality, nullptr, oclw::ReadWrite, oclw::RGBA, oclw::Float);
-		m_buff_final_lighting[0] = m_wrapper.getContext().createImage2D(m_render_dimension.x * m_lighting_quality, m_render_dimension.y * m_lighting_quality, nullptr, oclw::ReadWrite, oclw::RGBA, oclw::Float);
-		m_buff_final_lighting[1] = m_wrapper.getContext().createImage2D(m_render_dimension.x * m_lighting_quality, m_render_dimension.y * m_lighting_quality, nullptr, oclw::ReadWrite, oclw::RGBA, oclw::Float);
-		m_buff_depth[0] = m_wrapper.getContext().createImage2D(m_render_dimension.x * m_lighting_quality, m_render_dimension.y * m_lighting_quality, nullptr, oclw::ReadWrite, oclw::RG, oclw::Float);
-		m_buff_depth[1] = m_wrapper.getContext().createImage2D(m_render_dimension.x * m_lighting_quality, m_render_dimension.y * m_lighting_quality, nullptr, oclw::ReadWrite, oclw::RG, oclw::Float);
-		m_buff_position = m_wrapper.getContext().createImage2D(m_render_dimension.x * m_lighting_quality, m_render_dimension.y * m_lighting_quality, nullptr, oclw::ReadWrite, oclw::RGBA, oclw::Float);
+		m_buff_result_lighting[0] = m_wrapper.getContext().createImage2D(lighting_render_width, lighting_render_height, nullptr, oclw::ReadWrite, oclw::RGBA, oclw::Float);
+		m_buff_result_lighting[1] = m_wrapper.getContext().createImage2D(lighting_render_width, lighting_render_height, nullptr, oclw::ReadWrite, oclw::RGBA, oclw::Float);
+		m_buff_final_lighting[0] = m_wrapper.getContext().createImage2D(lighting_render_width, lighting_render_height, nullptr, oclw::ReadWrite, oclw::RGBA, oclw::Float);
+		m_buff_final_lighting[1] = m_wrapper.getContext().createImage2D(lighting_render_width, lighting_render_height, nullptr, oclw::ReadWrite, oclw::RGBA, oclw::Float);
+		m_buff_depth[0] = m_wrapper.getContext().createImage2D(lighting_render_width, lighting_render_height, nullptr, oclw::ReadWrite, oclw::RG, oclw::Float);
+		m_buff_depth[1] = m_wrapper.getContext().createImage2D(lighting_render_width, lighting_render_height, nullptr, oclw::ReadWrite, oclw::RG, oclw::Float);
+		m_buff_position = m_wrapper.getContext().createImage2D(lighting_render_width, lighting_render_height, nullptr, oclw::ReadWrite, oclw::RGBA, oclw::Float);
+		//m_buff_final_image = m_wrapper.getContext().createImage2D(m_render_dimension.x, m_render_dimension.y, nullptr, oclw::WriteOnly, oclw::RGBA, oclw::Float);
 
 		// Kernels initialization
 		m_albedo = m_program.createKernel("albedo");
@@ -333,17 +319,9 @@ private:
 		return m_wrapper.getContext().createImage2D(image_size.x, image_size.y, (void*)image.getPixelsPtr(), oclw::ReadOnly | oclw::CopyHostPtr, oclw::RGBA, oclw::Unsigned_INT8);
 	}
 
-	void initializeSeeds()
-	{
-		m_seeds.resize(m_render_dimension.x * m_render_dimension.y * m_lighting_quality);
-		for (int32_t& s : m_seeds) {
-			s = rand();
-		}
-	}
-
 	void initializeOutputImages()
 	{
 		m_output_albedo.create(m_render_dimension.x, m_render_dimension.y);
-		m_output_lighting.create(m_render_dimension.x * m_lighting_quality, m_render_dimension.y * m_lighting_quality);
+		m_output_lighting.create(as<uint32_t>(m_render_dimension.x * m_lighting_quality), as<uint32_t>(m_render_dimension.y * m_lighting_quality));
 	}
 };

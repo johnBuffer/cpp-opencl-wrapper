@@ -22,9 +22,12 @@ int main()
 
 	try
 	{
-		const uint8_t max_depth = 9;
+		const uint8_t max_depth = 10;
 		SVO* builder = new SVO(max_depth);
-		generateSVO(max_depth, *builder);
+		// Use a procedural terrain
+		//generateSVO(max_depth, *builder);
+		// Import point cloud
+		loadPointCloud("../res/cloud.bin", max_depth, *builder);
 		LSVO svo(*builder, max_depth);
 		delete builder;
 
