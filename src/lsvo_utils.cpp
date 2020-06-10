@@ -33,14 +33,16 @@ void compileSVO_rec(const Node* node, std::vector<LSVONode>& data, const uint64_
 						if (sub_node) {
 							const uint8_t sub_index = z * 4 + y * 2 + x;
 							data[node_index].child_mask |= (1U << sub_index);
-							// std::cout << "Add child to IDX " << node_index << " Child Mask " << std::bitset<8>(data[node_index].child_mask) << std::endl;
 							if (!(sub_node->leaf)) {
 								compileSVO_rec(sub_node, data, child_pos + sub_index, max_offset);
 							}
 							else {
-								data[node_index].leaf_mask |= (1U << sub_index);
 								if (sub_node->cell.type == Cell::Mirror) {
 									data[node_index].reflective_mask |= (1U << sub_index);
+								}
+
+								if (sub_node->cell.type != Cell::Empty) {
+									data[node_index].leaf_mask |= (1U << sub_index);
 								}
 							}
 						}

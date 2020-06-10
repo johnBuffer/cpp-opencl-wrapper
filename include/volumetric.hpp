@@ -23,6 +23,9 @@ struct HitPoint
 
 	uint32_t global_index;
 	uint8_t child_index;
+
+	uint32_t last_empty_leaf_global_index;
+	uint8_t last_empty_leaf_child_index;
 };
 
 

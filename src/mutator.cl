@@ -22,10 +22,5 @@ __kernel void mutate(
 		uint8_t  value
 	)
 {
-	if (value) {
-		svo[node_index].emissive |= (1u << child_index);
-	} else {
-		const uint8_t mask = 255 ^ (1u << child_index);
-		svo[node_index].emissive &= mask;
-	}
+	svo[node_index].leaf_mask ^= (1u << child_index);
 }

@@ -41,12 +41,12 @@ void generateSVO(uint8_t max_depth, SVO& svo)
 			float ratio = std::pow(1.0f - sqrt(amp_x * amp_x + amp_z * amp_z) / (10.0f * grid_size_x), 256.0f);
 			int32_t height = int32_t(92.0f * myNoise.GetNoise(float(0.75f * x), float(0.75f * z)) + 32);
 
-			for (int y(0); y < 30; ++y) {
-				volume_raw->setCell(Cell::Mirror, Cell::Grass, x, y, z);
+			for (int y(0); y < 1; ++y) {
+				volume_raw->setCell(Cell::Solid, Cell::Grass, x, y, z);
 			}
 
-			for (int y(0); y < std::min(max_height, height); ++y) {
-				volume_raw->setCell(Cell::Solid, Cell::Grass, x, y, z);
+			for (int y(1); y < max_height; ++y) {
+				volume_raw->setCell(Cell::Empty, Cell::Grass, x, y, z);
 			}
 		}
 	}

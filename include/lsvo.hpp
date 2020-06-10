@@ -77,10 +77,7 @@ struct LSVO : public Volumetric
 			const uint8_t child_shift = child_offset ^ mirror_mask;
 			const uint8_t child_mask = parent_ref.child_mask >> child_shift;
 			const uint8_t reflective = (parent_ref.reflective_mask >> child_shift) & 1u;
-			if ((child_mask & 1u) && t_min <= t_max) {
-				if (tc_max * ray_size_coef + ray_size_bias >= scale_f) {
-					break;
-				}
+			if (child_mask & 1u) {
 				const float tv_max = std::min(t_max, tc_max);
 				const float half = scale_f * 0.5f;
 				const glm::vec3 t_half = half * t_coef + t_corner;
@@ -98,6 +95,10 @@ struct LSVO : public Volumetric
 							result.cell.type = Cell::Solid;
 						}
 						break;
+					}
+					else if (scale == 18) {
+						result.last_empty_leaf_global_index = parent_id;
+						result.last_empty_leaf_child_index = child_shift;
 					}
 					// Eventually add parent to the stack
 					if (tc_max < h) {

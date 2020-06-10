@@ -17,7 +17,8 @@ struct EventManager
 		, mouse_control(true)
 		, boost(false)
 		, mutate_waiting(false)
-		, emissive(false)
+		, mutate(false)
+		, mutate_ready(true)
 	{
 	}
 
@@ -30,7 +31,7 @@ struct EventManager
 				window.close();
 			}
 			else if (event.type == sf::Event::MouseButtonPressed) {
-				emissive = true;
+				mutate = true;
 				if (event.mouseButton.button == sf::Mouse::Left) {
 					value = 1;
 				} else if (event.mouseButton.button == sf::Mouse::Right) {
@@ -38,7 +39,8 @@ struct EventManager
 				}
 			}
 			else if (event.type == sf::Event::MouseButtonReleased) {
-				emissive = false;
+				mutate = false;
+				mutate_ready = true;
 			}
 
 			if (event.type == sf::Event::KeyPressed) {
@@ -181,14 +183,23 @@ struct EventManager
 
 		controller.move(move, camera, svo, boost);
 
-		if (emissive) {
+		if (mutate && mutate_ready) {
+			mutate_ready = false;
 			const uint32_t svo_size = 1 << svo.max_depth;
 			const glm::vec3 ray = camera.camera_vec;
 			const HitPoint point = svo.castRay(camera.position, ray);
 			if (point.hit) {
-				mutate_waiting = true;
-				index = point.global_index;
-				child_index = point.child_index;
+				if (value) {
+					mutate_waiting = true;
+					index = point.global_index;
+					child_index = point.child_index;
+				}
+				else {
+					mutate_waiting = true;
+					index = point.last_empty_leaf_global_index;
+					child_index = point.last_empty_leaf_child_index;
+				}
+				svo.data[index].leaf_mask ^= (1u << child_index);
 			}
 		}
 	}
@@ -200,7 +211,7 @@ struct EventManager
 	uint8_t child_index;
 	uint8_t value;
 
-	bool emissive;
+	bool mutate, mutate_ready;
 
 private:
 	sf::RenderWindow& window;

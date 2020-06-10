@@ -28,7 +28,7 @@ typedef struct Node
 	uint8_t  leaf_mask;
 	uint32_t child_offset;
 	uint8_t  reflective_mask;
-	uint8_t  emissive;
+	uint8_t  empty;
 } Node;
 
 typedef struct OctreeStack
@@ -45,7 +45,6 @@ typedef struct HitPoint
 	float    distance;
 	float3   normal;
 	bool     water;
-	bool     emissive;
 	uint16_t complexity;
 } HitPoint;
 
@@ -163,23 +162,21 @@ HitPoint castRay(__global Node* svo_data, float3 position, float3 d, float max_d
 			const float tv_max = fmin(t_max, tc_max);
 			const float half_scale = scale_f * 0.5f;
 			const float3 t_half = half_scale * t_coef + t_corner;
-			const uint8_t leaf_mask = (parent_ref.leaf_mask >> child_shift) & 1u;
+			const uint8_t leaf_mask = ((parent_ref.leaf_mask >> child_shift) & 1u);
 			const uint8_t watr_mask = (parent_ref.reflective_mask >> child_shift) & 1u;
 			// We hit a leaf
-			if (leaf_mask || tc_max * ray_coef + ray_bias >= scale_f) {
+			if (leaf_mask) {
 				result.hit = 1u;
 				// Could use mirror mask
 				result.normal = -sign(d) * (float3)(normal & 1u, normal & 2u, normal & 4u);
 				result.distance = t_min;
 				result.water = watr_mask;
-				result.emissive = (parent_ref.emissive >> child_shift) & 1u;
 
 				if ((mirror_mask & 1) == 0) pos.x = 3.0f - scale_f - pos.x;
 				if ((mirror_mask & 2) == 0) pos.y = 3.0f - scale_f - pos.y;
 				if ((mirror_mask & 4) == 0) pos.z = 3.0f - scale_f - pos.z;
-				result.position.x = fmin(fmax(position.x + t_min * d.x, pos.x + EPS), pos.x + scale_f - EPS);
-				result.position.y = fmin(fmax(position.y + t_min * d.y, pos.y + EPS), pos.y + scale_f - EPS);
-				result.position.z = fmin(fmax(position.z + t_min * d.z, pos.z + EPS), pos.z + scale_f - EPS);
+
+				result.position = fmin(fmax(position + t_min * d, pos + (float3)EPS), pos + (float3)(scale_f - EPS));
 
 				const float tex_scale = (float)(1 << (SVO_MAX_DEPTH - scale));
 				if (result.normal.x) {
