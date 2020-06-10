@@ -6,10 +6,10 @@
 #include <vector>
 
 
-oclw::Context createDefaultContext(oclw::Wrapper& wrapper);
-
-
 void generateSVO(uint8_t max_depth, SVO& svo);
+
+
+void loadPointCloud(const std::string& filename, uint8_t svo_level, SVO& svo);
 
 
 glm::mat4 generateRotationMatrix(const glm::vec2& angle);
@@ -26,6 +26,8 @@ float intAsFloat(const uint32_t i);
 
 std::string vecToString(const glm::vec3& v);
 
+template<typename U, typename T>
+U as(const T& obj) {
+	return static_cast<U>(obj);
+}
 
-// To Be Deleted
-glm::vec3 projVec(const glm::vec3& v);

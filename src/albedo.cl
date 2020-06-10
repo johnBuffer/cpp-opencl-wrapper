@@ -218,19 +218,6 @@ HitPoint castRay(__global Node* svo_data, float3 position, float3 d, bool in_wat
 	return result;
 }
 
-float3 getColorFromNormal(char3 normal)
-{
-	if (normal.x) {
-		return (float3)(255.0f, 0.0f, 0.0f);
-	}
-	if (normal.y) {
-		return (float3)(0.0f, 255.0f, 0.0f);
-	}
-	if (normal.z) {
-		return (float3)(0.0f, 0.0f, 255.0f);
-	}
-}
-
 float3 reflect(float3 v, float3 normal){
 	return v - 2.0f * dot(v, normal) * normal;
 }
@@ -252,6 +239,7 @@ void colorToResultBuffer(float3 color, uint32_t index, __global float* buffer)
 
 float3 getColorFromIntersection(HitPoint intersection, image2d_t top_image, image2d_t side_image)
 {
+	// Uncomment to enable textures
 	const float scale = 256.0f;
 	float3 color;
 	if (intersection.normal.y) {
@@ -262,6 +250,8 @@ float3 getColorFromIntersection(HitPoint intersection, image2d_t top_image, imag
 	}
 
 	return color;
+
+	// Uncomment to disable textures
 	//return 255.0f;
 }
 

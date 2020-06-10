@@ -1,6 +1,8 @@
 build/
 *.asc
 *.xyz
+*.bin
+*.zip
 res/cloud - Copie.bin
 res/cloud.bin
 res/cloud.zip
