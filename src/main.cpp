@@ -15,12 +15,12 @@
 
 int main()
 {
-	constexpr uint32_t WIN_WIDTH = 1920;
-	constexpr uint32_t WIN_HEIGHT = 1080;
+	constexpr uint32_t WIN_WIDTH = 1600;
+	constexpr uint32_t WIN_HEIGHT = 900;
 
 	try {
 		// If your PC or Grapgic Cards has not enough Memory, reduce this.
-		const uint8_t max_depth = 10;
+		const uint8_t max_depth = 9;
 		Losvo builder(max_depth);
 
 		// Use a procedural terrain
@@ -44,7 +44,7 @@ int main()
 
 		// Camera
 		Camera camera;
-		camera.position = glm::vec3(0.0f, 800.0f, 0.0f);
+		camera.position = glm::vec3(0.0f, 400.0f, 0.0f);
 		camera.last_move = glm::vec3(0.0f);
 		camera.view_angle = glm::vec2(0.77021f, -0.4365f);
 		camera.fov = 1.0f;

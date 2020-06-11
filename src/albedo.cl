@@ -127,7 +127,7 @@ HitPoint castRay(__global Node* svo_data, float3 position, float3 d, bool in_wat
 			const float half_scale = scale_f * 0.5f;
 			const float3 t_half = half_scale * t_coef + t_corner;
 			// We hit a leaf
-			if (scale == SVO_MAX_DEPTH - 10) {
+			if (scale == SVO_MAX_DEPTH - 9) {
 				result.hit = 1u;
 				// Could use mirror mask
 				result.normal = -sign(d) * (float3)(normal & 1u, (normal>>1u) & 1u, (normal>>2u) & 1u);

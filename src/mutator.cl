@@ -5,22 +5,26 @@ typedef int            int32_t;
 typedef unsigned int   uint32_t;
 
 
-typedef struct Node
-{
-    uint8_t  child_mask;
-	uint8_t  leaf_mask;
-	uint32_t child_offset;
-	uint8_t  reflective_mask;
-	uint8_t  emissive;
-} Node;
+__constant uint8_t MAX_STACK_SIZE = 10u;
+
+
+typedef struct Mutation {
+	uint8_t  needed;
+	uint8_t  value;
+	uint32_t node_id;
+	uint16_t padding;
+} Mutation;
 
 
 __kernel void mutate(
-		__global Node* svo,
-		uint32_t node_index,
-		uint8_t  child_index,
-		uint8_t  value
+		global uint8_t* svo,
+		constant Mutation* diffs
 	)
 {
-	svo[node_index].leaf_mask ^= (1u << child_index);
+	for (uint8_t i(0); i < MAX_STACK_SIZE; ++i) {
+		const Mutation mut = diffs[i];
+		if (mut.needed) {
+			svo[node_id] = value;
+		}
+	}
 }
