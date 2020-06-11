@@ -87,7 +87,7 @@ public:
 		renderLighting();
 		normalize();
 		//median();
-		//biblur();
+		biblur();
 		//blur();
 		combine();
 
@@ -109,14 +109,14 @@ public:
 
 	void renderAlbedo()
 	{
-		m_wrapper.runKernel(m_albedo, oclw::Size(m_render_dimension.x, m_render_dimension.y), oclw::Size(20, 20));
+		m_wrapper.runKernel(m_albedo, oclw::Size(m_render_dimension.x, m_render_dimension.y), oclw::Size(work_group_size, work_group_size));
 	}
 
 	void renderLighting()
 	{
 		const size_t work_group_width = static_cast<size_t>(m_render_dimension.x * m_lighting_quality);
 		const size_t work_group_height = static_cast<size_t>(m_render_dimension.y * m_lighting_quality);
-		m_wrapper.runKernel(m_lighting, oclw::Size(work_group_width, work_group_height), oclw::Size(20, 20));
+		m_wrapper.runKernel(m_lighting, oclw::Size(work_group_width, work_group_height), oclw::Size(work_group_size, work_group_size));
 	}
 
 	void biblur()
@@ -129,7 +129,7 @@ public:
 			m_biblur.setArgument(0, m_buff_final_lighting[m_current_final_buffer]);
 			m_biblur.setArgument(2, m_buff_final_lighting[!m_current_final_buffer]);
 			swapFinalBuffers();
-			m_wrapper.runKernel(m_biblur, oclw::Size(work_group_width, work_group_height), oclw::Size(20, 20));
+			m_wrapper.runKernel(m_biblur, oclw::Size(work_group_width, work_group_height), oclw::Size(work_group_size, work_group_size));
 		}
 	}
 
@@ -148,9 +148,7 @@ public:
 	void combine()
 	{
 		m_combinator.setArgument(1, m_buff_final_lighting[m_current_final_buffer]);
-		const size_t globalWorkSize[2] = { m_render_dimension.x, m_render_dimension.y };
-		const size_t localWorkSize[2] = { 20, 20 };
-		m_wrapper.runKernel(m_combinator, oclw::Size(m_render_dimension.x, m_render_dimension.y), oclw::Size(20, 20));
+		m_wrapper.runKernel(m_combinator, oclw::Size(m_render_dimension.x, m_render_dimension.y), oclw::Size(work_group_size, work_group_size));
 		m_wrapper.readMemoryObject(m_buff_result_albedo, m_result_albedo, true);
 	}
 
@@ -158,17 +156,12 @@ public:
 	{
 		m_normalizer.setArgument(0, m_buff_result_lighting[m_current_lighting_buffer]);
 		m_normalizer.setArgument(1, m_buff_final_lighting[m_current_final_buffer]);
-		m_wrapper.runKernel(m_normalizer, oclw::Size(m_render_dimension.x, m_render_dimension.y), oclw::Size(20, 20));
+		m_wrapper.runKernel(m_normalizer, oclw::Size(m_render_dimension.x, m_render_dimension.y), oclw::Size(10, 10));
 	}
 
 	const sf::Image& getAlbedo() const
 	{
 		return m_output_albedo;
-	}
-
-	const sf::Image& getLighting() const
-	{
-		return m_output_lighting;
 	}
 
 	void mutate(const std::vector<Mutation>& mutations)
@@ -229,7 +222,6 @@ private:
 	// Ouput images
 	swrm::Swarm m_swarm;
 	sf::Image m_output_albedo;
-	sf::Image m_output_lighting;
 
 	// Dev
 	bool first = true;
@@ -237,6 +229,8 @@ private:
 	cl_float3 old_pos;
 	uint32_t frame_count;
 	bool m_current_final_buffer;
+
+	const uint32_t work_group_size = 40;
 
 
 private:
@@ -263,6 +257,9 @@ private:
 		const uint64_t albedo_render_pxl_count = m_render_dimension.x * m_render_dimension.y;
 		const uint32_t lighting_render_width = as<uint32_t>(m_render_dimension.x * m_lighting_quality);
 		const uint32_t lighting_render_height = as<uint32_t>(m_render_dimension.y * m_lighting_quality);
+
+		std::cout << "Render size: " << m_render_dimension.x << " x " << m_render_dimension.y << std::endl;
+		std::cout << "Light  size: " << lighting_render_width << " x " << lighting_render_height << std::endl;
 		
 		m_result_albedo.resize(albedo_render_pxl_count * 4);
 		m_buff_result_albedo = m_wrapper.createMemoryObject<float>(m_result_albedo.size(), oclw::ReadWrite);
@@ -323,6 +320,5 @@ private:
 	void initializeOutputImages()
 	{
 		m_output_albedo.create(m_render_dimension.x, m_render_dimension.y);
-		m_output_lighting.create(as<uint32_t>(m_render_dimension.x * m_lighting_quality), as<uint32_t>(m_render_dimension.y * m_lighting_quality));
 	}
 };

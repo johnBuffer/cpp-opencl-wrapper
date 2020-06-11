@@ -16,8 +16,8 @@
 
 int main()
 {
-	constexpr uint32_t WIN_WIDTH = 1600;
-	constexpr uint32_t WIN_HEIGHT = 900;
+	constexpr uint32_t WIN_WIDTH = 1280;
+	constexpr uint32_t WIN_HEIGHT = 720;
 
 	try {
 		// If your PC or Grapgic Cards has not enough Memory, reduce this.
@@ -30,7 +30,7 @@ int main()
 
 		Raytracer raytracer(WIN_WIDTH, WIN_HEIGHT, max_depth, builder.node_data, 1.0f);
 
-		sf::RenderWindow window(sf::VideoMode(WIN_WIDTH, WIN_HEIGHT), "OpenCL and SFML", sf::Style::Default);
+		sf::RenderWindow window(sf::VideoMode(WIN_WIDTH, WIN_HEIGHT), "OpenCL and SFML", sf::Style::Fullscreen);
 		window.setMouseCursorVisible(false);
 
 		EventManager event_manager(window);
@@ -39,9 +39,9 @@ int main()
 
 		sf::Vector2f sun(0.0f, 0.0f);
 		SceneSettings scene;
-		scene.light_intensity = 1.5f;
+		scene.light_intensity = 8.0f;
 		scene.light_position = { 0.0f, 0.0f, 0.0f };
-		scene.light_radius = 0.0f;
+		scene.light_radius = 0.3f;
 
 		// Camera
 		Camera camera;

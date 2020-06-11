@@ -679,6 +679,7 @@ namespace oclw
 		void runKernel(Kernel& kernel, const Size& global_size, const Size& local_size, const std::size_t* global_work_offset = nullptr)
 		{
 			m_command_queue.addKernel(kernel, global_size.dimension, global_work_offset, global_size.sizes, local_size.sizes);
+			m_command_queue.waitCompletion();
 		}
 
 		template<typename T>

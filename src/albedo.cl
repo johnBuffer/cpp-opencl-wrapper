@@ -40,7 +40,7 @@ typedef struct HitPoint
 	float2   tex_coords;
 	float    distance;
 	float3   normal;
-	bool     water;
+	uint8_t  cell_type;
 	uint16_t complexity;
 } HitPoint;
 
@@ -132,7 +132,10 @@ HitPoint castRay(global Node* svo_data, float3 position, float3 d, bool in_water
 				// Could use mirror mask
 				result.normal = -sign(d) * (float3)(normal & 1u, (normal>>1u) & 1u, (normal>>2u) & 1u);
 				result.distance = t_min;
-				result.water = false;
+
+				const uint32_t current_index = parent_id * 8 + child_shift;
+				node_id = LEVELS[SVO_MAX_DEPTH - scale - 1] + current_index + 1;
+				result.cell_type = svo_data[node_id];
 
 				if ((mirror_mask & 1) == 0) pos.x = 3.0f - scale_f - pos.x;
 				if ((mirror_mask & 2) == 0) pos.y = 3.0f - scale_f - pos.y;
@@ -224,6 +227,9 @@ void colorToResultBuffer(float3 color, uint32_t index, __global float* buffer)
 
 float3 getColorFromIntersection(HitPoint intersection, image2d_t top_image, image2d_t side_image)
 {
+	if (intersection.cell_type == 2) {
+		return 255.0f;
+	}
 	// Uncomment to enable textures
 	const float scale = 256.0f;
 	float3 color;

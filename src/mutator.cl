@@ -20,10 +20,12 @@ __kernel void mutate(
 		global Mutation* diffs
 	)
 {
-	for (uint8_t i = 0; i < MAX_STACK_SIZE; ++i) {
+	for (uint8_t i = MAX_STACK_SIZE; i--;) {
 		const Mutation mut = diffs[i];
 		if (mut.needed) {
 			svo[mut.node_id] = mut.value;
+		} else {
+			break;
 		}
 	}
 }

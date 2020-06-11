@@ -187,9 +187,7 @@ struct Losvo
 
 		// Remove empty cells
 		for (uint8_t i(levels); i--;) {
-			std::cout << "Level " << int(i) << " " << int(mutations[i].value) << " prev val " << int(mutations[i + 1].value) << std::endl;
 			if (mutations[i + 1].needed && !(mutations[i + 1].value)) {
-				std::cout << "Previous node now empty, updating..." << std::endl;
 				mutations[i].needed = true;
 				node_data[mutations[i].node_id] ^= (1 << sub_indexes[i]);
 				mutations[i].value = node_data[mutations[i].node_id];

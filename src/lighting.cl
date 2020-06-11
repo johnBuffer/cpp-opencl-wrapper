@@ -36,7 +36,7 @@ typedef struct HitPoint
 	float2   tex_coords;
 	float    distance;
 	float3   normal;
-	bool     water;
+	uint8_t  cell_type;
 	uint16_t complexity;
 } HitPoint;
 
@@ -165,7 +165,10 @@ HitPoint castRay(global uint8_t* svo_data, float3 position, float3 d)
 				// Could use mirror mask
 				result.normal = -sign(d) * (float3)(normal & 1u, (normal>>1u) & 1u, (normal>>2u) & 1u);
 				result.distance = t_min;
-				result.water = false;
+				
+				const uint32_t current_index = parent_id * 8 + child_shift;
+				node_id = LEVELS[SVO_MAX_DEPTH - scale - 1] + current_index + 1;
+				result.cell_type = svo_data[node_id];
 
 				if ((mirror_mask & 1) == 0) pos.x = 3.0f - scale_f - pos.x;
 				if ((mirror_mask & 2) == 0) pos.y = 3.0f - scale_f - pos.y;
@@ -247,19 +250,52 @@ HitPoint castRay(global uint8_t* svo_data, float3 position, float3 d)
 	return result;
 }
 
-float3 getGlobalIllumination(__global uint8_t* svo_data, const float3 position, const float3 normal, const float3 light_position, const float light_intensity, image2d_t noise, uint32_t frame_count)
+
+float isInShadow(global uint8_t* svo_data, const HitPoint point, const float3 light_position)
+{
+	const float3 ray_start = point.position + point.normal * NORMAL_EPS;
+	const float3 ray_direction = normalize(light_position - ray_start);
+	const HitPoint light_intersection = castRay(svo_data, ray_start, ray_direction);
+	if (light_intersection.hit) {
+		return 0.0f;
+	}
+	return max(0.0f, dot(point.normal, ray_direction));
+}
+
+
+float3 getGlobalIllumination(global uint8_t* svo_data, const float3 position, const float3 normal, const float3 light_position, const float light_intensity, image2d_t noise, uint32_t frame_count)
 {
 	float3 gi_add = (float3)0.0f;
     // First bounce
-    const float3 noise_normal = getRandomizedNormal(normal, noise, frame_count);
-    const HitPoint gi_intersection = castRay(svo_data, position, noise_normal);
+    float3 noise_normal = getRandomizedNormal(normal, noise, frame_count);
+    HitPoint gi_intersection = castRay(svo_data, position, noise_normal);
     if (gi_intersection.hit) {
-		const float3 gi_normal = gi_intersection.normal;
-		const float3 gi_light_start = gi_intersection.position + NORMAL_EPS * gi_normal;
-		const float3 gi_light_direction = normalize(light_position - gi_light_start);
-		const HitPoint gi_light_intersection = castRay(svo_data, gi_light_start, gi_light_direction);
-		if (!gi_light_intersection.hit) {
-			gi_add += fmax(0.0f, light_intensity * dot(gi_light_direction, gi_normal));
+		if (gi_intersection.cell_type == 2) {
+			gi_add += 16.0f;
+		}
+		else {
+			// Sun contribution
+			gi_add += light_intensity * isInShadow(svo_data, gi_intersection, light_position);
+			float3 gi_normal    = gi_intersection.normal;
+			float3 gi_start     = gi_intersection.position + NORMAL_EPS * gi_normal;
+			float3 gi_direction = getRandomizedNormal(gi_normal, noise, frame_count);
+			gi_intersection = castRay(svo_data, gi_start, gi_direction);
+			if (gi_intersection.hit) {
+				if (gi_intersection.cell_type == 2) {
+					gi_add += 8.0f;
+				} else {
+					gi_add += 0.5f * light_intensity * isInShadow(svo_data, gi_intersection, light_position);
+					gi_normal = gi_intersection.normal;
+					gi_direction = getRandomizedNormal(gi_normal, noise, frame_count);
+					gi_start = gi_intersection.position + NORMAL_EPS * gi_normal;
+					gi_intersection = castRay(svo_data, gi_start, gi_direction);
+					if (!gi_intersection.hit) {
+						gi_add += SKY_COLOR / 255.0f;
+					}
+				}
+			} else {
+				gi_add += SKY_COLOR / 255.0f;
+			}
 		}
     } else if (noise_normal.y < 0.0f) {
         gi_add += SKY_COLOR / 255.0f;
@@ -320,7 +356,7 @@ float getLightIntensity(global uint8_t* svo_data, const float3 position, const f
 		return 0.0f;
 	}
 	
-	return light_intensity * fmin(1.0f, dot(normal, shadow_ray));
+	return fmin(1.0f, dot(normal, shadow_ray));
 }
 
 
@@ -339,7 +375,7 @@ __kernel void lighting(
 ) 
 {
 	const int2 gid = (int2)(get_global_id(0), get_global_id(1));
-	
+	const int2 screen_size = (int2)(get_global_size(0), get_global_size(1));
 	const float3 light_position = scene.light_position;
 
 	float3 color = 1.0f;
@@ -351,16 +387,19 @@ __kernel void lighting(
 		const float3 gi_start = intersection.xyz + normal * NORMAL_EPS;
 
 		const float4 old_gi = getOldValue(last_frame_color, last_depth, last_view_matrix, last_position, intersection);
+		
 		const float3 new_gi = getGlobalIllumination(svo_data, gi_start, normal, light_position, scene.light_intensity, noise, frame_count);
+		
 		const float light_intensity = getLightIntensity(svo_data, intersection.xyz, normal, light_position, scene.light_radius, scene.light_intensity, noise, frame_count);
 
+		const float3 frame_value = light_intensity + new_gi;
 		acc = old_gi.w + 1.0f;
 		if (acc < ACC_COUNT) {
-			color = ((float3)(light_intensity) + new_gi) + old_gi.xyz;
+			color = frame_value + old_gi.xyz;
 		} else {
-			const float conservation_coef = 1.0f - 1.0f / ACC_COUNT;
-			acc = ACC_COUNT;
-			color = ((float3)(light_intensity) + new_gi) + old_gi.xyz * conservation_coef;
+			acc = ACC_COUNT - 1.0f;
+			const float conservation_coef = 1.0f - 1.0f / acc;
+			color = frame_value + old_gi.xyz * conservation_coef;
 		}
 		//acc = 1.0f;
 		//color = (float3)(light_intensity) + new_gi;

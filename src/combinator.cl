@@ -5,7 +5,7 @@ typedef int            int32_t;
 typedef unsigned int   uint32_t;
 
 
-__constant sampler_t tex_sampler = CLK_NORMALIZED_COORDS_FALSE | CLK_FILTER_NEAREST;
+__constant sampler_t tex_sampler = CLK_NORMALIZED_COORDS_FALSE | CLK_FILTER_LINEAR;
 
 
 __kernel void combine(
@@ -16,6 +16,7 @@ __kernel void combine(
 	const int2 gid = (int2)(get_global_id(0), get_global_id(1));
 	const int2 screen_size = (int2)(get_global_size(0), get_global_size(1));
 	const uint32_t index = gid.x + gid.y * screen_size.x;
+	const float2 tex_coords = (float2)(gid.x, gid.y) / (float2)(screen_size.x, screen_size.y);
 	
 	const float4 gi_value = read_imagef(lighting, tex_sampler, gid);
 	const float3 light_intensity = gi_value.xyz;
