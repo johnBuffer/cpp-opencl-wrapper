@@ -59,6 +59,19 @@ public:
 		m_albedo.setArgument(albedo_index_count++, m_buff_position);
 		m_albedo.setArgument(albedo_index_count++, m_buff_depth[m_current_lighting_buffer]);
 
+		uint32_t gi_index_count = 0u;
+		m_lighting.setArgument(gi_index_count++, m_buff_svo);
+		m_lighting.setArgument(gi_index_count++, scene);
+		m_lighting.setArgument(gi_index_count++, m_buff_result_lighting[m_current_lighting_buffer]);
+		m_lighting.setArgument(gi_index_count++, m_buff_noise);
+		m_lighting.setArgument(gi_index_count++, m_buff_result_lighting[!m_current_lighting_buffer]);
+		m_lighting.setArgument(gi_index_count++, m_buff_view_matrix_old);
+		m_lighting.setArgument(gi_index_count++, old_pos);
+		m_lighting.setArgument(gi_index_count++, frame_count);
+		m_lighting.setArgument(gi_index_count++, m_buff_depth[m_current_lighting_buffer]);
+		m_lighting.setArgument(gi_index_count++, m_buff_depth[!m_current_lighting_buffer]);
+		m_lighting.setArgument(gi_index_count++, m_buff_position);
+
 		old_view = camera.rot_mat;
 		old_pos = camera_position;
 	}
@@ -71,12 +84,12 @@ public:
 		// Run albedo kernel
 		renderAlbedo();
 		// Run lighting kernel
-		//renderLighting();
-		//normalize();
+		renderLighting();
+		normalize();
 		//median();
 		//biblur();
 		//blur();
-		//combine();
+		combine();
 
 		auto group_albedo = m_swarm.execute([&](uint32_t thread_id, uint32_t max_thread) {
 			const uint32_t start_x = thread_id % 4;
@@ -97,7 +110,6 @@ public:
 	void renderAlbedo()
 	{
 		m_wrapper.runKernel(m_albedo, oclw::Size(m_render_dimension.x, m_render_dimension.y), oclw::Size(20, 20));
-		m_wrapper.readMemoryObject(m_buff_result_albedo, m_result_albedo, true);
 	}
 
 	void renderLighting()
@@ -139,6 +151,7 @@ public:
 		const size_t globalWorkSize[2] = { m_render_dimension.x, m_render_dimension.y };
 		const size_t localWorkSize[2] = { 20, 20 };
 		m_wrapper.runKernel(m_combinator, oclw::Size(m_render_dimension.x, m_render_dimension.y), oclw::Size(20, 20));
+		m_wrapper.readMemoryObject(m_buff_result_albedo, m_result_albedo, true);
 	}
 
 	void normalize()

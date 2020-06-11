@@ -45,7 +45,7 @@ int main()
 
 		// Camera
 		Camera camera;
-		camera.position = glm::vec3(0.0f, 400.0f, 0.0f);
+		camera.position = glm::vec3(0.0f, 440.0f, 0.0f);
 		camera.last_move = glm::vec3(0.0f);
 		camera.view_angle = glm::vec2(0.77021f, -0.4365f);
 		camera.fov = 1.0f;

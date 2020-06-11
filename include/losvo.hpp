@@ -31,6 +31,7 @@ struct Losvo
 {
 	Losvo(const uint32_t levels_count)
 		: levels(levels_count)
+		, world_size(as<float>(1 << levels_count))
 	{
 		// Last level is for leafs
 		const uint64_t nodes_count = static_cast<uint64_t>(std::pow(8, levels_count + 1) - 1) / 7;
@@ -117,11 +118,11 @@ struct Losvo
 
 			uint8_t& current_node = node_data[node_index];
 			// If the current node doesn't have sub where we need it
-			
+			if (!((current_node >> sub_index) & 1)) {
 				// Add mutation
 				current_node |= (1 << sub_index);
 				mutations[current_level] = Mutation(true, current_node, node_index);
-				std::cout << "Mutation added at level " << current_level << " value " << int(current_node) << std::endl;
+			}
 			
 			parent_index = current_index;
 			parent_sub_index = sub_index;
@@ -139,11 +140,72 @@ struct Losvo
 		return mutations;
 	}
 
-	HitPoint castRay(const glm::vec3& world_space_position, glm::vec3 d) const
+	std::vector<Mutation> removeCell(uint32_t x, uint32_t y, uint32_t z) {
+		std::vector<Mutation> mutations(levels + 1);
+		std::vector<uint8_t> sub_indexes(levels + 1);
+		for (Mutation& m : mutations) {
+			m.needed = false;
+		}
+
+		uint32_t side_size = static_cast<uint32_t>(std::pow(2, levels));
+		// Update hierarchy
+		glm::uvec3 current_position(x, y, z);
+		uint32_t level_index = 0;
+		uint32_t parent_index = 0;
+		uint8_t parent_sub_index = 0;
+
+		for (uint32_t current_level(0); current_level < levels; ++current_level) {
+			// Level consts
+			const uint32_t level_size = 1 << (3 * current_level);
+			uint32_t half_size = side_size >> 1u;
+			const glm::uvec3 sub_position = current_position / half_size;
+			const uint8_t sub_index = getSubIndex(sub_position);
+			// Checking current node
+			const uint32_t current_index = parent_index * 8 + parent_sub_index;
+			const uint32_t node_index = level_index + current_index;
+
+			uint8_t& current_node = node_data[node_index];
+			// If the current node doesn't have sub where we need it
+			// Add mutation
+			
+			mutations[current_level] = Mutation(false, current_node, node_index);
+			sub_indexes[current_level] = sub_index;
+
+			parent_index = current_index;
+			parent_sub_index = sub_index;
+			level_index += level_size;
+			// Updating for next step
+			current_position -= sub_position * half_size;
+			side_size = half_size;
+		}
+
+		const glm::uvec3 level_position = current_position / side_size;
+		const uint32_t leaf_computed_index = level_index + parent_index * 8 + parent_sub_index;
+		// Set the actual leaf
+		node_data[leaf_computed_index] = 0;
+		mutations[levels] = Mutation(true, 0, leaf_computed_index);
+
+		// Remove empty cells
+		for (uint8_t i(levels); i--;) {
+			std::cout << "Level " << int(i) << " " << int(mutations[i].value) << " prev val " << int(mutations[i + 1].value) << std::endl;
+			if (mutations[i + 1].needed && !(mutations[i + 1].value)) {
+				std::cout << "Previous node now empty, updating..." << std::endl;
+				mutations[i].needed = true;
+				node_data[mutations[i].node_id] ^= (1 << sub_indexes[i]);
+				mutations[i].value = node_data[mutations[i].node_id];
+			}
+			else {
+				break;
+			}
+		}
+
+		return mutations;
+	}
+
+	HitPoint castRay(glm::vec3 world_space_position, glm::vec3 d) const
 	{
 		const uint32_t LEVELS[11] = { 0u, 8u, 72u, 584u, 4680u, 37448u, 299592u, 2396744u, 19173960u, 153391688u, 1227133512u };
-		const float world_size = as<float>(1 << levels);
-		const glm::vec3 position = world_space_position / world_size + glm::vec3(1.0f);
+		glm::vec3 position = world_space_position / world_size + glm::vec3(1.0f);
 		HitPoint result;
 		// Const values
 		constexpr uint8_t SVO_MAX_DEPTH = 23u;
@@ -274,6 +336,7 @@ struct Losvo
 	}
 
 	const uint32_t levels;
+	const float world_size;
 	std::vector<uint8_t> node_data;
 };
 

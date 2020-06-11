@@ -69,7 +69,7 @@ float frac(float x)
 }
 
 // Raytracing functions
-HitPoint castRay(__global Node* svo_data, float3 position, float3 d, bool in_water)
+HitPoint castRay(global Node* svo_data, float3 position, float3 d, bool in_water)
 {
 	HitPoint result;
 	result.hit = 0;
@@ -296,7 +296,7 @@ __kernel void albedo(
 		const float primary_intensity = pow(to_sun_intensity, 511.0f);
 		const float secondary_intensity = 0.2f * pow(to_sun_intensity, 1.0f);
 		color = max((float3)(24.0f, 59.0f, 75.0f), min((float3)(255.0f * (primary_intensity + secondary_intensity)) + color, (float3)(255.0f)));
-		//write_imagef(screen_space_positions, gid, (float4)(0.0f));
+		write_imagef(screen_space_positions, gid, (float4)(0.0f));
 	}
 
 	colorToResultBuffer(color, index, albedo_result);

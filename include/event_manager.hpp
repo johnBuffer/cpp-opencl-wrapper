@@ -201,6 +201,8 @@ struct EventManager
 				}
 				else {
 					// Remove
+					const glm::ivec3 hit_position = point.position;
+					mutations = svo.removeCell(hit_position.x, hit_position.y, hit_position.z);
 				}
 			}
 		}

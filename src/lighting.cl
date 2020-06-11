@@ -19,21 +19,13 @@ __constant float GOLDEN_RATIO = 1.61803398875f;
 __constant float G = 1.0f / 1.22074408460575947536f;
 __constant float PI = 3.141592653f;
 __constant float ACC_COUNT = 32.0f;
+__constant uint32_t LEVELS[11] = {0u, 8u, 72u, 584u, 4680u, 37448u, 299592u, 2396744u, 19173960u, 153391688u, 1227133512u};
 
-
-// Structs declaration
-typedef struct Node
-{
-    uint8_t  child_mask;
-	uint8_t  leaf_mask;
-	uint32_t child_offset;
-	uint8_t  reflective_mask;
-	uint8_t  empty;
-} Node;
 
 typedef struct OctreeStack
 {
 	uint32_t parent_index;
+	uint32_t parent_level_index;
 	float t_max;
 } OctreeStack;
 
@@ -110,7 +102,7 @@ float3 getRandomizedNormal(float3 normal, image2d_t noise, uint32_t frame_count)
 
 
 // Raytracing functions
-HitPoint castRay(__global Node* svo_data, float3 position, float3 d, float max_dist, float ray_coef, float ray_bias)
+HitPoint castRay(global uint8_t* svo_data, float3 position, float3 d)
 {
 	HitPoint result;
 	result.hit = 0;
@@ -136,10 +128,15 @@ HitPoint castRay(__global Node* svo_data, float3 position, float3 d, float max_d
 	float h = t_max;
 	t_min = fmax(0.0f, t_min);
 	t_max = fmin(1.0f, t_max);
+
 	// Init current voxel
+	uint32_t node_id = 0u;
 	uint32_t parent_id = 0u;
 	uint8_t child_offset = 0u;
 	int8_t scale = SVO_MAX_DEPTH - 1u;
+	
+	uint32_t level_index = 0u;
+
 	float3 pos = (float3)(1.0f);
 	float scale_f = 0.5f;
 	// Initialize child position
@@ -147,35 +144,33 @@ HitPoint castRay(__global Node* svo_data, float3 position, float3 d, float max_d
 	if (1.5f * t_coef.y - t_offset.y > t_min) { child_offset ^= 2u, pos.y = 1.5f; }
 	if (1.5f * t_coef.z - t_offset.z > t_min) { child_offset ^= 4u, pos.z = 1.5f; }
 	uint8_t normal = 0u;
-	uint16_t child_infos = 0u;
+	
 	// Explore octree
-	while (scale < SVO_MAX_DEPTH && t_min < max_dist) {
+	while (scale < SVO_MAX_DEPTH) {
 		++result.complexity;
-		const Node parent_ref = svo_data[parent_id];
+		const uint8_t node = svo_data[node_id];
 		// Compute new T span
 		const float3 t_corner = (float3)(pos.x * t_coef.x - t_offset.x, pos.y * t_coef.y - t_offset.y, pos.z * t_coef.z - t_offset.z);
 		const float tc_max = fmin(t_corner.x, fmin(t_corner.y, t_corner.z));
 		// Check if child exists here
 		const uint8_t child_shift = child_offset ^ mirror_mask;
-		const uint8_t child_mask = (parent_ref.child_mask >> child_shift) & 1u;
+		const uint8_t child_mask = (node >> child_shift) & 1u;
 		if (child_mask) {
 			const float tv_max = fmin(t_max, tc_max);
 			const float half_scale = scale_f * 0.5f;
 			const float3 t_half = half_scale * t_coef + t_corner;
-			const uint8_t leaf_mask = ((parent_ref.leaf_mask >> child_shift) & 1u);
-			const uint8_t watr_mask = (parent_ref.reflective_mask >> child_shift) & 1u;
 			// We hit a leaf
-			if (leaf_mask) {
+			if (scale == SVO_MAX_DEPTH - 9) {
 				result.hit = 1u;
 				// Could use mirror mask
-				result.normal = -sign(d) * (float3)(normal & 1u, normal & 2u, normal & 4u);
+				result.normal = -sign(d) * (float3)(normal & 1u, (normal>>1u) & 1u, (normal>>2u) & 1u);
 				result.distance = t_min;
-				result.water = watr_mask;
+				result.water = false;
 
 				if ((mirror_mask & 1) == 0) pos.x = 3.0f - scale_f - pos.x;
 				if ((mirror_mask & 2) == 0) pos.y = 3.0f - scale_f - pos.y;
 				if ((mirror_mask & 4) == 0) pos.z = 3.0f - scale_f - pos.z;
-
+				
 				result.position = fmin(fmax(position + t_min * d, pos + (float3)EPS), pos + (float3)(scale_f - EPS));
 
 				const float tex_scale = (float)(1 << (SVO_MAX_DEPTH - scale));
@@ -192,14 +187,18 @@ HitPoint castRay(__global Node* svo_data, float3 position, float3 d, float max_d
 			}
 			// Eventually add parent to the stack
 			if (tc_max < h) {
-				stack[scale-12].parent_index = parent_id;
+				stack[scale-12].parent_index = node_id;
+				stack[scale-12].parent_level_index = parent_id;
 				stack[scale-12].t_max = t_max;
 			}
 			h = tc_max;
 			// Update current voxel
-			parent_id += parent_ref.child_offset + child_shift;
+			const uint32_t current_index = parent_id * 8 + child_shift;
+			parent_id = current_index;
+			node_id = LEVELS[SVO_MAX_DEPTH - scale - 1] + current_index + 1;
 			child_offset = 0u;
 			--scale;
+			// Need to fix LEVELS (+1 everywhere)
 			scale_f = half_scale;
 			if (t_half.x > t_min) { child_offset ^= 1u, pos.x += scale_f; }
 			if (t_half.y > t_min) { child_offset ^= 2u, pos.y += scale_f; }
@@ -209,6 +208,7 @@ HitPoint castRay(__global Node* svo_data, float3 position, float3 d, float max_d
 			
 		} // End of depth exploration
 
+		// Maybe remove the ifs ?
 		uint32_t step_mask = 0u;
 		if (t_corner.x <= tc_max) { step_mask ^= 1u, pos.x -= scale_f; }
 		if (t_corner.y <= tc_max) { step_mask ^= 2u, pos.y -= scale_f; }
@@ -229,7 +229,8 @@ HitPoint castRay(__global Node* svo_data, float3 position, float3 d, float max_d
 			scale = (as_int((float)differing_bits) >> SVO_MAX_DEPTH) - 127u;
 			scale_f = as_float((scale - SVO_MAX_DEPTH + 127u) << SVO_MAX_DEPTH);
 			const OctreeStack entry = stack[scale-12];
-			parent_id = entry.parent_index;
+			node_id = entry.parent_index;
+			parent_id = entry.parent_level_index;
 			t_max = entry.t_max;
 			const uint32_t shx = ipos_x >> scale;
 			const uint32_t shy = ipos_y >> scale;
@@ -246,19 +247,19 @@ HitPoint castRay(__global Node* svo_data, float3 position, float3 d, float max_d
 	return result;
 }
 
-float3 getGlobalIllumination(__global Node* svo_data, const float3 position, const float3 normal, const float3 light_position, const float light_intensity, image2d_t noise, uint32_t frame_count)
+float3 getGlobalIllumination(__global uint8_t* svo_data, const float3 position, const float3 normal, const float3 light_position, const float light_intensity, image2d_t noise, uint32_t frame_count)
 {
 	float3 gi_add = (float3)0.0f;
     // First bounce
     const float3 noise_normal = getRandomizedNormal(normal, noise, frame_count);
-    const HitPoint gi_intersection = castRay(svo_data, position, noise_normal, 2.0f, 0.2f, 0.0f);
+    const HitPoint gi_intersection = castRay(svo_data, position, noise_normal);
     if (gi_intersection.hit) {
 		const float3 gi_normal = gi_intersection.normal;
 		const float3 gi_light_start = gi_intersection.position + NORMAL_EPS * gi_normal;
 		const float3 gi_light_direction = normalize(light_position - gi_light_start);
-		const HitPoint gi_light_intersection = castRay(svo_data, gi_light_start, gi_light_direction, 2.0f, 0.2f, 0.0f);
+		const HitPoint gi_light_intersection = castRay(svo_data, gi_light_start, gi_light_direction);
 		if (!gi_light_intersection.hit) {
-			gi_add += 0.5f * fmax(0.0f, light_intensity * dot(gi_light_direction, gi_normal));
+			gi_add += fmax(0.0f, light_intensity * dot(gi_light_direction, gi_normal));
 		}
     } else if (noise_normal.y < 0.0f) {
         gi_add += SKY_COLOR / 255.0f;
@@ -303,7 +304,7 @@ float4 getOldValue(image2d_t last_frame_color, image2d_t last_frame_depth, __con
 }
 
 
-float getLightIntensity(__global Node* svo_data, const float3 position, const float3 normal, const float3 light_position, const float light_radius, const float light_intensity, image2d_t noise, uint32_t frame_count)
+float getLightIntensity(global uint8_t* svo_data, const float3 position, const float3 normal, const float3 light_position, const float light_radius, const float light_intensity, image2d_t noise, uint32_t frame_count)
 {
 	const int2 tex_coords = (int2)(get_global_id(0) % 512u, get_global_id(1) % 512u);
 	const float3 noise_value = convert_float3(read_imagei(noise, exact_sampler, tex_coords).xyz) / 255.0f;
@@ -314,7 +315,7 @@ float getLightIntensity(__global Node* svo_data, const float3 position, const fl
 	const float light_offset_2 = (fmod(noise_value.y + G * G     * (frame_count%10000), 1.0f) - 0.5f);
 	const float light_offset_3 = (fmod(noise_value.z + G * G * G * (frame_count%10000), 1.0f) - 0.5f);
 	const float3 shadow_ray = normalize(light_position + light_radius * (float3)(light_offset_1, light_offset_2, light_offset_3) - position);
-	const HitPoint light_intersection = castRay(svo_data, ray_start, shadow_ray, 2.0f, 0.02f, 0.0f);
+	const HitPoint light_intersection = castRay(svo_data, ray_start, shadow_ray);
 	if (light_intersection.hit) {
 		return 0.0f;
 	}
@@ -324,7 +325,7 @@ float getLightIntensity(__global Node* svo_data, const float3 position, const fl
 
 
 __kernel void lighting(
-    global Node* svo_data
+    global uint8_t* svo_data
 	, read_only SceneSettings scene
     , write_only image2d_t result
 	, read_only image2d_t noise

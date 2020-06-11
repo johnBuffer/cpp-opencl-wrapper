@@ -13,14 +13,14 @@ struct FpsController : public CameraController
 
 	void move(const glm::vec3& move_vector, Camera& camera, const Losvo& svo, bool boost) override
 	{
-		const float body_height = 0.5f;
+		const float body_height = 1.85f;
 		const float body_radius = 0.2f;
 		const float feet_eps = 0.05f;
 
 		const float elapsed_time = clock.restart().asSeconds();
 		
 		// Fly mode
-		if (boost || 1) {
+		if (boost) {
 			// These values have to be ajusted with the svo's size
 			const float speed = boost ? 150.0f : 4.0f;
 			camera.move(speed * move_vector * movement_speed * elapsed_time);
@@ -32,11 +32,13 @@ struct FpsController : public CameraController
 		}
 
 		// Ground check
-		/*const HitPoint yp_ray = svo.castRay(camera.position, glm::vec3(0.0f, 1.0f, 0.0f));
+		const HitPoint yp_ray = svo.castRay(camera.position, glm::vec3(0.0f, 1.0f, 0.0f));
 		if (yp_ray.hit) {
 			if (yp_ray.distance < body_height) {
+				//std::cout << "HIT " << yp_ray.position.y << std::endl;
+				//std::cout << "Cam Y " << camera.position.y << std::endl;
 				can_jump = true;
-				camera.position.y = yp_ray.position.y - body_height;
+				camera.position.y = svo.world_size - (yp_ray.position.y + body_height);
 				v = 0.0f;
 			}
 		}
@@ -77,7 +79,7 @@ struct FpsController : public CameraController
 			if (zn_ray.distance < body_radius) {
 				camera.position.z = zn_ray.position.z + body_radius;
 			}
-		}*/
+		}
 	}
 
 	void forward()
