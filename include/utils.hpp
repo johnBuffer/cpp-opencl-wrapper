@@ -1,17 +1,8 @@
 #pragma once
 
 #include "ocl_wrapper.hpp"
-#include "fastnoise/FastNoise.h"
 #include "lsvo_utils.hpp"
 #include <vector>
-#include "losvo.hpp"
-
-
-
-void generateSVO(uint8_t max_depth, Losvo& svo);
-
-
-void loadPointCloud(const std::string& filename, uint8_t svo_level, SVO& svo);
 
 
 glm::mat4 generateRotationMatrix(const glm::vec2& angle);

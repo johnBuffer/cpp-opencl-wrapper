@@ -34,9 +34,9 @@ struct EventManager
 			else if (event.type == sf::Event::MouseButtonPressed) {
 				mutate = true;
 				if (event.mouseButton.button == sf::Mouse::Left) {
-					value = 1;
-				} else if (event.mouseButton.button == sf::Mouse::Right) {
 					value = 0;
+				} else if (event.mouseButton.button == sf::Mouse::Right) {
+					value = 1;
 				}
 			}
 			else if (event.type == sf::Event::MouseButtonReleased) {
@@ -184,33 +184,34 @@ struct EventManager
 
 		controller.move(move, camera, svo, boost);
 
-		/*if (mutate && mutate_ready) {
+		if (mutate && mutate_ready) {
 			mutate_ready = false;
-			const uint32_t svo_size = 1 << svo.max_depth;
+			const uint32_t svo_size = 1 << svo.levels;
 			const glm::vec3 ray = camera.camera_vec;
 			const HitPoint point = svo.castRay(camera.position, ray);
 			if (point.hit) {
+				mutate_waiting = true;
 				if (value) {
-					mutate_waiting = true;
-					index = point.global_index;
-					child_index = point.child_index;
+					// Add
+					const glm::ivec3 hit_position = point.position;// +glm::vec3(1.0f, 0.0f, 1.0f);
+					const glm::uvec3 add_position = hit_position + glm::ivec3(point.normal);
+					//std::cout << "Hit    " << vecToString(hit_position) << std::endl;
+					//std::cout << "Normal " << vecToString(point.normal) << std::endl;
+					mutations = svo.addCell(add_position.x, add_position.y, add_position.z, 1);
 				}
 				else {
-					mutate_waiting = true;
-					index = point.last_empty_leaf_global_index;
-					child_index = point.last_empty_leaf_child_index;
+					// Remove
 				}
-				svo.data[index].leaf_mask ^= (1u << child_index);
 			}
-		}*/
+		}
 	}
 
 	sf::Clock clock;
 	bool forward, left, right, up, backward, boost, mouse_control;
 	bool mutate_waiting;
-	uint32_t index;
-	uint8_t child_index;
+
 	uint8_t value;
+	std::vector<Mutation> mutations;
 
 	bool mutate, mutate_ready;
 

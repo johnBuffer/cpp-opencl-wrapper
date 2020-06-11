@@ -158,11 +158,10 @@ public:
 		return m_output_lighting;
 	}
 
-	void mutate(const uint32_t index, uint8_t child_index, uint8_t value)
+	void mutate(const std::vector<Mutation>& mutations)
 	{
-		m_mutator.setArgument(1, index);
-		m_mutator.setArgument(2, child_index);
-		m_mutator.setArgument(3, value);
+		m_wrapper.writeInMemoryObject(m_buff_mutations, mutations.data(), true);
+		m_mutator.setArgument(1, m_buff_mutations);
 		m_wrapper.runKernel(m_mutator, oclw::Size(1), oclw::Size(1));
 	}
 
@@ -197,6 +196,7 @@ private:
 	sf::Image m_image_side, m_image_top;
 	// Buffers
 	oclw::MemoryObject m_buff_svo;
+	oclw::MemoryObject m_buff_mutations;
 	oclw::MemoryObject m_buff_view_matrix;
 	oclw::MemoryObject m_buff_view_matrix_old;
 	oclw::MemoryObject m_buff_result_albedo;
@@ -242,6 +242,7 @@ private:
 		// Create memory objects that will be used as arguments to kernel
 		loadImagesToDevice();
 		m_buff_svo = m_wrapper.createMemoryObject(svo, oclw::ReadOnly | oclw::CopyHostPtr);
+		m_buff_mutations = m_wrapper.createMemoryObject<Mutation>(10, oclw::ReadOnly);
 		m_buff_view_matrix = m_wrapper.createMemoryObject<float>(9, oclw::ReadOnly);
 		m_buff_view_matrix_old = m_wrapper.createMemoryObject<float>(9, oclw::ReadOnly);
 		// Create OpenCL buffers

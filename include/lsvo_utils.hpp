@@ -24,6 +24,7 @@ struct LSVONode
 
 struct OctreeStack
 {
+	uint32_t node_index;
 	uint32_t parent_index;
 	float t_max;
 };

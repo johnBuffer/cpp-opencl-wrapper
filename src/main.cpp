@@ -11,6 +11,7 @@
 #include "ocl_raytracer.hpp"
 #include "dynamic_blur.hpp"
 #include "losvo.hpp"
+#include "svo_builder.hpp"
 
 
 int main()
@@ -25,7 +26,7 @@ int main()
 
 		// Use a procedural terrain
 		generateSVO(max_depth, builder);
-		//builder.setCell(1023, 1023, 1023, 1);
+		builder.setCell(256, 2, 256, 1);
 
 		Raytracer raytracer(WIN_WIDTH, WIN_HEIGHT, max_depth, builder.node_data, 1.0f);
 
@@ -70,7 +71,7 @@ int main()
 
 			if (event_manager.mutate_waiting) {
 				event_manager.mutate_waiting = false;
-				raytracer.mutate(event_manager.index, event_manager.child_index, event_manager.value);
+				raytracer.mutate(event_manager.mutations);
 			}
 
 			raytracer.updateKernelArgs(camera, scene);
@@ -80,6 +81,14 @@ int main()
 			tex_albedo.loadFromImage(raytracer.getAlbedo());
 			sf::Sprite albedo_sprite(tex_albedo);
 			window.draw(albedo_sprite);
+
+			const float aim_size = 2.0f;
+			sf::RectangleShape aim(sf::Vector2f(aim_size, aim_size));
+			aim.setOrigin(aim_size * 0.5f, aim_size * 0.5f);
+			aim.setPosition(WIN_WIDTH*0.5f, WIN_HEIGHT*0.5f);
+			aim.setFillColor(sf::Color::Green);
+			window.draw(aim);
+
 
 			window.display();
 		}
