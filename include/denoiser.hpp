@@ -21,13 +21,12 @@ struct Denoiser
 		swapBuffers();
 		execute_temporal(last_view_matrix, last_position, raw_lighting, ss_positions, depths);
 		execute_normalize();
-		//execute_blur(ss_positions);
+		execute_blur(ss_positions);
 	}
 
 	void swapBuffers()
 	{
 		buff_temporal.swap();
-		//buff_denoised.swap();
 	}
 
 	oclw::MemoryObject& getResult()
@@ -88,14 +87,18 @@ private:
 		normalier.setArgument(0, buff_temporal.getCurrent());
 		normalier.setArgument(1, buff_denoised.getCurrent());
 		wrapper.runKernel(normalier, oclw::Size(render_size.x, render_size.y), oclw::Size(local_size, local_size));
-		buff_denoised.swap();
 	}
 
 	void execute_blur(oclw::MemoryObject& ss_positions)
 	{
-		blur.setArgument(0, buff_denoised.getCurrent());
-		blur.setArgument(1, buff_denoised.getLast());
 		blur.setArgument(2, ss_positions);
-		wrapper.runKernel(blur, oclw::Size(render_size.x, render_size.y), oclw::Size(local_size, local_size));
+
+		for (uint8_t i(0); i < 4; ++i) {
+			buff_denoised.swap();
+			blur.setArgument(0, buff_denoised.getCurrent());
+			blur.setArgument(1, buff_denoised.getLast());
+			blur.setArgument(3, i);
+			wrapper.runKernel(blur, oclw::Size(render_size.x, render_size.y), oclw::Size(local_size, local_size));
+		}
 	}
 };
