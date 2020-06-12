@@ -64,7 +64,7 @@ public:
 		uint32_t albedo_index_count = 0u;
 		m_albedo.setArgument(albedo_index_count++, m_buff_svo);
 		m_albedo.setArgument(albedo_index_count++, scene);
-		m_albedo.setArgument(albedo_index_count++, m_buff_result_albedo);
+		m_albedo.setArgument(albedo_index_count++, m_buff_albedo);
 		m_albedo.setArgument(albedo_index_count++, m_buff_view_matrix);
 		m_albedo.setArgument(albedo_index_count++, m_buff_image_top);
 		m_albedo.setArgument(albedo_index_count++, m_buff_image_side);
@@ -132,10 +132,10 @@ public:
 
 	void combine()
 	{
-		m_combinator.setArgument(1, m_gi_denoiser.getResult());
-		m_combinator.setArgument(2, m_shadows_denoiser.getResult());
+		m_combinator.setArgument(2, m_gi_denoiser.getResult());
+		m_combinator.setArgument(3, m_shadows_denoiser.getResult());
 		m_wrapper.runKernel(m_combinator, oclw::Size(m_render_dimension.x, m_render_dimension.y), oclw::Size(work_group_size, work_group_size));
-		m_wrapper.readMemoryObject(m_buff_result_albedo, m_result_albedo, true);
+		m_wrapper.readImageObject(m_buff_final_image, m_render_dimension.x, m_render_dimension.y, m_result_albedo, true);
 	}
 
 	const sf::Image& getAlbedo() const
@@ -175,11 +175,11 @@ private:
 	oclw::MemoryObject m_buff_svo;
 	oclw::MemoryObject m_buff_mutations;
 	oclw::MemoryObject m_buff_view_matrix;
-	oclw::MemoryObject m_buff_result_albedo;
+	oclw::MemoryObject m_buff_albedo;
 	oclw::MemoryObject m_buff_result_shadows;
 	oclw::MemoryObject m_buff_result_gi;
-	oclw::MemoryObject m_buff_final_lighting;
-	//oclw::MemoryObject m_buff_final_image;
+	oclw::MemoryObject m_buff_final_image;
+
 	DoubleBuffer m_buff_depths;
 	oclw::MemoryObject m_buff_ss_positions;
 	oclw::MemoryObject m_buff_image_top;
@@ -234,13 +234,13 @@ private:
 		std::cout << "Light  size: " << lighting_render_width << " x " << lighting_render_height << std::endl;
 		
 		m_result_albedo.resize(albedo_render_pxl_count * 4);
-		m_buff_result_albedo = m_wrapper.createMemoryObject<float>(m_result_albedo.size(), oclw::ReadWrite);
+		//m_buff_result_albedo = m_wrapper.createMemoryObject<float>(m_result_albedo.size(), oclw::ReadWrite);
+		m_buff_final_image = m_wrapper.getContext().createImage2D(m_render_dimension.x, m_render_dimension.y, nullptr, oclw::ReadWrite, oclw::RGBA, oclw::Float);
+		m_buff_albedo = m_wrapper.getContext().createImage2D(m_render_dimension.x, m_render_dimension.y, nullptr, oclw::ReadWrite, oclw::RGBA, oclw::Float);
 		m_buff_result_gi = m_wrapper.getContext().createImage2D(lighting_render_width, lighting_render_height, nullptr, oclw::ReadWrite, oclw::RGBA, oclw::Float);
 		m_buff_result_shadows = m_wrapper.getContext().createImage2D(lighting_render_width, lighting_render_height, nullptr, oclw::ReadWrite, oclw::RGBA, oclw::Float);
-		m_buff_final_lighting = m_wrapper.getContext().createImage2D(lighting_render_width, lighting_render_height, nullptr, oclw::ReadWrite, oclw::RGBA, oclw::Float);
 		m_buff_depths.create(m_wrapper.getContext(), lighting_render_width, lighting_render_height, nullptr, oclw::ReadWrite, oclw::RG, oclw::Float);
 		m_buff_ss_positions = m_wrapper.getContext().createImage2D(lighting_render_width, lighting_render_height, nullptr, oclw::ReadWrite, oclw::RGBA, oclw::Float);
-		//m_buff_final_image = m_wrapper.getContext().createImage2D(m_render_dimension.x, m_render_dimension.y, nullptr, oclw::WriteOnly, oclw::RGBA, oclw::Float);
 
 		// Kernels initialization
 		m_albedo = m_program.createKernel("albedo");
@@ -248,7 +248,8 @@ private:
 		m_lighting = m_program_gi.createKernel("lighting");
 		
 		m_combinator = m_program_combinator.createKernel("combine");
-		m_combinator.setArgument(0, m_buff_result_albedo);
+		m_combinator.setArgument(0, m_buff_final_image);
+		m_combinator.setArgument(1, m_buff_albedo);
 
 		m_mutator = m_program_mutator.createKernel("mutate");
 		m_mutator.setArgument(0, m_buff_svo);

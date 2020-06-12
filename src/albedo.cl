@@ -265,7 +265,7 @@ float normalToNumber(const float3 normal)
 __kernel void albedo(
     global uint8_t* svo_data
 	, SceneSettings scene
-    , global float* albedo_result
+    , write_only image2d_t albedo_result
 	, constant float* view_matrix
 	, image2d_t top_image
 	, image2d_t side_image
@@ -299,5 +299,5 @@ __kernel void albedo(
 		color = max((float3)(24.0f, 59.0f, 75.0f), min((float3)(255.0f * (primary_intensity + secondary_intensity)) + color, (float3)(255.0f)));
 	}
 
-	colorToResultBuffer(color, index, albedo_result);
+	write_imagef(albedo_result, gid, (float4)(color, 0.0f));
 }

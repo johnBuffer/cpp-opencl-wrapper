@@ -254,7 +254,7 @@ namespace oclw
 			return *this;
 		}
 
-		~MemoryObject()
+		virtual ~MemoryObject()
 		{
 			if (m_memory_object) {
 				Utils::checkError(clReleaseMemObject(m_memory_object), "Cannot delete memory object");
@@ -295,11 +295,44 @@ namespace oclw
 	};
 
 
-	class Image : public MemoryObject
+	/*class Image : public MemoryObject
 	{
 	public:
 		Image() = default;
-	};
+		Image(cl_mem buffer, uint64_t width_, uint64_t height_, uint64_t element_size)
+			: MemoryObject(buffer, width_ * height_, element_size)
+			, width(width_)
+			, height(height_)
+		{
+
+		}
+
+		Image& operator=(const Image& other)
+		{
+			m_memory_object = other.m_memory_object;
+			m_element_count = other.m_element_count;
+			m_total_size = other.m_total_size;
+			if (m_memory_object) {
+				cl_int err_num = clRetainMemObject(m_memory_object);
+				Utils::checkError(err_num, "Cannot retain memory object");
+			}
+			return *this;
+		}
+
+		uint64_t getWidth() const
+		{
+			return width;
+		}
+
+		uint64_t getHeight() const
+		{
+			return height;
+		}
+
+	private:
+		uint64_t width;
+		uint64_t height;
+	};*/
 
 
 	class Kernel
@@ -325,6 +358,13 @@ namespace oclw
 			ssx << "Cannot set argument [" << arg_num << "] of kernel '" << m_name << "'";
 			Utils::checkError(clSetKernelArg(m_kernel, arg_num, sizeof(cl_mem), &(object.getRaw())), ssx.str());
 		}
+
+		/*void setArgument(uint32_t arg_num, Image& object)
+		{
+			std::stringstream ssx;
+			ssx << "Cannot set argument [" << arg_num << "] of kernel '" << m_name << "'";
+			Utils::checkError(clSetKernelArg(m_kernel, arg_num, sizeof(cl_mem), &(object.getRaw())), ssx.str());
+		}*/
 
 		template<typename T>
 		void setArgument(uint32_t arg_num, const T& arg_value)
@@ -469,10 +509,13 @@ namespace oclw
 		}
 
 		template<typename T>
-		void readImageObject(Image& image, bool blocking_read, std::vector<T>& result)
+		void readImageObject(MemoryObject& image, uint64_t width, uint64_t height, bool blocking_read, std::vector<T>& result)
 		{
-			int32_t err_num = clEnqueueReadImage(m_command_queue, object.getRaw(), blocking_read ? CL_TRUE : CL_FALSE, 0, object.getBytesSize(), result.data(), 0, NULL, NULL);
-			Utils::checkError(err_num, "Cannot read from buffer");
+			size_t origin[] = { 0, 0, 0 };
+			size_t region[] = { width, height, 1 };
+			const bool blocking = blocking_read ? CL_TRUE : CL_FALSE;
+			int32_t err_num = clEnqueueReadImage(m_command_queue, image.getRaw(), blocking, origin, region, 0, 0, result.data(), 0, NULL, NULL);
+			Utils::checkError(err_num, "Cannot read from image");
 		}
 
 		template<typename T>
@@ -686,6 +729,12 @@ namespace oclw
 		void readMemoryObject(MemoryObject& mem_object, std::vector<T>& result_container, bool blocking_read = true)
 		{
 			m_command_queue.readMemoryObject(mem_object, blocking_read, result_container);
+		}
+
+		template<typename T>
+		void readImageObject(MemoryObject& image, uint64_t width, uint64_t height, std::vector<T>& result_container, bool blocking_read = true)
+		{
+			m_command_queue.readImageObject(image, width, height, blocking_read, result_container);
 		}
 
 		template<typename T>
