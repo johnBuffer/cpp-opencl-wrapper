@@ -30,7 +30,7 @@ int main()
 
 		Raytracer raytracer(WIN_WIDTH, WIN_HEIGHT, max_depth, builder.node_data, 1.0f);
 
-		sf::RenderWindow window(sf::VideoMode(WIN_WIDTH, WIN_HEIGHT), "OpenCL and SFML", sf::Style::Fullscreen);
+		sf::RenderWindow window(sf::VideoMode(WIN_WIDTH, WIN_HEIGHT), "OpenCL and SFML", sf::Style::Default);
 		window.setMouseCursorVisible(false);
 
 		EventManager event_manager(window);
