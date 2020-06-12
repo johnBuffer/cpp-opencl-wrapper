@@ -75,22 +75,14 @@ struct EventManager
 					sun.y += 0.2f;
 					break;
 				case sf::Keyboard::Numpad7:
-					scene.light_intensity -= 0.1f;
+					scene.light_intensity -= 0.5f;
 					scene.light_intensity = std::max(0.0f, scene.light_intensity);
 					break;
 				case sf::Keyboard::Numpad9:
-					scene.light_intensity += 0.1f;
+					scene.light_intensity += 0.5f;
 					break;
 				case sf::Keyboard::F:
 				{
-					/*const uint32_t svo_size = 1 << svo.max_depth;
-					const glm::vec3 ray = camera.camera_vec;
-					const HitPoint point = svo.castRay(camera.position, ray);
-					if (point.hit) {
-						mutate_waiting = true;
-						index = point.global_index;
-						child_index = point.child_index;
-					}*/
 					break;
 				}
 				case sf::Keyboard::Q:
@@ -197,7 +189,7 @@ struct EventManager
 					const glm::uvec3 add_position = hit_position + glm::ivec3(point.normal);
 					//std::cout << "Hit    " << vecToString(hit_position) << std::endl;
 					//std::cout << "Normal " << vecToString(point.normal) << std::endl;
-					mutations = svo.addCell(add_position.x, add_position.y, add_position.z, 1);
+					mutations = svo.addCell(add_position.x, add_position.y, add_position.z, 2);
 				}
 				else {
 					// Remove

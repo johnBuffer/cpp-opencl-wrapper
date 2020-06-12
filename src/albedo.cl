@@ -33,15 +33,13 @@ typedef struct OctreeStack
 	float t_max;
 } OctreeStack;
 
-typedef struct HitPoint
+typedef struct __attribute__ ((packed)) _HitPoint
 {
-	char     hit; // Could be removed because normal can do this
 	float3   position;
-	float2   tex_coords;
-	float    distance;
 	float3   normal;
+	float    distance;
 	uint8_t  cell_type;
-	uint16_t complexity;
+	float2   tex_coords;
 } HitPoint;
 
 typedef struct  __attribute__ ((packed)) _SceneSettings
@@ -72,8 +70,7 @@ float frac(float x)
 HitPoint castRay(global Node* svo_data, float3 position, float3 d, bool in_water)
 {
 	HitPoint result;
-	result.hit = 0;
-	result.complexity = 0;
+	result.cell_type = 0;
 
 	const float EPS = 1.0f / (float)(1 << SVO_MAX_DEPTH);
 	
@@ -114,7 +111,6 @@ HitPoint castRay(global Node* svo_data, float3 position, float3 d, bool in_water
 	
 	// Explore octree
 	while (scale < SVO_MAX_DEPTH) {
-		++result.complexity;
 		const uint8_t node = svo_data[node_id];
 		// Compute new T span
 		const float3 t_corner = (float3)(pos.x * t_coef.x - t_offset.x, pos.y * t_coef.y - t_offset.y, pos.z * t_coef.z - t_offset.z);
@@ -128,7 +124,6 @@ HitPoint castRay(global Node* svo_data, float3 position, float3 d, bool in_water
 			const float3 t_half = half_scale * t_coef + t_corner;
 			// We hit a leaf
 			if (scale == SVO_MAX_DEPTH - 9) {
-				result.hit = 1u;
 				// Could use mirror mask
 				result.normal = -sign(d) * (float3)(normal & 1u, (normal>>1u) & 1u, (normal>>2u) & 1u);
 				result.distance = t_min;
@@ -253,7 +248,7 @@ float3 getColorAndLightFromIntersection(HitPoint intersection, image2d_t top_ima
 	const float3 shadow_ray = normalize(light_position - ray_start);
 	const HitPoint light_intersection = castRay(svo_data, ray_start, shadow_ray, under_water);
 	float light_intensity = AMBIENT;
-	if (!light_intersection.hit) {
+	if (!light_intersection.cell_type) {
 		light_intensity = 1.0f;//max(0.0f, dot(intersection.normal, shadow_ray));
 	}
 	
@@ -274,8 +269,8 @@ __kernel void albedo(
 	, constant float* view_matrix
 	, image2d_t top_image
 	, image2d_t side_image
-	, write_only image2d_t screen_space_positions
 	, write_only image2d_t depth
+	, write_only image2d_t ss_position
 )
 {
 	// Initialization
@@ -291,18 +286,17 @@ __kernel void albedo(
 	const HitPoint intersection = castRay(svo_data, scene.camera_position, d, false);
 	// Result
 	float3 color = 0.5f * SKY_COLOR;
-	if (intersection.hit) {
-		const float normal_number = normalToNumber(intersection.normal);
-		write_imagef(screen_space_positions, gid, (float4)(intersection.position, normal_number));
-		write_imagef(depth, gid, (float4)(intersection.distance, normal_number, 0.0f, 0.0f));
+	if (intersection.cell_type) {		
 		color = getColorFromIntersection(intersection, top_image, side_image);
+		write_imagef(ss_position, gid, (float4)(intersection.position, normalToNumber(intersection.normal)));
+		write_imagef(depth, gid, (float4)(intersection.distance, normalToNumber(intersection.normal), intersection.cell_type, 0.0f));
 	}
 	else {
+		write_imagef(ss_position, gid, (float4)(0.0f));
 		const float to_sun_intensity = dot(d, normalize(scene.light_position - scene.camera_position));
 		const float primary_intensity = pow(to_sun_intensity, 511.0f);
 		const float secondary_intensity = 0.2f * pow(to_sun_intensity, 1.0f);
 		color = max((float3)(24.0f, 59.0f, 75.0f), min((float3)(255.0f * (primary_intensity + secondary_intensity)) + color, (float3)(255.0f)));
-		write_imagef(screen_space_positions, gid, (float4)(0.0f));
 	}
 
 	colorToResultBuffer(color, index, albedo_result);

@@ -10,6 +10,18 @@
 constexpr uint32_t CPU_THREADS = 16u;
 
 
+#pragma pack(push, 1)
+typedef struct cl_HitPoint
+{
+	cl_float3 position;
+	cl_float3 normal;
+	cl_float  distance;
+	cl_char   cell_type;
+	cl_float2 tex_coords;
+} cl_HitPoint;
+#pragma pack(pop)
+
+
 class Raytracer
 {
 public:
@@ -56,8 +68,8 @@ public:
 		m_albedo.setArgument(albedo_index_count++, m_buff_view_matrix);
 		m_albedo.setArgument(albedo_index_count++, m_buff_image_top);
 		m_albedo.setArgument(albedo_index_count++, m_buff_image_side);
-		m_albedo.setArgument(albedo_index_count++, m_buff_position);
 		m_albedo.setArgument(albedo_index_count++, m_buff_depth[m_current_lighting_buffer]);
+		m_albedo.setArgument(albedo_index_count++, m_buff_position);
 
 		uint32_t gi_index_count = 0u;
 		m_lighting.setArgument(gi_index_count++, m_buff_svo);
@@ -121,11 +133,19 @@ public:
 
 	void biblur()
 	{
-		m_biblur.setArgument(1, m_buff_position);
 		const size_t work_group_width = static_cast<size_t>(m_render_dimension.x * m_lighting_quality);
 		const size_t work_group_height = static_cast<size_t>(m_render_dimension.y * m_lighting_quality);
 
-		for (uint8_t i(3); i--;) {
+		/*m_biblur_diso.setArgument(1, m_buff_position);
+		for (uint8_t i(1); i--;) {
+			m_biblur_diso.setArgument(0, m_buff_final_lighting[m_current_final_buffer]);
+			m_biblur_diso.setArgument(2, m_buff_final_lighting[!m_current_final_buffer]);
+			swapFinalBuffers();
+			m_wrapper.runKernel(m_biblur_diso, oclw::Size(work_group_width, work_group_height), oclw::Size(work_group_size, work_group_size));
+		}*/
+
+		m_biblur.setArgument(1, m_buff_position);
+		for (uint8_t i(1); i--;) {
 			m_biblur.setArgument(0, m_buff_final_lighting[m_current_final_buffer]);
 			m_biblur.setArgument(2, m_buff_final_lighting[!m_current_final_buffer]);
 			swapFinalBuffers();
@@ -214,6 +234,7 @@ private:
 	oclw::MemoryObject m_buff_image_top;
 	oclw::MemoryObject m_buff_image_side;
 	oclw::MemoryObject m_buff_noise;
+
 	bool m_current_lighting_buffer;
 
 	std::vector<float> m_result_albedo;
@@ -230,7 +251,7 @@ private:
 	uint32_t frame_count;
 	bool m_current_final_buffer;
 
-	const uint32_t work_group_size = 40;
+	const uint32_t work_group_size = 20;
 
 
 private:
@@ -297,8 +318,8 @@ private:
 
 	void loadImagesToDevice()
 	{
-		//m_image_side.loadFromFile("../res/marble.jpg");
-		//m_image_top.loadFromFile("../res/marble.jpg");
+		//m_image_side.loadFromFile("../res/grass.jpg");
+		//m_image_top.loadFromFile("../res/grass.jpg");
 
 		m_image_side.loadFromFile("../res/grass_side_16x16.bmp");
 		m_image_top.loadFromFile("../res/grass_top_16x16.bmp");

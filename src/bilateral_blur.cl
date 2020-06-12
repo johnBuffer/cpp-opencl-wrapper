@@ -28,22 +28,21 @@ __kernel void blur(
     const int2 gid = (int2)(get_global_id(0), get_global_id(1));
     const int2 screen_size = (int2)(get_global_size(0), get_global_size(1));
 	const uint32_t index = gid.x + gid.y * screen_size.x;
-    const float acc = read_imagef(input, tex_sampler, gid).w;
 
     const float3 current_position = read_imagef(screen_space_positions, tex_position_sampler, gid).xyz;
 
     float3 color = (0.0f);
     float sum = 0.0f;
-    const int32_t width = 2;
+    const int32_t width = 16;
     for (int32_t x = -width; x < width + 1; ++x) {
         for (int32_t y = -width; y < width + 1; ++y) {
             const int2 coords = gid + (int2)(x, y);
             const float3 point_position = read_imagef(screen_space_positions, tex_position_sampler, coords).xyz;
             if ((point_position.x == current_position.x || point_position.y == current_position.y || point_position.z == current_position.z)) {
-                const float kernel_val = KERNEL[x + 2][y + 2];
+                //const float kernel_val = KERNEL[x + 2][y + 2];
                 const float4 point_color = read_imagef(input, tex_sampler, coords);
-                sum += kernel_val * (point_color.w);
-                color += kernel_val * point_color.xyz * (point_color.w);
+                sum += point_color.w;
+                color += point_color.xyz * point_color.w;
             }
         }
     }

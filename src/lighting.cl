@@ -18,7 +18,7 @@ __constant float NEAR = 0.5f;
 __constant float GOLDEN_RATIO = 1.61803398875f;
 __constant float G = 1.0f / 1.22074408460575947536f;
 __constant float PI = 3.141592653f;
-__constant float ACC_COUNT = 32.0f;
+__constant float ACC_COUNT = 64.0f;
 __constant uint32_t LEVELS[11] = {0u, 8u, 72u, 584u, 4680u, 37448u, 299592u, 2396744u, 19173960u, 153391688u, 1227133512u};
 
 
@@ -29,15 +29,13 @@ typedef struct OctreeStack
 	float t_max;
 } OctreeStack;
 
-typedef struct HitPoint
+typedef struct __attribute__ ((packed)) _HitPoint
 {
-	char     hit; // Could be removed because normal can do this
 	float3   position;
-	float2   tex_coords;
-	float    distance;
 	float3   normal;
+	float    distance;
 	uint8_t  cell_type;
-	uint16_t complexity;
+	float2   tex_coords;
 } HitPoint;
 
 typedef struct  __attribute__ ((packed)) _SceneSettings
@@ -77,7 +75,7 @@ float frac(float x)
 }
 
 
-float3 getRandomizedNormal(float3 normal, image2d_t noise, uint32_t frame_count)
+float3 getRandomizedNormal(const float3 normal, image2d_t noise, uint32_t frame_count)
 {
 	const int2 tex_coords = (int2)(get_global_id(0) % 512u, get_global_id(1) % 512u);
 	const float3 noise_value = convert_float3(read_imagei(noise, exact_sampler, tex_coords).xyz) / 255.0f;
@@ -105,8 +103,7 @@ float3 getRandomizedNormal(float3 normal, image2d_t noise, uint32_t frame_count)
 HitPoint castRay(global uint8_t* svo_data, float3 position, float3 d)
 {
 	HitPoint result;
-	result.hit = 0;
-	result.complexity = 0;
+	result.cell_type = 0;
 
 	const float EPS = 1.0f / (float)(1 << SVO_MAX_DEPTH);
 	
@@ -147,7 +144,6 @@ HitPoint castRay(global uint8_t* svo_data, float3 position, float3 d)
 	
 	// Explore octree
 	while (scale < SVO_MAX_DEPTH) {
-		++result.complexity;
 		const uint8_t node = svo_data[node_id];
 		// Compute new T span
 		const float3 t_corner = (float3)(pos.x * t_coef.x - t_offset.x, pos.y * t_coef.y - t_offset.y, pos.z * t_coef.z - t_offset.z);
@@ -161,7 +157,6 @@ HitPoint castRay(global uint8_t* svo_data, float3 position, float3 d)
 			const float3 t_half = half_scale * t_coef + t_corner;
 			// We hit a leaf
 			if (scale == SVO_MAX_DEPTH - 9) {
-				result.hit = 1u;
 				// Could use mirror mask
 				result.normal = -sign(d) * (float3)(normal & 1u, (normal>>1u) & 1u, (normal>>2u) & 1u);
 				result.distance = t_min;
@@ -256,7 +251,7 @@ float isInShadow(global uint8_t* svo_data, const HitPoint point, const float3 li
 	const float3 ray_start = point.position + point.normal * NORMAL_EPS;
 	const float3 ray_direction = normalize(light_position - ray_start);
 	const HitPoint light_intersection = castRay(svo_data, ray_start, ray_direction);
-	if (light_intersection.hit) {
+	if (light_intersection.cell_type) {
 		return 0.0f;
 	}
 	return max(0.0f, dot(point.normal, ray_direction));
@@ -269,7 +264,7 @@ float3 getGlobalIllumination(global uint8_t* svo_data, const float3 position, co
     // First bounce
     float3 noise_normal = getRandomizedNormal(normal, noise, frame_count);
     HitPoint gi_intersection = castRay(svo_data, position, noise_normal);
-    if (gi_intersection.hit) {
+    if (gi_intersection.cell_type) {
 		if (gi_intersection.cell_type == 2) {
 			gi_add += 16.0f;
 		}
@@ -280,19 +275,19 @@ float3 getGlobalIllumination(global uint8_t* svo_data, const float3 position, co
 			float3 gi_start     = gi_intersection.position + NORMAL_EPS * gi_normal;
 			float3 gi_direction = getRandomizedNormal(gi_normal, noise, frame_count);
 			gi_intersection = castRay(svo_data, gi_start, gi_direction);
-			if (gi_intersection.hit) {
+			if (gi_intersection.cell_type) {
 				if (gi_intersection.cell_type == 2) {
-					gi_add += 8.0f;
-				} else {
+					gi_add += 16.0f;
+				} /*else {
 					gi_add += 0.5f * light_intensity * isInShadow(svo_data, gi_intersection, light_position);
 					gi_normal = gi_intersection.normal;
 					gi_direction = getRandomizedNormal(gi_normal, noise, frame_count);
 					gi_start = gi_intersection.position + NORMAL_EPS * gi_normal;
 					gi_intersection = castRay(svo_data, gi_start, gi_direction);
-					if (!gi_intersection.hit) {
+					if (!gi_intersection.cell_type) {
 						gi_add += SKY_COLOR / 255.0f;
 					}
-				}
+				}*/
 			} else {
 				gi_add += SKY_COLOR / 255.0f;
 			}
@@ -340,19 +335,18 @@ float4 getOldValue(image2d_t last_frame_color, image2d_t last_frame_depth, __con
 }
 
 
-float getLightIntensity(global uint8_t* svo_data, const float3 position, const float3 normal, const float3 light_position, const float light_radius, const float light_intensity, image2d_t noise, uint32_t frame_count)
+float getLightIntensity(global uint8_t* svo_data, const float3 position, const float3 normal, const SceneSettings scene, image2d_t noise, uint32_t frame_count)
 {
 	const int2 tex_coords = (int2)(get_global_id(0) % 512u, get_global_id(1) % 512u);
 	const float3 noise_value = convert_float3(read_imagei(noise, exact_sampler, tex_coords).xyz) / 255.0f;
-
-	const float3 ray_start = position + normal * NORMAL_EPS;
-
 	const float light_offset_1 = (fmod(noise_value.x + G         * (frame_count%10000), 1.0f) - 0.5f);
 	const float light_offset_2 = (fmod(noise_value.y + G * G     * (frame_count%10000), 1.0f) - 0.5f);
 	const float light_offset_3 = (fmod(noise_value.z + G * G * G * (frame_count%10000), 1.0f) - 0.5f);
-	const float3 shadow_ray = normalize(light_position + light_radius * (float3)(light_offset_1, light_offset_2, light_offset_3) - position);
+
+	const float3 ray_start = position + normal * NORMAL_EPS;
+	const float3 shadow_ray = normalize(scene.light_position + scene.light_radius * (float3)(light_offset_1, light_offset_2, light_offset_3) - position);
 	const HitPoint light_intersection = castRay(svo_data, ray_start, shadow_ray);
-	if (light_intersection.hit) {
+	if (light_intersection.cell_type) {
 		return 0.0f;
 	}
 	
@@ -371,8 +365,8 @@ __kernel void lighting(
 	, uint32_t frame_count
 	, read_only image2d_t depth
 	, read_only image2d_t last_depth
-	, read_only image2d_t screen_space_positions
-) 
+	, read_only image2d_t ss_position
+)
 {
 	const int2 gid = (int2)(get_global_id(0), get_global_id(1));
 	const int2 screen_size = (int2)(get_global_size(0), get_global_size(1));
@@ -381,17 +375,13 @@ __kernel void lighting(
 	float3 color = 1.0f;
 	float acc = 1.0f;
 
-	const float4 intersection = read_imagef(screen_space_positions, exact_sampler, gid);
+	const float4 intersection = read_imagef(ss_position, exact_sampler, gid);
 	if (intersection.w) {
 		const float3 normal = normalFromNumber(intersection.w);
 		const float3 gi_start = intersection.xyz + normal * NORMAL_EPS;
-
 		const float4 old_gi = getOldValue(last_frame_color, last_depth, last_view_matrix, last_position, intersection);
-		
 		const float3 new_gi = getGlobalIllumination(svo_data, gi_start, normal, light_position, scene.light_intensity, noise, frame_count);
-		
-		const float light_intensity = getLightIntensity(svo_data, intersection.xyz, normal, light_position, scene.light_radius, scene.light_intensity, noise, frame_count);
-
+		const float light_intensity = getLightIntensity(svo_data, intersection.xyz, normal, scene, noise, frame_count);
 		const float3 frame_value = light_intensity + new_gi;
 		acc = old_gi.w + 1.0f;
 		if (acc < ACC_COUNT) {
