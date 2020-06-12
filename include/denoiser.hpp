@@ -18,16 +18,16 @@ struct Denoiser
 
 	void execute(const glm::mat3& last_view_matrix, cl_float3 last_position, oclw::MemoryObject& raw_lighting, oclw::MemoryObject& ss_positions, DoubleBuffer& depths)
 	{
+		swapBuffers();
 		execute_temporal(last_view_matrix, last_position, raw_lighting, ss_positions, depths);
 		execute_normalize();
-
-		swapBuffers();
+		execute_blur(ss_positions);
 	}
 
 	void swapBuffers()
 	{
 		buff_temporal.swap();
-		buff_denoised.swap();
+		//buff_denoised.swap();
 	}
 
 	oclw::MemoryObject& getResult()
@@ -88,5 +88,14 @@ private:
 		normalier.setArgument(0, buff_temporal.getCurrent());
 		normalier.setArgument(1, buff_denoised.getCurrent());
 		wrapper.runKernel(normalier, oclw::Size(render_size.x, render_size.y), oclw::Size(local_size, local_size));
+		buff_denoised.swap();
+	}
+
+	void execute_blur(oclw::MemoryObject& ss_positions)
+	{
+		blur.setArgument(0, buff_denoised.getCurrent());
+		blur.setArgument(1, buff_denoised.getLast());
+		blur.setArgument(2, ss_positions);
+		wrapper.runKernel(blur, oclw::Size(render_size.x, render_size.y), oclw::Size(local_size, local_size));
 	}
 };

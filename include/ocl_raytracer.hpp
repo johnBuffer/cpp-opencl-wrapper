@@ -84,6 +84,7 @@ public:
 
 	void render()
 	{
+		m_buff_depths.swap();
 		const uint32_t area_count = static_cast<uint32_t>(sqrt(CPU_THREADS));
 		const uint32_t area_width = m_render_dimension.x / area_count;
 		const uint32_t area_height = m_render_dimension.y / area_count;

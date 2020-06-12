@@ -5,7 +5,7 @@ typedef int            int32_t;
 typedef unsigned int   uint32_t;
 
 // Const values
-__constant float ACC_COUNT = 64.0f;
+__constant float ACC_COUNT = 16.0f;
 __constant float NEAR = 0.5f;
 __constant sampler_t tex_sampler = CLK_NORMALIZED_COORDS_TRUE | CLK_FILTER_LINEAR | CLK_ADDRESS_CLAMP;
 __constant sampler_t exact_sampler = CLK_NORMALIZED_COORDS_FALSE | CLK_FILTER_NEAREST | CLK_ADDRESS_CLAMP;
@@ -39,14 +39,14 @@ float4 getOldValue(image2d_t temporal_acc, image2d_t last_frame_depth, __constan
 	const float2 last_depth = read_imagef(last_frame_depth, tex_sampler, last_screen_pos).xy;
 	float acc = 0.0f;
 
-	const float accuracy_threshold = 0.05f;
-	/*if (fabs(1.0f - length(last_view_pos) / last_depth.x) < accuracy_threshold && last_depth.y == intersection.w) {
+	const float accuracy_threshold = 0.5f;
+	if (fabs(1.0f - length(last_view_pos) / last_depth.x) < accuracy_threshold && last_depth.y == intersection.w) {
 		return last_color;
-	}*/
+	}
 
-	return last_color;
+	//return last_color;
 	
-	//return (float4)(0.0f);
+	return (float4)(0.0f);
 }
 
 float3 normalFromNumber(const float number)
