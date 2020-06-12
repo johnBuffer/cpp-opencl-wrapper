@@ -99,7 +99,7 @@ public:
 		renderLighting();
 		normalize();
 		//median();
-		biblur();
+		//biblur();
 		//blur();
 		combine();
 
