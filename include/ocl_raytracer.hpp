@@ -35,7 +35,7 @@ public:
 		, m_swarm(CPU_THREADS)
 		, m_time(0.0f)
 		, frame_count(0)
-		, m_gi_denoiser(m_wrapper, { render_width, render_height }, 4)
+		, m_gi_denoiser(m_wrapper, { render_width, render_height }, 2)
 		, m_shadows_denoiser(m_wrapper, { render_width, render_height }, 1)
 	{
 		initialize(max_depth, svo_data);
@@ -43,7 +43,7 @@ public:
 
 	void updateKernelArgs(const Camera& camera, SceneSettings scene)
 	{
-		// Swap lighting buffers
+		m_buff_depths.swap();
 		++frame_count;
 
 		m_time += 0.001f;
@@ -69,7 +69,7 @@ public:
 		m_albedo.setArgument(albedo_index_count++, m_buff_image_top);
 		m_albedo.setArgument(albedo_index_count++, m_buff_image_side);
 		m_albedo.setArgument(albedo_index_count++, m_buff_depths.getCurrent());
-		m_albedo.setArgument(albedo_index_count++, m_buff_position);
+		m_albedo.setArgument(albedo_index_count++, m_buff_ss_positions);
 
 		uint32_t gi_index_count = 0u;
 		m_lighting.setArgument(gi_index_count++, m_buff_svo);
@@ -79,14 +79,13 @@ public:
 		m_lighting.setArgument(gi_index_count++, m_buff_noise);
 		m_lighting.setArgument(gi_index_count++, frame_count);
 		m_lighting.setArgument(gi_index_count++, m_buff_depths.getCurrent());
-		m_lighting.setArgument(gi_index_count++, m_buff_position);
+		m_lighting.setArgument(gi_index_count++, m_buff_ss_positions);
 
 		cur_view = camera.rot_mat;
 	}
 
 	void render()
 	{
-		m_buff_depths.swap();
 		const uint32_t area_count = static_cast<uint32_t>(sqrt(CPU_THREADS));
 		const uint32_t area_width = m_render_dimension.x / area_count;
 		const uint32_t area_height = m_render_dimension.y / area_count;
@@ -95,8 +94,8 @@ public:
 		// Run lighting kernel
 		renderLighting();
 
-		m_gi_denoiser.execute(old_view, old_pos, m_buff_result_gi, m_buff_position, m_buff_depths);
-		m_shadows_denoiser.execute(old_view, old_pos, m_buff_result_shadows, m_buff_position, m_buff_depths);
+		m_gi_denoiser.execute(old_view, old_pos, m_buff_result_gi, m_buff_ss_positions, m_buff_depths);
+		m_shadows_denoiser.execute(old_view, old_pos, m_buff_result_shadows, m_buff_ss_positions, m_buff_depths);
 
 		combine();
 
@@ -182,7 +181,7 @@ private:
 	oclw::MemoryObject m_buff_final_lighting;
 	//oclw::MemoryObject m_buff_final_image;
 	DoubleBuffer m_buff_depths;
-	oclw::MemoryObject m_buff_position;
+	oclw::MemoryObject m_buff_ss_positions;
 	oclw::MemoryObject m_buff_image_top;
 	oclw::MemoryObject m_buff_image_side;
 	oclw::MemoryObject m_buff_noise;
@@ -240,7 +239,7 @@ private:
 		m_buff_result_shadows = m_wrapper.getContext().createImage2D(lighting_render_width, lighting_render_height, nullptr, oclw::ReadWrite, oclw::RGBA, oclw::Float);
 		m_buff_final_lighting = m_wrapper.getContext().createImage2D(lighting_render_width, lighting_render_height, nullptr, oclw::ReadWrite, oclw::RGBA, oclw::Float);
 		m_buff_depths.create(m_wrapper.getContext(), lighting_render_width, lighting_render_height, nullptr, oclw::ReadWrite, oclw::RG, oclw::Float);
-		m_buff_position = m_wrapper.getContext().createImage2D(lighting_render_width, lighting_render_height, nullptr, oclw::ReadWrite, oclw::RGBA, oclw::Float);
+		m_buff_ss_positions = m_wrapper.getContext().createImage2D(lighting_render_width, lighting_render_height, nullptr, oclw::ReadWrite, oclw::RGBA, oclw::Float);
 		//m_buff_final_image = m_wrapper.getContext().createImage2D(m_render_dimension.x, m_render_dimension.y, nullptr, oclw::WriteOnly, oclw::RGBA, oclw::Float);
 
 		// Kernels initialization

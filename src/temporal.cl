@@ -5,13 +5,13 @@ typedef int            int32_t;
 typedef unsigned int   uint32_t;
 
 // Const values
-__constant float ACC_COUNT = 16.0f;
+__constant float ACC_COUNT = 32.0f;
 __constant float NEAR = 0.5f;
 __constant sampler_t tex_sampler = CLK_NORMALIZED_COORDS_TRUE | CLK_FILTER_LINEAR | CLK_ADDRESS_CLAMP;
 __constant sampler_t exact_sampler = CLK_NORMALIZED_COORDS_FALSE | CLK_FILTER_NEAREST | CLK_ADDRESS_CLAMP;
 
 // Utils functions
-float3 preMultVec3Mat3(float3 v, __constant float* mat)
+float3 preMultVec3Mat3(float3 v, constant float* mat)
 {
 	return (float3)(
 		v.x * mat[0] + v.y * mat[3] + v.z * mat[6],
@@ -40,7 +40,8 @@ float4 getOldValue(image2d_t temporal_acc, image2d_t last_frame_depth, __constan
 	
 	float acc = 0.0f;
 	const float accuracy_threshold = 0.05f;
-	if (fabs(1.0f - length(last_view_pos) / last_depth.x) < accuracy_threshold && last_depth.y == intersection.w) {
+	const float far_threshold = 0.05f;
+	if (fabs(1.0f - length(last_view_pos) / last_depth.x) < accuracy_threshold && (last_depth.y == intersection.w || last_depth.x > far_threshold)) {
 		return last_color;
 	}
 	
@@ -57,7 +58,7 @@ float3 normalFromNumber(const float number)
 __kernel void temporal(
     write_only image2d_t result
 	, read_only image2d_t temporal_acc
-	, read_only image2d_t raw_lighting
+	, read_only image2d_t raw_input
 	, constant float* last_view_matrix
     , float3 last_position
 	, read_only image2d_t depth
@@ -72,10 +73,8 @@ __kernel void temporal(
 
 	const float4 intersection = read_imagef(ss_position, exact_sampler, gid);
 	if (intersection.w) {
-		const float3 normal = normalFromNumber(intersection.w);
-
 		const float4 acc_value = getOldValue(temporal_acc, last_depth, last_view_matrix, last_position, intersection);
-		const float3 new_value = read_imagef(raw_lighting, exact_sampler, gid).xyz;
+		const float3 new_value = read_imagef(raw_input, exact_sampler, gid).xyz;
 		acc = acc_value.w + 1.0f;
 		if (acc < ACC_COUNT) {
 			color = new_value + acc_value.xyz;
@@ -85,7 +84,7 @@ __kernel void temporal(
 			color = new_value + acc_value.xyz * conservation_coef;
 		}
 	}
-
+	
 	write_imagef(result, gid, (float4)(color, acc));
 }
 

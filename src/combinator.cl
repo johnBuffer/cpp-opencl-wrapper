@@ -20,15 +20,15 @@ __kernel void combine(
 	const float2 tex_coords = (float2)(gid.x, gid.y) / (float2)(screen_size.x, screen_size.y);
 	
 	const float4 gi_value = read_imagef(gi, tex_sampler, gid);
-	const float shadows_value = read_imagef(shadows, tex_sampler, gid).x;
+	const float3 shadows_value = read_imagef(shadows, tex_sampler, gid).xyz;
 	const float3 light_intensity = shadows_value + gi_value.xyz;
 
 	albedo[4*index + 0] *= fmin(1.0f, light_intensity.x);
 	albedo[4*index + 1] *= fmin(1.0f, light_intensity.y);
 	albedo[4*index + 2] *= fmin(1.0f, light_intensity.z);
-	// albedo[4*index + 0] = light_intensity.x;
-	// albedo[4*index + 1] = light_intensity.y;
-	// albedo[4*index + 2] = light_intensity.z;
+	// albedo[4*index + 0] = 255.0f * fmin(1.0f, light_intensity.x);
+	// albedo[4*index + 1] = 255.0f * fmin(1.0f, light_intensity.y);
+	// albedo[4*index + 2] = 255.0f * fmin(1.0f, light_intensity.z);
 	
 	albedo[4*index + 3] = 255;
 }
