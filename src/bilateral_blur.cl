@@ -6,7 +6,7 @@ typedef unsigned int   uint32_t;
 
 
 __constant sampler_t tex_sampler = CLK_NORMALIZED_COORDS_FALSE | CLK_FILTER_LINEAR | CLK_ADDRESS_MIRRORED_REPEAT;
-__constant sampler_t tex_position_sampler = CLK_NORMALIZED_COORDS_FALSE | CLK_FILTER_NEAREST | CLK_ADDRESS_CLAMP_TO_EDGE;
+__constant sampler_t tex_position_sampler = CLK_NORMALIZED_COORDS_FALSE | CLK_FILTER_NEAREST | CLK_ADDRESS_MIRRORED_REPEAT;
 
 __constant float KERNEL[3] = { 3.0f/8.0f, 1.0f/4.0f, 1.0f/16.0f };
 
