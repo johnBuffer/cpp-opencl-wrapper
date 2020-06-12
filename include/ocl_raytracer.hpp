@@ -35,7 +35,7 @@ public:
 		, m_swarm(CPU_THREADS)
 		, m_time(0.0f)
 		, frame_count(0)
-		, m_gi_denoiser(m_wrapper, { render_width, render_height }, 2)
+		, m_gi_denoiser(m_wrapper, { render_width, render_height }, 5)
 		, m_shadows_denoiser(m_wrapper, { render_width, render_height }, 1)
 	{
 		initialize(max_depth, svo_data);
@@ -135,7 +135,7 @@ public:
 		m_combinator.setArgument(2, m_gi_denoiser.getResult());
 		m_combinator.setArgument(3, m_shadows_denoiser.getResult());
 		m_wrapper.runKernel(m_combinator, oclw::Size(m_render_dimension.x, m_render_dimension.y), oclw::Size(work_group_size, work_group_size));
-		m_wrapper.readImageObject(m_buff_final_image, m_render_dimension.x, m_render_dimension.y, m_result_albedo, true);
+		m_wrapper.readImageObject(m_buff_final_image, m_result_albedo, true);
 	}
 
 	const sf::Image& getAlbedo() const
@@ -178,13 +178,13 @@ private:
 	oclw::MemoryObject m_buff_albedo;
 	oclw::MemoryObject m_buff_result_shadows;
 	oclw::MemoryObject m_buff_result_gi;
-	oclw::MemoryObject m_buff_final_image;
+	oclw::Image m_buff_final_image;
 
 	DoubleBuffer m_buff_depths;
-	oclw::MemoryObject m_buff_ss_positions;
-	oclw::MemoryObject m_buff_image_top;
-	oclw::MemoryObject m_buff_image_side;
-	oclw::MemoryObject m_buff_noise;
+	oclw::Image m_buff_ss_positions;
+	oclw::Image m_buff_image_top;
+	oclw::Image m_buff_image_side;
+	oclw::Image m_buff_noise;
 
 	Denoiser m_gi_denoiser;
 	Denoiser m_shadows_denoiser;
@@ -276,7 +276,7 @@ private:
 		m_buff_noise = imageToDevice(noise_image);
 	}
 
-	oclw::MemoryObject imageToDevice(const sf::Image& image)
+	oclw::Image imageToDevice(const sf::Image& image)
 	{
 		const sf::Vector2u image_size = image.getSize();
 		return m_wrapper.getContext().createImage2D(image_size.x, image_size.y, (void*)image.getPixelsPtr(), oclw::ReadOnly | oclw::CopyHostPtr, oclw::RGBA, oclw::Unsigned_INT8);

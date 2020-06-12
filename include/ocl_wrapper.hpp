@@ -295,7 +295,7 @@ namespace oclw
 	};
 
 
-	/*class Image : public MemoryObject
+	class Image : public MemoryObject
 	{
 	public:
 		Image() = default;
@@ -309,13 +309,9 @@ namespace oclw
 
 		Image& operator=(const Image& other)
 		{
-			m_memory_object = other.m_memory_object;
-			m_element_count = other.m_element_count;
-			m_total_size = other.m_total_size;
-			if (m_memory_object) {
-				cl_int err_num = clRetainMemObject(m_memory_object);
-				Utils::checkError(err_num, "Cannot retain memory object");
-			}
+			MemoryObject::operator=(other);
+			width = other.width;
+			height = other.height;
 			return *this;
 		}
 
@@ -332,7 +328,7 @@ namespace oclw
 	private:
 		uint64_t width;
 		uint64_t height;
-	};*/
+	};
 
 
 	class Kernel
@@ -359,12 +355,12 @@ namespace oclw
 			Utils::checkError(clSetKernelArg(m_kernel, arg_num, sizeof(cl_mem), &(object.getRaw())), ssx.str());
 		}
 
-		/*void setArgument(uint32_t arg_num, Image& object)
+		void setArgument(uint32_t arg_num, Image& object)
 		{
 			std::stringstream ssx;
 			ssx << "Cannot set argument [" << arg_num << "] of kernel '" << m_name << "'";
 			Utils::checkError(clSetKernelArg(m_kernel, arg_num, sizeof(cl_mem), &(object.getRaw())), ssx.str());
-		}*/
+		}
 
 		template<typename T>
 		void setArgument(uint32_t arg_num, const T& arg_value)
@@ -509,10 +505,10 @@ namespace oclw
 		}
 
 		template<typename T>
-		void readImageObject(MemoryObject& image, uint64_t width, uint64_t height, bool blocking_read, std::vector<T>& result)
+		void readImageObject(Image& image, bool blocking_read, std::vector<T>& result)
 		{
 			size_t origin[] = { 0, 0, 0 };
-			size_t region[] = { width, height, 1 };
+			size_t region[] = { image.getWidth(), image.getHeight(), 1 };
 			const bool blocking = blocking_read ? CL_TRUE : CL_FALSE;
 			int32_t err_num = clEnqueueReadImage(m_command_queue, image.getRaw(), blocking, origin, region, 0, 0, result.data(), 0, NULL, NULL);
 			Utils::checkError(err_num, "Cannot read from image");
@@ -631,7 +627,7 @@ namespace oclw
 			return MemoryObject(m_context, sizeof(T), element_count, mode);
 		}
 
-		MemoryObject createImage2D(uint32_t width, uint32_t height, void* data, int32_t mode, ImageFormat format, ChannelDatatype datatype)
+		Image createImage2D(uint32_t width, uint32_t height, void* data, int32_t mode, ImageFormat format, ChannelDatatype datatype)
 		{
 			cl_image_format image_format;
 			image_format.image_channel_order = format;
@@ -645,7 +641,7 @@ namespace oclw
 			cl_int err_num;
 			const cl_mem image = clCreateImage(m_context, mode, &image_format, &image_desc, data, &err_num);
 			Utils::checkError(err_num, "Cannot create 2D image");
-			return MemoryObject(image, width * height, 4u);
+			return Image(image, width, height, 4u);
 		}
 
 		MemoryObject createImage3D(uint32_t width, uint32_t height, uint32_t depth, void* data, int32_t mode, ImageFormat format, ChannelDatatype datatype)
@@ -732,9 +728,9 @@ namespace oclw
 		}
 
 		template<typename T>
-		void readImageObject(MemoryObject& image, uint64_t width, uint64_t height, std::vector<T>& result_container, bool blocking_read = true)
+		void readImageObject(Image& image, std::vector<T>& result_container, bool blocking_read = true)
 		{
-			m_command_queue.readImageObject(image, width, height, blocking_read, result_container);
+			m_command_queue.readImageObject(image, blocking_read, result_container);
 		}
 
 		template<typename T>
