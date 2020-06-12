@@ -317,24 +317,6 @@ float3 normalFromNumber(const float number)
 }
 
 
-float4 getOldValue(image2d_t last_frame_color, image2d_t last_frame_depth, __constant float* last_view_matrix, const float3 last_position, const float4 intersection)
-{
-    const float3 last_view_pos = preMultVec3Mat3(intersection.xyz - last_position, last_view_matrix);
-    const float2 last_screen_pos = projectPoint(last_view_pos);
-
-	const float4 last_color = read_imagef(last_frame_color, tex_sampler, last_screen_pos);
-	const float2 last_depth = read_imagef(last_frame_depth, tex_sampler, last_screen_pos).xy;
-	float acc = 0.0f;
-
-	const float accuracy_threshold = 0.05f;
-	if (fabs(1.0f - length(last_view_pos) / last_depth.x) < accuracy_threshold && last_depth.y == intersection.w) {
-		return last_color;
-	}
-	
-	return (float4)(0.0f);
-}
-
-
 float getLightIntensity(global uint8_t* svo_data, const float3 position, const float3 normal, const SceneSettings scene, image2d_t noise, uint32_t frame_count)
 {
 	const int2 tex_coords = (int2)(get_global_id(0) % 512u, get_global_id(1) % 512u);
@@ -359,12 +341,8 @@ __kernel void lighting(
 	, read_only SceneSettings scene
     , write_only image2d_t result
 	, read_only image2d_t noise
-	, read_only image2d_t last_frame_color
-	, constant float* last_view_matrix
-    , float3 last_position
 	, uint32_t frame_count
 	, read_only image2d_t depth
-	, read_only image2d_t last_depth
 	, read_only image2d_t ss_position
 )
 {
@@ -373,29 +351,17 @@ __kernel void lighting(
 	const float3 light_position = scene.light_position;
 
 	float3 color = 1.0f;
-	float acc = 1.0f;
 
 	const float4 intersection = read_imagef(ss_position, exact_sampler, gid);
 	if (intersection.w) {
 		const float3 normal = normalFromNumber(intersection.w);
 		const float3 gi_start = intersection.xyz + normal * NORMAL_EPS;
-		const float4 old_gi = getOldValue(last_frame_color, last_depth, last_view_matrix, last_position, intersection);
 		const float3 new_gi = getGlobalIllumination(svo_data, gi_start, normal, light_position, scene.light_intensity, noise, frame_count);
 		const float light_intensity = getLightIntensity(svo_data, intersection.xyz, normal, scene, noise, frame_count);
-		const float3 frame_value = light_intensity + new_gi;
-		acc = old_gi.w + 1.0f;
-		if (acc < ACC_COUNT) {
-			color = frame_value + old_gi.xyz;
-		} else {
-			acc = ACC_COUNT - 1.0f;
-			const float conservation_coef = 1.0f - 1.0f / acc;
-			color = frame_value + old_gi.xyz * conservation_coef;
-		}
-		//acc = 1.0f;
-		//color = (float3)(light_intensity) + new_gi;
+		color = light_intensity + new_gi;
 	}
 
-	const float4 out_color = (float4)(color, acc);
+	const float4 out_color = (float4)(color, 0.0f);
 
 	write_imagef(result, gid, out_color);
 }

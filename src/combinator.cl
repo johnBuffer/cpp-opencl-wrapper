@@ -24,6 +24,9 @@ __kernel void combine(
 	albedo[4*index + 0] *= fmin(1.0f, light_intensity.x);
 	albedo[4*index + 1] *= fmin(1.0f, light_intensity.y);
 	albedo[4*index + 2] *= fmin(1.0f, light_intensity.z);
+	// albedo[4*index + 0] = light_intensity.x;
+	// albedo[4*index + 1] = light_intensity.y;
+	// albedo[4*index + 2] = light_intensity.z;
 	
 	albedo[4*index + 3] = 255;
 }
