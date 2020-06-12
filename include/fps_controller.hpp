@@ -20,7 +20,7 @@ struct FpsController : public CameraController
 		const float elapsed_time = clock.restart().asSeconds();
 		
 		// Fly mode
-		if (boost) {
+		if (boost || 1) {
 			// These values have to be ajusted with the svo's size
 			const float speed = boost ? 10.0f : 4.0f;
 			camera.move(speed * move_vector * movement_speed * elapsed_time);
