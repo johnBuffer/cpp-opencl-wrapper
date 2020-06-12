@@ -9,9 +9,10 @@ struct Denoiser
 {
 	const uint8_t local_size = 20u;
 
-	Denoiser(oclw::Wrapper& wrapper_, const glm::uvec2 render_size_)
+	Denoiser(oclw::Wrapper& wrapper_, const glm::uvec2 render_size_, const uint8_t blur_passes_)
 		: wrapper(wrapper_)
 		, render_size(render_size_)
+		, blur_passes(blur_passes_)
 	{
 		initialize();
 	}
@@ -36,6 +37,7 @@ struct Denoiser
 
 	oclw::Wrapper& wrapper;
 	const glm::uvec2 render_size;
+	const uint8_t blur_passes;
 
 	oclw::Program temporal_program;
 	oclw::Program blur_program;
@@ -92,8 +94,7 @@ private:
 	void execute_blur(oclw::MemoryObject& ss_positions)
 	{
 		blur.setArgument(2, ss_positions);
-
-		for (uint8_t i(0); i < 4; ++i) {
+		for (uint8_t i(0); i < blur_passes; ++i) {
 			buff_denoised.swap();
 			blur.setArgument(0, buff_denoised.getCurrent());
 			blur.setArgument(1, buff_denoised.getLast());

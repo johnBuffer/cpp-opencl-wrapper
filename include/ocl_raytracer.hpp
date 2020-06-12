@@ -35,7 +35,8 @@ public:
 		, m_swarm(CPU_THREADS)
 		, m_time(0.0f)
 		, frame_count(0)
-		, m_denoiser(m_wrapper, { render_width, render_height })
+		, m_gi_denoiser(m_wrapper, { render_width, render_height }, 4)
+		, m_shadows_denoiser(m_wrapper, { render_width, render_height }, 1)
 	{
 		initialize(max_depth, svo_data);
 	}
@@ -73,7 +74,8 @@ public:
 		uint32_t gi_index_count = 0u;
 		m_lighting.setArgument(gi_index_count++, m_buff_svo);
 		m_lighting.setArgument(gi_index_count++, scene);
-		m_lighting.setArgument(gi_index_count++, m_buff_result_lighting);
+		m_lighting.setArgument(gi_index_count++, m_buff_result_gi);
+		m_lighting.setArgument(gi_index_count++, m_buff_result_shadows);
 		m_lighting.setArgument(gi_index_count++, m_buff_noise);
 		m_lighting.setArgument(gi_index_count++, frame_count);
 		m_lighting.setArgument(gi_index_count++, m_buff_depths.getCurrent());
@@ -93,7 +95,8 @@ public:
 		// Run lighting kernel
 		renderLighting();
 
-		m_denoiser.execute(old_view, old_pos, m_buff_result_lighting, m_buff_position, m_buff_depths);
+		m_gi_denoiser.execute(old_view, old_pos, m_buff_result_gi, m_buff_position, m_buff_depths);
+		m_shadows_denoiser.execute(old_view, old_pos, m_buff_result_shadows, m_buff_position, m_buff_depths);
 
 		combine();
 
@@ -130,7 +133,8 @@ public:
 
 	void combine()
 	{
-		m_combinator.setArgument(1, m_denoiser.getResult());
+		m_combinator.setArgument(1, m_gi_denoiser.getResult());
+		m_combinator.setArgument(2, m_shadows_denoiser.getResult());
 		m_wrapper.runKernel(m_combinator, oclw::Size(m_render_dimension.x, m_render_dimension.y), oclw::Size(work_group_size, work_group_size));
 		m_wrapper.readMemoryObject(m_buff_result_albedo, m_result_albedo, true);
 	}
@@ -173,7 +177,8 @@ private:
 	oclw::MemoryObject m_buff_mutations;
 	oclw::MemoryObject m_buff_view_matrix;
 	oclw::MemoryObject m_buff_result_albedo;
-	oclw::MemoryObject m_buff_result_lighting;
+	oclw::MemoryObject m_buff_result_shadows;
+	oclw::MemoryObject m_buff_result_gi;
 	oclw::MemoryObject m_buff_final_lighting;
 	//oclw::MemoryObject m_buff_final_image;
 	DoubleBuffer m_buff_depths;
@@ -182,7 +187,8 @@ private:
 	oclw::MemoryObject m_buff_image_side;
 	oclw::MemoryObject m_buff_noise;
 
-	Denoiser m_denoiser;
+	Denoiser m_gi_denoiser;
+	Denoiser m_shadows_denoiser;
 
 	std::vector<float> m_result_albedo;
 	std::vector<int32_t> m_seeds;
@@ -230,7 +236,8 @@ private:
 		
 		m_result_albedo.resize(albedo_render_pxl_count * 4);
 		m_buff_result_albedo = m_wrapper.createMemoryObject<float>(m_result_albedo.size(), oclw::ReadWrite);
-		m_buff_result_lighting = m_wrapper.getContext().createImage2D(lighting_render_width, lighting_render_height, nullptr, oclw::ReadWrite, oclw::RGBA, oclw::Float);
+		m_buff_result_gi = m_wrapper.getContext().createImage2D(lighting_render_width, lighting_render_height, nullptr, oclw::ReadWrite, oclw::RGBA, oclw::Float);
+		m_buff_result_shadows = m_wrapper.getContext().createImage2D(lighting_render_width, lighting_render_height, nullptr, oclw::ReadWrite, oclw::RGBA, oclw::Float);
 		m_buff_final_lighting = m_wrapper.getContext().createImage2D(lighting_render_width, lighting_render_height, nullptr, oclw::ReadWrite, oclw::RGBA, oclw::Float);
 		m_buff_depths.create(m_wrapper.getContext(), lighting_render_width, lighting_render_height, nullptr, oclw::ReadWrite, oclw::RG, oclw::Float);
 		m_buff_position = m_wrapper.getContext().createImage2D(lighting_render_width, lighting_render_height, nullptr, oclw::ReadWrite, oclw::RGBA, oclw::Float);

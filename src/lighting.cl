@@ -339,7 +339,8 @@ float getLightIntensity(global uint8_t* svo_data, const float3 position, const f
 __kernel void lighting(
     global uint8_t* svo_data
 	, read_only SceneSettings scene
-    , write_only image2d_t result
+    , write_only image2d_t result_gi
+    , write_only image2d_t result_shadows
 	, read_only image2d_t noise
 	, uint32_t frame_count
 	, read_only image2d_t depth
@@ -347,23 +348,16 @@ __kernel void lighting(
 )
 {
 	const int2 gid = (int2)(get_global_id(0), get_global_id(1));
-	const int2 screen_size = (int2)(get_global_size(0), get_global_size(1));
-	const float3 light_position = scene.light_position;
-
-	float3 color = 1.0f;
 
 	const float4 intersection = read_imagef(ss_position, exact_sampler, gid);
 	if (intersection.w) {
 		const float3 normal = normalFromNumber(intersection.w);
 		const float3 gi_start = intersection.xyz + normal * NORMAL_EPS;
-		const float3 new_gi = getGlobalIllumination(svo_data, gi_start, normal, light_position, scene.light_intensity, noise, frame_count);
+		const float3 gi = getGlobalIllumination(svo_data, gi_start, normal, scene.light_position, scene.light_intensity, noise, frame_count);
 		const float light_intensity = getLightIntensity(svo_data, intersection.xyz, normal, scene, noise, frame_count);
-		color = light_intensity + new_gi;
+		write_imagef(result_gi, gid, (float4)(gi, 0.0f));
+		write_imagef(result_shadows, gid, (float4)(light_intensity));
 	}
-
-	const float4 out_color = (float4)(color, 0.0f);
-
-	write_imagef(result, gid, out_color);
 }
 
 __kernel void normalizer(

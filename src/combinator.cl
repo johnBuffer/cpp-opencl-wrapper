@@ -10,7 +10,8 @@ __constant sampler_t tex_sampler = CLK_NORMALIZED_COORDS_FALSE | CLK_FILTER_LINE
 
 __kernel void combine(
 		__global float* albedo,
-		image2d_t lighting
+		image2d_t gi,
+		image2d_t shadows
 	)
 {
 	const int2 gid = (int2)(get_global_id(0), get_global_id(1));
@@ -18,8 +19,9 @@ __kernel void combine(
 	const uint32_t index = gid.x + gid.y * screen_size.x;
 	const float2 tex_coords = (float2)(gid.x, gid.y) / (float2)(screen_size.x, screen_size.y);
 	
-	const float4 gi_value = read_imagef(lighting, tex_sampler, gid);
-	const float3 light_intensity = gi_value.xyz;
+	const float4 gi_value = read_imagef(gi, tex_sampler, gid);
+	const float shadows_value = read_imagef(shadows, tex_sampler, gid).x;
+	const float3 light_intensity = shadows_value + gi_value.xyz;
 
 	albedo[4*index + 0] *= fmin(1.0f, light_intensity.x);
 	albedo[4*index + 1] *= fmin(1.0f, light_intensity.y);
