@@ -22,18 +22,10 @@ __kernel void combine(
 	
 	const float4 gi_value = read_imagef(gi, tex_sampler, gid);
 	const float3 shadows_value = read_imagef(shadows, tex_sampler, gid).xyz;
+	//const float3 light_intensity = min(1.0f, shadows_value + gi_value.xyz);
 	const float3 light_intensity = min(1.0f, shadows_value + gi_value.xyz);
 
 	const float3 albedo_color = read_imagef(albedo, tex_sampler, gid).xyz;
-
-	// albedo[4*index + 0] *= fmin(1.0f, light_intensity.x);
-	// albedo[4*index + 1] *= fmin(1.0f, light_intensity.y);
-	// albedo[4*index + 2] *= fmin(1.0f, light_intensity.z);
-	// // albedo[4*index + 0] = 255.0f * fmin(1.0f, light_intensity.x);
-	// // albedo[4*index + 1] = 255.0f * fmin(1.0f, light_intensity.y);
-	// // albedo[4*index + 2] = 255.0f * fmin(1.0f, light_intensity.z);
-	
-	// albedo[4*index + 3] = 255;
 
 	write_imagef(result, gid, (float4)(albedo_color * light_intensity, 1.0f));
 }

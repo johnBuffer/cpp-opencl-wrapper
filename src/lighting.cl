@@ -13,11 +13,15 @@ __constant float NORMAL_EPS = 0.0078125f * 0.0078125f * 0.0078125f;
 __constant float3 SKY_COLOR = (float3)(153.0f, 223.0f, 255.0f);
 //constant float3 SKY_COLOR = (float3)(0.0f);
 __constant float NEAR = 0.5f;
-__constant float G = 1.0f / 1.22074408460575947536f;
+__constant float GOLDEN_RATIO = 1.61803398875f;
+__constant float G1 = 0.819172513f;
+__constant float G2 = 0.671043607f;
+__constant float G3 = 0.549700478f;
+__constant float G4 = 0.450299522;
+
 __constant float PI = 3.141592653f;
-__constant float ACC_COUNT = 64.0f;
 __constant uint32_t LEVELS[11] = {0u, 8u, 72u, 584u, 4680u, 37448u, 299592u, 2396744u, 19173960u, 153391688u, 1227133512u};
-__constant float EMISSIVE_INTENSITY = 32.0f;
+__constant float EMISSIVE_INTENSITY = 16.0f;
 __constant float INV_255 = 1.0f / 255.0f;
 
 
@@ -60,27 +64,21 @@ float frac(float x)
 }
 
 
-float3 getRandomizedNormal(const float3 normal, image2d_t noise, uint32_t frame_count)
+float3 getRandomizedNormal(const float3 normal, image2d_t noise, float off)
 {
 	const int2 tex_coords = (int2)(get_global_id(0) % 512u, get_global_id(1) % 512u);
-	const float3 noise_value = convert_float3(read_imagei(noise, exact_sampler, tex_coords).xyz) / 255.0f;
+	const float3 noise_value = convert_float3(read_imagei(noise, exact_sampler, tex_coords).xyz) * INV_255;
 
-	const float coord_1 = frac(noise_value.x + G       * (frame_count % 1000)) - 0.5f;
-	const float coord_2 = frac(noise_value.y + (G*G)   * (frame_count % 1000)) - 0.5f;
-	const float coord_3 = 0.5f * frac(noise_value.z + (G*G*G) * (frame_count % 1000));
+	const float coord_1 = frac(noise_value.x + off * G1) - 0.5f;
+	const float coord_2 = frac(noise_value.y + off * G2) - 0.5f;
+	const float coord_3 = frac(noise_value.z + off * G3) * 0.5f;
 	if (normal.x) {
-		return normalize((float3)(sign(normal.x) * coord_3, coord_1, coord_2));
+		return normalize((float3)(coord_3 * normal.x, coord_1, coord_2));
 	}
-	
 	if (normal.y) {
-		return normalize((float3)(coord_1, sign(normal.y) * coord_3, coord_2));
+		return normalize((float3)(coord_1, coord_3 * normal.y, coord_2));
 	}
-	
-	if (normal.z) {
-		return normalize((float3)(coord_1, coord_2, sign(normal.z) * coord_3));
-	}
-
-	return (float3)(0.0f);
+	return normalize((float3)(coord_1, coord_2, coord_3 * normal.z));
 }
 
 
@@ -243,18 +241,20 @@ float getSunContribution(global uint8_t* svo_data, const HitPoint point, const f
 }
 
 
-GiBounce bounceOnce(global uint8_t* svo_data, const SceneSettings scene, image2d_t noise, uint32_t frame_count, float3 gi_acc, const HitPoint start)
+GiBounce bounceOnce(global uint8_t* svo_data, const SceneSettings scene, image2d_t noise, float off, const HitPoint start)
 {
 	GiBounce result;
-	result.acc = gi_acc;
+	result.acc = 0.0f;
 	// Launch random ray from surface
 	const float3 gi_start = start.position + NORMAL_EPS * start.normal;
-	result.point = castRay(svo_data, gi_start, getRandomizedNormal(start.normal, noise, frame_count));
+	const float3 gi_direction = getRandomizedNormal(start.normal, noise, off);
+	result.point = castRay(svo_data, gi_start, gi_direction);
 	if (result.point.cell_type) {
 		// Check for sun
-		result.acc += scene.light_intensity * getSunContribution(svo_data, result.point, scene.light_position);
+		const float dot_intensity = max(0.0f, -dot(gi_direction, result.point.normal));
+		result.acc += dot_intensity * scene.light_intensity * getSunContribution(svo_data, result.point, scene.light_position);
 		// Check for emissive
-		result.acc += (result.point.cell_type == 2) * EMISSIVE_INTENSITY;
+		result.acc += dot_intensity * (result.point.cell_type == 2) * EMISSIVE_INTENSITY;
 	} else {
 		// Sky contribution
 		result.acc += SKY_COLOR * INV_255;
@@ -272,11 +272,11 @@ float3 getGlobalIllumination(global uint8_t* svo_data, const float3 position, co
 	start.position = position;
 	start.normal = normal;
 
-	const GiBounce bounce_1 = bounceOnce(svo_data, scene, noise, frame_count, gi_acc, start);
+	const GiBounce bounce_1 = bounceOnce(svo_data, scene, noise, frame_count, start);
 	gi_acc += bounce_1.acc;
 	// Eventually second bounce
 	if (bounce_1.point.cell_type) {
-		const GiBounce bounce_2 = bounceOnce(svo_data, scene, noise, frame_count, gi_acc, bounce_1.point);
+		const GiBounce bounce_2 = bounceOnce(svo_data, scene, noise, frame_count * G4, bounce_1.point);
 		gi_acc += bounce_2.acc;
 	}
 	
@@ -295,9 +295,10 @@ float getLightIntensity(global uint8_t* svo_data, const float3 position, const f
 {
 	const int2 tex_coords = (int2)(get_global_id(0) % 512u, get_global_id(1) % 512u);
 	const float3 noise_value = convert_float3(read_imagei(noise, exact_sampler, tex_coords).xyz) / 255.0f;
-	const float light_offset_1 = (fmod(noise_value.x + G         * (frame_count%10000), 1.0f) - 0.5f);
-	const float light_offset_2 = (fmod(noise_value.y + G * G     * (frame_count%10000), 1.0f) - 0.5f);
-	const float light_offset_3 = (fmod(noise_value.z + G * G * G * (frame_count%10000), 1.0f) - 0.5f);
+	const float off = frame_count%10000;
+	const float light_offset_1 = (frac(noise_value.x + G1 * off) - 0.5f);
+	const float light_offset_2 = (frac(noise_value.y + G2 * off) - 0.5f);
+	const float light_offset_3 = (frac(noise_value.z + G3 * off) - 0.5f);
 
 	const float3 ray_start = position + normal * NORMAL_EPS;
 	const float3 shadow_ray = normalize(scene.light_position + scene.light_radius * (float3)(light_offset_1, light_offset_2, light_offset_3) - position);
@@ -332,14 +333,7 @@ __kernel void lighting(
 		write_imagef(result_gi, gid, (float4)(gi, 0.0f));
 		write_imagef(result_shadows, gid, (float4)(light_intensity));
 	}
-}
-
-__kernel void normalizer(
-	read_only image2d_t input,
-    write_only image2d_t output
-) 
-{
-	const int2 gid = (int2)(get_global_id(0), get_global_id(1));
-	const float4 in_color = read_imagef(input, exact_sampler, gid);
-	write_imagef(output, gid, (float4)(fmax(0.0f, in_color.xyz / in_color.w), in_color.w));
+	else {
+		write_imagef(result_gi, gid, (float4)(0.0f));
+	}
 }

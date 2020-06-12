@@ -5,7 +5,7 @@ typedef int            int32_t;
 typedef unsigned int   uint32_t;
 
 // Const values
-__constant float ACC_COUNT = 32.0f;
+__constant float ACC_COUNT = 24.0f;
 __constant float NEAR = 0.5f;
 __constant sampler_t tex_sampler = CLK_NORMALIZED_COORDS_TRUE | CLK_FILTER_LINEAR | CLK_ADDRESS_CLAMP;
 __constant sampler_t exact_sampler = CLK_NORMALIZED_COORDS_FALSE | CLK_FILTER_NEAREST | CLK_ADDRESS_CLAMP;
@@ -68,7 +68,7 @@ __kernel void temporal(
 {
 	const int2 gid = (int2)(get_global_id(0), get_global_id(1));
 
-	float3 color = 1.0f;
+	float3 color = 0.0f;
 	float acc = 1.0f;
 
 	const float4 intersection = read_imagef(ss_position, exact_sampler, gid);
