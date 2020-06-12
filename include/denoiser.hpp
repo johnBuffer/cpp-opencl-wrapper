@@ -21,7 +21,7 @@ struct Denoiser
 		swapBuffers();
 		execute_temporal(last_view_matrix, last_position, raw_lighting, ss_positions, depths);
 		execute_normalize();
-		execute_blur(ss_positions);
+		//execute_blur(ss_positions);
 	}
 
 	void swapBuffers()
