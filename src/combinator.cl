@@ -24,10 +24,10 @@ __kernel void combine(
 	const float3 gi_value = read_imagef(gi, tex_sampler, gid).xyz;
 	const float3 shadows_value = read_imagef(shadows, tex_sampler, gid).xyz;
 	//const float3 light_intensity = min(1.0f, shadows_value + gi_value.xyz);
-	const float3 light_intensity = min(1.0f, shadows_value / PI + 2.0f * gi_value);
+	const float3 light_intensity = min(1.0f, 0.0f * shadows_value / PI + 2.0f * gi_value);
 
 	const float3 albedo_color = read_imagef(albedo, tex_sampler, gid).xyz;
 
-	write_imagef(result, gid, (float4)(albedo_color * light_intensity, 1.0f));
+	write_imagef(result, gid, (float4)(1024.0f * light_intensity, 1.0f));
 	//write_imagef(result, gid, (float4)(albedo_color, 1.0f));
 }

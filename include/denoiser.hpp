@@ -22,6 +22,7 @@ struct Denoiser
 		swapBuffers();
 		execute_temporal(last_view_matrix, last_position, raw_lighting, ss_positions, depths);
 		execute_normalize();
+		execute_gradient(ss_positions);
 		//execute_median();
 		execute_blur(ss_positions);
 	}
@@ -119,11 +120,12 @@ private:
 	void execute_blur(oclw::MemoryObject& ss_positions)
 	{
 		blur.setArgument(2, ss_positions);
+		blur.setArgument(3, buff_depth_gradient);
 		for (uint8_t i(0); i < blur_passes; ++i) {
 			buff_denoised.swap();
 			blur.setArgument(0, buff_denoised.getCurrent());
 			blur.setArgument(1, buff_denoised.getLast());
-			blur.setArgument(3, i);
+			blur.setArgument(4, i);
 			wrapper.runKernel(blur, oclw::Size(render_size.x, render_size.y), oclw::Size(local_size, local_size));
 		}
 	}
