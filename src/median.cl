@@ -15,8 +15,8 @@ __constant float THRESHOLD = 50.0f;
 
 
 __kernel void median(
-        read_only image2d_t src,
-        write_only image2d_t dst
+        write_only image2d_t dst,
+        read_only image2d_t src
     ) 
 {
     const int2 gid = (int2)(get_global_id(0), get_global_id(1));

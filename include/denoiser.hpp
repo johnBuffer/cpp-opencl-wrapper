@@ -22,6 +22,7 @@ struct Denoiser
 		swapBuffers();
 		execute_temporal(last_view_matrix, last_position, raw_lighting, ss_positions, depths);
 		execute_normalize();
+		execute_median();
 		execute_blur(ss_positions);
 	}
 
@@ -40,10 +41,12 @@ struct Denoiser
 	const uint8_t blur_passes;
 
 	oclw::Program temporal_program;
+	oclw::Program median_program;
 	oclw::Program blur_program;
 
 	oclw::Kernel temporal;
 	oclw::Kernel normalier;
+	oclw::Kernel median;
 	oclw::Kernel blur;
 
 	// Buffers
@@ -60,6 +63,9 @@ private:
 
 		blur_program = wrapper.createProgramFromFile("../src/bilateral_blur.cl");
 		blur = blur_program.createKernel("blur");
+
+		median_program = wrapper.createProgramFromFile("../src/median.cl");
+		median = median_program.createKernel("median");
 
 		buff_view_mat = wrapper.createMemoryObject<float>(9, oclw::ReadOnly);
 
@@ -89,6 +95,14 @@ private:
 		normalier.setArgument(0, buff_temporal.getCurrent());
 		normalier.setArgument(1, buff_denoised.getCurrent());
 		wrapper.runKernel(normalier, oclw::Size(render_size.x, render_size.y), oclw::Size(local_size, local_size));
+	}
+
+	void execute_median()
+	{
+		buff_denoised.swap();
+		median.setArgument(0, buff_denoised.getCurrent());
+		median.setArgument(1, buff_denoised.getLast());
+		wrapper.runKernel(median, oclw::Size(render_size.x, render_size.y), oclw::Size(local_size, local_size));
 	}
 
 	void execute_blur(oclw::MemoryObject& ss_positions)
