@@ -5,7 +5,7 @@ typedef int            int32_t;
 typedef unsigned int   uint32_t;
 
 // Const values
-constant float ACC_COUNT = 16.0f;
+constant float ACC_COUNT = 24.0f;
 constant float NEAR = 0.5f;
 constant sampler_t tex_sampler = CLK_NORMALIZED_COORDS_TRUE | CLK_FILTER_LINEAR | CLK_ADDRESS_CLAMP;
 constant sampler_t exact_sampler = CLK_NORMALIZED_COORDS_FALSE | CLK_FILTER_NEAREST | CLK_ADDRESS_CLAMP;
@@ -40,13 +40,13 @@ float4 getOldValue(image2d_t temporal_acc, image2d_t last_frame_depth, __constan
 	const float2 last_depth = read_imagef(last_frame_depth, tex_sampler, last_screen_pos).xy;
 	
 	float acc = 0.0f;
-	const float accuracy_threshold = 0.05f;
-	const float far_threshold = 0.5f;
+	const float accuracy_threshold = 0.25f;
+	const float far_threshold = 0.1f;
 	if (fabs(1.0f - length(last_view_pos) / last_depth.x) < accuracy_threshold && (last_depth.y == intersection.w || last_depth.x > far_threshold)) {
 		return last_color;
 	}
 	
-	return (float4)(0.0f);
+	return (float4)((float3)(0.0f), 0.0f);
 }
 
 float3 normalFromNumber(const float number)
@@ -84,6 +84,8 @@ __kernel void temporal(
 			const float conservation_coef = 1.0f - 1.0f / acc;
 			color = new_value + acc_value.xyz * conservation_coef;
 		}
+		//const float conservation_coef = 0.02f;
+		//color = conservation_coef * new_value + (1.0f - conservation_coef) * acc_value.xyz;
 	}
 	
 	write_imagef(result, gid, (float4)(color, acc));

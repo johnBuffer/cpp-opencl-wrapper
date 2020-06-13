@@ -1,3 +1,10 @@
+typedef char           int8_t;
+typedef unsigned char  uint8_t;
+typedef unsigned short uint16_t;
+typedef int            int32_t;
+typedef unsigned int   uint32_t;
+
+
 __constant sampler_t TEX_SAMPLER = CLK_NORMALIZED_COORDS_FALSE | CLK_FILTER_NEAREST;
 __constant float THRESHOLD = 50.0f;
 
@@ -20,10 +27,11 @@ __kernel void median(
     ) 
 {
     const int2 gid = (int2)(get_global_id(0), get_global_id(1));
-    
+	const int2 screen_size = (int2)(get_global_size(0), get_global_size(1));
     const float4 central_color = read_imagef(src, TEX_SAMPLER, gid);
 
-    if (central_color.w == 1.0f) {
+    const uint32_t dead_zone = 150u;
+    if (central_color.w == 1.0f && gid.x > dead_zone && gid.x < screen_size.x - dead_zone && gid.y > dead_zone && gid.y < screen_size.y - dead_zone) {
         vec v[6];
         float4 color = read_imagef(src, TEX_SAMPLER, gid + (int2)(-1, -1));
         v[0] = color.xyz;

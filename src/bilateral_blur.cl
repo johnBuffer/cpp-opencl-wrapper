@@ -13,7 +13,7 @@ __constant float C_PHI_REF = 4.0f;
 __constant float N_PHI_REF = 128.0f;
 __constant float P_PHI_REF = 1.0f;
 
-__constant float KERNEL[3] = { 1.0f/2.0f, 1.0f/4.0f, 1.0f/8.0f };
+__constant float KERNEL[3] = { 3.0f/8.0f, 1.0f/4.0f, 1.0f/16.0f };
 
 
 // Utils
@@ -28,67 +28,56 @@ __kernel void blur(
         write_only image2d_t output,
         read_only image2d_t color_input,
         read_only image2d_t ss_positions,
-        read_only image2d_t depth_gradient,
         uint8_t iteration
     )
 {
     const int2 gid = (int2)(get_global_id(0), get_global_id(1));
 
-    // const float4 temporal_data = read_imagef(color_input, linear_sampler, gid);
-    // if (temporal_data.w) {
-    //     const float3 current_color    = temporal_data.xyz;
-    //     const float4 current_data     = read_imagef(ss_positions, exact_sampler, gid);
-    //     const float3 current_position = current_data.xyz;
-    //     const float3 current_normal   = normalFromNumber(current_data.w);
+    const float4 temporal_data = read_imagef(color_input, linear_sampler, gid);
+    if (temporal_data.w) {
+        const float3 current_color    = temporal_data.xyz;
+        const float4 current_data     = read_imagef(ss_positions, exact_sampler, gid);
+        const float3 current_position = current_data.xyz;
+        const float3 current_normal   = current_data.w;
 
-    //     float3 color = 0.0f;
-    //     float sum = 0.0f;
+        float3 color = 0.0f;
+        float sum = 0.0f;
 
-    //     const uint32_t spacing = 1 << iteration;
-    //     const float c_phi = C_PHI_REF / (float)(spacing);
-    //     const float p_phi = P_PHI_REF / (float)(spacing);
-    //     const float n_phi = N_PHI_REF / (float)(spacing);
+        const uint32_t spacing = 2 * iteration - 1;
+        // const float c_phi = C_PHI_REF / (float)(spacing);
+        // const float p_phi = P_PHI_REF / (float)(spacing);
+        // const float n_phi = N_PHI_REF / (float)(spacing);
         
-    //     const int32_t width = 2;
-    //     float3 tmp;
-    //     float dist2;
-    //     for (int32_t x = -width; x < width + 1; ++x) {
-    //         for (int32_t y = -width; y < width + 1; ++y) {
-    //             // Kernel value
-    //             const float kernel_val_x = KERNEL[abs(x)];
-    //             const float kernel_val_y = KERNEL[abs(y)];
-    //             const float kernel_val = (kernel_val_x + kernel_val_y) * 0.5f;
-    //             // Offset
-    //             const int2 coord_off = (int2)(spacing * x, spacing * y);
-    //             // Retrieving other data
-    //             const float3 other_color = read_imagef(color_input, linear_sampler, gid + coord_off).xyz;
-    //             const float4 other_data = read_imagef(ss_positions, exact_sampler, gid + coord_off);
-    //             const float3 other_position = other_data.xyz;
-    //             const float3 other_normal   = other_data.w;
-    //             // Color
-    //             //tmp = current_color - other_color;
-    //             //dist2 = dot(tmp, tmp);
-    //             //const float w_c = min(exp(-dist2/c_phi), 1.0f);
-    //             // Normal
-    //             const float w_n = max(dot(current_normal, other_normal), 0.0f);
-    //             // Position
-    //             //tmp = current_position - other_position;
-    //             //dist2 = dot(tmp, tmp);
-    //             //const float w_p = min(exp(-dist2/p_phi), 1.0f);
-    //             // Sum
-    //             const float weight = w_n + 0.0001f;
-    //             color += other_color * (kernel_val * weight);
-    //             sum += kernel_val * weight;
-    //         }
-    //     }
+        const int32_t width = 2;
+        float3 tmp;
+        float dist2;
+        for (int32_t x = -width; x < width + 1; ++x) {
+            for (int32_t y = -width; y < width + 1; ++y) {
+                // Offset
+                const int2 coord_off = (int2)(spacing * x, spacing * y);
+                // Retrieving other data
+                const float4 other_data   = read_imagef(ss_positions, exact_sampler, gid + coord_off);
+                const float3 other_position = other_data.xyz;
+                const float other_normal = other_data.w;
+                if (other_position.x == current_position.x || other_position.y == current_position.y || other_position.z == current_position.z) {
+                    const float3 other_color  = read_imagef(color_input, linear_sampler, gid + coord_off).xyz;
+                    // Kernel value
+                    const float kernel_val_x = KERNEL[abs(x)];
+                    const float kernel_val_y = KERNEL[abs(y)];
+                    const float kernel_val = (kernel_val_x + kernel_val_y) * 0.5f;
+                    // Sum
+                    const float weight = kernel_val + 0.0001f;
+                    color += other_color * weight;
+                    sum += weight;
+                }
+            }
+        }
 
-    //     color /= sum;
-    //     write_imagef(output, gid, (float4)(color, 1.0f));
-    // } else {
-    //     write_imagef(output, gid, temporal_data);
-    // }
-
-    write_imagef(output, gid, read_imagef(depth_gradient, exact_sampler, gid));
+        color /= sum;
+        write_imagef(output, gid, (float4)(color, 1.0f));
+    } else {
+        write_imagef(output, gid, temporal_data);
+    }
 }
 
 __kernel void gradient(
@@ -97,13 +86,13 @@ __kernel void gradient(
     )
 {
     const int2 gid = (int2)(get_global_id(0), get_global_id(1));
-    const float depth = read_imagef(input, exact_sampler, gid).x;
+    const float depth = 512.0f * read_imagef(input, exact_sampler, gid).x;
 
     float sum = 0.0f;
     for (int32_t x = -1; x < 2; ++x) {
         for (int32_t y = -1; y < 2; ++y) {
             const int2 coord_off = (int2)(x, y);
-            sum += depth - read_imagef(input, exact_sampler, gid + coord_off).x;
+            sum += depth - 512.0f * read_imagef(input, exact_sampler, gid + coord_off).x;
         }
     }
 
