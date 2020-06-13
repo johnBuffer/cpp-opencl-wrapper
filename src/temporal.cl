@@ -81,11 +81,9 @@ __kernel void temporal(
 			color = new_value + acc_value.xyz;
 		} else {
 			acc = ACC_COUNT - 1.0f;
-			const float conservation_coef = 1.0f - 1.0f / acc;
-			color = new_value + acc_value.xyz * conservation_coef;
+			const float conservation_coef = acc / ACC_COUNT;
+			color = conservation_coef * (new_value + acc_value.xyz);
 		}
-		//const float conservation_coef = 0.02f;
-		//color = conservation_coef * new_value + (1.0f - conservation_coef) * acc_value.xyz;
 	}
 	
 	write_imagef(result, gid, (float4)(color, acc));
