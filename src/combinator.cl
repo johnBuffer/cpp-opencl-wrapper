@@ -6,6 +6,7 @@ typedef unsigned int   uint32_t;
 
 
 __constant sampler_t tex_sampler = CLK_NORMALIZED_COORDS_FALSE | CLK_FILTER_LINEAR;
+__constant float PI = 3.141592653f;
 
 
 __kernel void combine(
@@ -20,12 +21,13 @@ __kernel void combine(
 	const uint32_t index = gid.x + gid.y * screen_size.x;
 	const float2 tex_coords = (float2)(gid.x, gid.y) / (float2)(screen_size.x, screen_size.y);
 	
-	const float4 gi_value = read_imagef(gi, tex_sampler, gid);
+	const float3 gi_value = read_imagef(gi, tex_sampler, gid).xyz;
 	const float3 shadows_value = read_imagef(shadows, tex_sampler, gid).xyz;
 	//const float3 light_intensity = min(1.0f, shadows_value + gi_value.xyz);
-	const float3 light_intensity = min(1.0f, shadows_value + gi_value.xyz);
+	const float3 light_intensity = min(1.0f, shadows_value / PI + 2.0f * gi_value);
 
 	const float3 albedo_color = read_imagef(albedo, tex_sampler, gid).xyz;
 
 	write_imagef(result, gid, (float4)(albedo_color * light_intensity, 1.0f));
+	//write_imagef(result, gid, (float4)(albedo_color, 1.0f));
 }

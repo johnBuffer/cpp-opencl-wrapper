@@ -20,6 +20,8 @@ struct EventManager
 		, mutate_waiting(false)
 		, mutate(false)
 		, mutate_ready(true)
+		, block_type(1)
+		, moving_sun(0)
 	{
 	}
 
@@ -62,6 +64,18 @@ struct EventManager
 					scene.light_radius -= 0.02f;
 					scene.light_radius = std::max(0.0f, scene.light_radius);
 					break;
+				case sf::Keyboard::Num1:
+					block_type = 1;
+					break;
+				case sf::Keyboard::Num2:
+					block_type = 2;
+					break;
+				case sf::Keyboard::Num3:
+					block_type = 3;
+					break;
+				case sf::Keyboard::Num4:
+					block_type = 4;
+					break;
 				case sf::Keyboard::Numpad4:
 					sun.x += 0.2f;
 					break;
@@ -83,6 +97,7 @@ struct EventManager
 					break;
 				case sf::Keyboard::F:
 				{
+					moving_sun = !moving_sun;
 					break;
 				}
 				case sf::Keyboard::Q:
@@ -185,11 +200,9 @@ struct EventManager
 				mutate_waiting = true;
 				if (value) {
 					// Add
-					const glm::ivec3 hit_position = point.position;// +glm::vec3(1.0f, 0.0f, 1.0f);
+					const glm::ivec3 hit_position = point.position;
 					const glm::uvec3 add_position = hit_position + glm::ivec3(point.normal);
-					//std::cout << "Hit    " << vecToString(hit_position) << std::endl;
-					//std::cout << "Normal " << vecToString(point.normal) << std::endl;
-					mutations = svo.addCell(add_position.x, add_position.y, add_position.z, 2);
+					mutations = svo.addCell(add_position.x, add_position.y, add_position.z, block_type);
 				}
 				else {
 					// Remove
@@ -204,6 +217,8 @@ struct EventManager
 	bool forward, left, right, up, backward, boost, mouse_control;
 	bool mutate_waiting;
 
+	bool moving_sun;
+	int8_t block_type;
 	uint8_t value;
 	std::vector<Mutation> mutations;
 

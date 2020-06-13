@@ -63,6 +63,7 @@ public:
 
 		uint32_t albedo_index_count = 0u;
 		m_albedo.setArgument(albedo_index_count++, m_buff_svo);
+		m_albedo.setArgument(albedo_index_count++, m_buff_blocks_data);
 		m_albedo.setArgument(albedo_index_count++, scene);
 		m_albedo.setArgument(albedo_index_count++, m_buff_albedo);
 		m_albedo.setArgument(albedo_index_count++, m_buff_view_matrix);
@@ -73,6 +74,7 @@ public:
 
 		uint32_t gi_index_count = 0u;
 		m_lighting.setArgument(gi_index_count++, m_buff_svo);
+		m_lighting.setArgument(gi_index_count++, m_buff_blocks_data);
 		m_lighting.setArgument(gi_index_count++, scene);
 		m_lighting.setArgument(gi_index_count++, m_buff_result_gi);
 		m_lighting.setArgument(gi_index_count++, m_buff_result_shadows);
@@ -173,11 +175,13 @@ private:
 	sf::Image m_image_side, m_image_top;
 	// Buffers
 	oclw::MemoryObject m_buff_svo;
+	oclw::MemoryObject m_buff_blocks_data;
 	oclw::MemoryObject m_buff_mutations;
 	oclw::MemoryObject m_buff_view_matrix;
-	oclw::MemoryObject m_buff_albedo;
-	oclw::MemoryObject m_buff_result_shadows;
-	oclw::MemoryObject m_buff_result_gi;
+	// Image buffers
+	oclw::Image m_buff_albedo;
+	oclw::Image m_buff_result_shadows;
+	oclw::Image m_buff_result_gi;
 	oclw::Image m_buff_final_image;
 
 	DoubleBuffer m_buff_depths;
@@ -222,6 +226,19 @@ private:
 		// Create memory objects that will be used as arguments to kernel
 		loadImagesToDevice();
 		m_buff_svo = m_wrapper.createMemoryObject(svo, oclw::ReadOnly | oclw::CopyHostPtr);
+
+		std::vector<cl_float4> blocks_data = {
+			cl_float3{0.0f, 0.0f, 0.0f},
+			cl_float3{1.0f, 1.0f, 1.0f},
+			cl_float3{1.0f, 0.0f, 0.0f},
+			cl_float3{0.0f, 1.0f, 0.0f},
+			cl_float3{0.0f, 0.0f, 1.0f},
+			cl_float3{1.0f, 1.0f, 0.0f},
+			cl_float3{1.0f, 0.0f, 1.0f},
+			cl_float3{0.0f, 1.0f, 1.0f},
+			cl_float3{1.0f, 0.5f, 0.0f},
+		};
+		m_buff_blocks_data = m_wrapper.createMemoryObject(blocks_data, oclw::ReadOnly | oclw::CopyHostPtr);
 		m_buff_mutations = m_wrapper.createMemoryObject<Mutation>(10, oclw::ReadOnly);
 		m_buff_view_matrix = m_wrapper.createMemoryObject<float>(9, oclw::ReadOnly);
 		// Create OpenCL buffers

@@ -16,8 +16,8 @@
 
 int main()
 {
-	constexpr uint32_t WIN_WIDTH = 1920;
-	constexpr uint32_t WIN_HEIGHT = 1080;
+	constexpr uint32_t WIN_WIDTH = 1280;
+	constexpr uint32_t WIN_HEIGHT = 720;
 
 	try {
 		// If your PC or Grapgic Cards has not enough Memory, reduce this.
@@ -39,7 +39,7 @@ int main()
 
 		sf::Vector2f sun(0.0f, 0.0f);
 		SceneSettings scene;
-		scene.light_intensity = 8.0f;
+		scene.light_intensity = 1.0f;
 		scene.light_position = { 0.0f, 0.0f, 0.0f };
 		scene.light_radius = 0.3f;
 
@@ -52,6 +52,7 @@ int main()
 
 		sf::Mouse::setPosition(sf::Vector2i(WIN_WIDTH / 2, WIN_HEIGHT / 2), window);
 		FpsController controller;
+		float time = 0.0f;
 
 		while (window.isOpen())
 		{
@@ -64,10 +65,15 @@ int main()
 				controller.updateCameraView(mouse_sensitivity * glm::vec2(mouse_pos.x - WIN_WIDTH * 0.5f, (WIN_HEIGHT  * 0.5f) - mouse_pos.y), camera);
 			}
 
+			if (event_manager.moving_sun) {
+				time += 0.016f;
+			}
+
 			//std::cout << camera.view_angle.x << " " << camera.view_angle.y << std::endl;
 
+			const float sun_speed = 0.2f;
 			const float sun_trajectory_radius = 2.0f;
-			scene.light_position = { 1.5f + sun_trajectory_radius * cos(sun.x), sun.y, 1.5f + sun_trajectory_radius * sin(sun.x) };
+			scene.light_position = { 1.5f + sun_trajectory_radius * cos(sun.x + sun_speed * time), sun.y, 1.5f + sun_trajectory_radius * sin(sun.x + sun_speed * time) };
 
 			if (event_manager.mutate_waiting) {
 				event_manager.mutate_waiting = false;

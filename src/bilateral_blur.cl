@@ -27,7 +27,7 @@ __kernel void blur(
     float3 color = 0.0f;
     float sum = 0.0f;
 
-    const uint32_t spacing = 2 * iteration + 1;
+    const uint32_t spacing = 1 << iteration;
     
     const int32_t width = 2;
     for (int32_t x = -width; x < width + 1; ++x) {
