@@ -76,6 +76,18 @@ struct EventManager
 				case sf::Keyboard::Num4:
 					block_type = 4;
 					break;
+				case sf::Keyboard::Num5:
+					block_type = 5;
+					break;
+				case sf::Keyboard::Num6:
+					block_type = 6;
+					break;
+				case sf::Keyboard::Num7:
+					block_type = 7;
+					break;
+				case sf::Keyboard::Num8:
+					block_type = 8;
+					break;
 				case sf::Keyboard::Numpad4:
 					sun.x += 0.2f;
 					break;

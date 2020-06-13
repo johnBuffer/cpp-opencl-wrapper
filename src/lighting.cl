@@ -269,15 +269,16 @@ GiBounce bounceOnce(global uint8_t* svo_data, global float3* blocks_data, const 
 
 float3 getGlobalIllumination(global uint8_t* svo_data, global float3* blocks_data, const float3 position, const float3 normal, const SceneSettings scene, image2d_t noise, uint32_t frame_count, bool second)
 {
+	const float off = frame_count % 1000;
 	HitPoint start;
 	start.position = position;
 	start.normal = normal;
 
-	const GiBounce bounce_1 = bounceOnce(svo_data, blocks_data, scene, noise, frame_count, start);
+	const GiBounce bounce_1 = bounceOnce(svo_data, blocks_data, scene, noise, off, start);
 	float3 gi_acc = bounce_1.acc;
 	// Eventually second bounce
 	if (bounce_1.point.cell_type && second) {
-		const GiBounce bounce_2 = bounceOnce(svo_data, blocks_data, scene, noise, frame_count * G4, bounce_1.point);
+		const GiBounce bounce_2 = bounceOnce(svo_data, blocks_data, scene, noise, off * G4, bounce_1.point);
 		gi_acc += bounce_1.intensity * bounce_2.acc;
 	}
 	
@@ -296,7 +297,7 @@ float getLightIntensity(global uint8_t* svo_data, const float3 position, const f
 {
 	const int2 tex_coords = (int2)(get_global_id(0) % 512u, get_global_id(1) % 512u);
 	const float3 noise_value = convert_float3(read_imagei(noise, exact_sampler, tex_coords).xyz) / 255.0f;
-	const float off = frame_count%10000;
+	const float off = frame_count%1000;
 	const float light_offset_1 = (frac(noise_value.x + G1 * off) - 0.5f);
 	const float light_offset_2 = (frac(noise_value.y + G2 * off) - 0.5f);
 	const float light_offset_3 = (frac(noise_value.z + G3 * off) - 0.5f);
