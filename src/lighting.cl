@@ -267,7 +267,7 @@ GiBounce bounceOnce(global uint8_t* svo_data, global float3* blocks_data, const 
 }
 
 
-float3 getGlobalIllumination(global uint8_t* svo_data, global float3* blocks_data, const float3 position, const float3 normal, const SceneSettings scene, image2d_t noise, uint32_t frame_count)
+float3 getGlobalIllumination(global uint8_t* svo_data, global float3* blocks_data, const float3 position, const float3 normal, const SceneSettings scene, image2d_t noise, uint32_t frame_count, bool second)
 {
 	HitPoint start;
 	start.position = position;
@@ -276,9 +276,9 @@ float3 getGlobalIllumination(global uint8_t* svo_data, global float3* blocks_dat
 	const GiBounce bounce_1 = bounceOnce(svo_data, blocks_data, scene, noise, frame_count, start);
 	float3 gi_acc = bounce_1.acc;
 	// Eventually second bounce
-	if (bounce_1.point.cell_type) {
+	if (bounce_1.point.cell_type && second) {
 		const GiBounce bounce_2 = bounceOnce(svo_data, blocks_data, scene, noise, frame_count * G4, bounce_1.point);
-		gi_acc += 0.5f * bounce_1.intensity * bounce_2.acc;
+		gi_acc += bounce_1.intensity * bounce_2.acc;
 	}
 	
 	return gi_acc;
@@ -327,11 +327,13 @@ __kernel void lighting(
 	const int2 gid = (int2)(get_global_id(0), get_global_id(1));
 
 	const float4 intersection = read_imagef(ss_position, exact_sampler, gid);
+
+	const float bounce_dist_threshold = 0.25f;
 	if (intersection.w) {
-		
 		const float3 normal = normalFromNumber(intersection.w);
 		const float3 gi_start = intersection.xyz + normal * NORMAL_EPS;
-		const float3 gi = getGlobalIllumination(svo_data, blocks_data, gi_start, normal, scene, noise, frame_count);		
+		const bool gi_2_bounces = read_imagef(depth, exact_sampler, gid).x < bounce_dist_threshold;
+		const float3 gi = getGlobalIllumination(svo_data, blocks_data, gi_start, normal, scene, noise, frame_count, gi_2_bounces);		
 		const float light_intensity = getLightIntensity(svo_data, intersection.xyz, normal, scene, noise, frame_count);
 		write_imagef(result_gi, gid, (float4)(gi, 0.0f));
 		write_imagef(result_shadows, gid, (float4)(light_intensity));

@@ -40,8 +40,8 @@ float4 getOldValue(image2d_t temporal_acc, image2d_t last_frame_depth, __constan
 	const float2 last_depth = read_imagef(last_frame_depth, tex_sampler, last_screen_pos).xy;
 	
 	float acc = 0.0f;
-	const float accuracy_threshold = 0.25f;
-	const float far_threshold = 0.1f;
+	const float accuracy_threshold = 0.05f;
+	const float far_threshold = 0.2f;
 	if (fabs(1.0f - length(last_view_pos) / last_depth.x) < accuracy_threshold && (last_depth.y == intersection.w || last_depth.x > far_threshold)) {
 		return last_color;
 	}
@@ -62,7 +62,6 @@ __kernel void temporal(
 	, read_only image2d_t raw_input
 	, constant float* last_view_matrix
     , float3 last_position
-	, read_only image2d_t depth
 	, read_only image2d_t last_depth
 	, read_only image2d_t ss_position
 )

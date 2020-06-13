@@ -87,7 +87,6 @@ private:
 		temporal.setArgument(args_c++, raw_lighting);
 		temporal.setArgument(args_c++, buff_view_mat);
 		temporal.setArgument(args_c++, last_position);
-		temporal.setArgument(args_c++, depths.getCurrent());
 		temporal.setArgument(args_c++, depths.getLast());
 		temporal.setArgument(args_c++, ss_positions);
 		wrapper.runKernel(temporal, oclw::Size(render_size.x, render_size.y), oclw::Size(local_size, local_size));
@@ -123,6 +122,15 @@ private:
 			blur.setArgument(0, buff_denoised.getCurrent());
 			blur.setArgument(1, buff_denoised.getLast());
 			blur.setArgument(3, i);
+			wrapper.runKernel(blur, oclw::Size(render_size.x, render_size.y), oclw::Size(local_size, local_size));
+		}
+
+		const uint8_t pass_id = 0;
+		for (uint8_t i(0); i < 1; ++i) {
+			buff_denoised.swap();
+			blur.setArgument(0, buff_denoised.getCurrent());
+			blur.setArgument(1, buff_denoised.getLast());
+			blur.setArgument(3, pass_id);
 			wrapper.runKernel(blur, oclw::Size(render_size.x, render_size.y), oclw::Size(local_size, local_size));
 		}
 	}

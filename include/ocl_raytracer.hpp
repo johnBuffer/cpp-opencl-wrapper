@@ -36,7 +36,7 @@ public:
 		, m_time(0.0f)
 		, frame_count(0)
 		, m_gi_denoiser(m_wrapper, { render_width, render_height }, 5)
-		, m_shadows_denoiser(m_wrapper, { render_width, render_height }, 1)
+		, m_shadows_denoiser(m_wrapper, { render_width, render_height }, 0)
 	{
 		initialize(max_depth, svo_data);
 	}
