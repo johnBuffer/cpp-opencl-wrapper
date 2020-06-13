@@ -22,7 +22,7 @@ struct Denoiser
 		swapBuffers();
 		execute_temporal(last_view_matrix, last_position, raw_lighting, ss_positions, depths);
 		execute_normalize();
-		execute_median();
+		//execute_median();
 		execute_blur(ss_positions);
 	}
 
@@ -47,36 +47,41 @@ struct Denoiser
 	oclw::Kernel temporal;
 	oclw::Kernel normalier;
 	oclw::Kernel median;
+	oclw::Kernel gradient;
 	oclw::Kernel blur;
 
 	// Buffers
 	DoubleBuffer buff_temporal;
 	DoubleBuffer buff_denoised;
+	oclw::Image buff_depth_gradient;
 	oclw::MemoryObject buff_view_mat;
 
 private:
 	void initialize()
 	{
+		// Temporal kernels
 		temporal_program = wrapper.createProgramFromFile("../src/temporal.cl");
 		temporal = temporal_program.createKernel("temporal");
 		normalier = temporal_program.createKernel("normalizer");
-
+		// Spacial kernels
 		blur_program = wrapper.createProgramFromFile("../src/bilateral_blur.cl");
 		blur = blur_program.createKernel("blur");
-
+		gradient = blur_program.createKernel("gradient");
 		median_program = wrapper.createProgramFromFile("../src/median.cl");
 		median = median_program.createKernel("median");
-
+		// Initialise buffers
 		buff_view_mat = wrapper.createMemoryObject<float>(9, oclw::ReadOnly);
-
 		buff_temporal.create(wrapper.getContext(), render_size.x, render_size.y, nullptr, oclw::ReadWrite, oclw::RGBA, oclw::Float);
 		buff_denoised.create(wrapper.getContext(), render_size.x, render_size.y, nullptr, oclw::ReadWrite, oclw::RGBA, oclw::Float);
+		buff_depth_gradient = wrapper.getContext().createImage2D(render_size.x, render_size.y, nullptr, oclw::ReadWrite, oclw::RGBA, oclw::Float);
 	}
 
+	// Kernels executions
 	void execute_temporal(const glm::mat3& last_view_matrix, cl_float3 last_position, oclw::MemoryObject& raw_lighting, oclw::MemoryObject& ss_positions, DoubleBuffer& depths)
 	{
+		// Update buffer
 		wrapper.writeInMemoryObject(buff_view_mat, &last_view_matrix[0], true);
-
+		// Set args
 		uint32_t args_c = 0u;
 		temporal.setArgument(args_c++, buff_temporal.getCurrent());
 		temporal.setArgument(args_c++, buff_temporal.getLast());
@@ -86,7 +91,6 @@ private:
 		temporal.setArgument(args_c++, depths.getCurrent());
 		temporal.setArgument(args_c++, depths.getLast());
 		temporal.setArgument(args_c++, ss_positions);
-
 		wrapper.runKernel(temporal, oclw::Size(render_size.x, render_size.y), oclw::Size(local_size, local_size));
 	}
 
@@ -103,6 +107,13 @@ private:
 		median.setArgument(0, buff_denoised.getCurrent());
 		median.setArgument(1, buff_denoised.getLast());
 		wrapper.runKernel(median, oclw::Size(render_size.x, render_size.y), oclw::Size(local_size, local_size));
+	}
+
+	void execute_gradient(oclw::MemoryObject& ss_positions)
+	{
+		gradient.setArgument(0, buff_depth_gradient);
+		gradient.setArgument(1, ss_positions);
+		wrapper.runKernel(gradient, oclw::Size(render_size.x, render_size.y), oclw::Size(local_size, local_size));
 	}
 
 	void execute_blur(oclw::MemoryObject& ss_positions)

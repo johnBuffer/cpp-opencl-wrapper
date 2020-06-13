@@ -5,7 +5,7 @@ typedef int            int32_t;
 typedef unsigned int   uint32_t;
 
 // Const values
-constant float ACC_COUNT = 32.0f;
+constant float ACC_COUNT = 16.0f;
 constant float NEAR = 0.5f;
 constant sampler_t tex_sampler = CLK_NORMALIZED_COORDS_TRUE | CLK_FILTER_LINEAR | CLK_ADDRESS_CLAMP;
 constant sampler_t exact_sampler = CLK_NORMALIZED_COORDS_FALSE | CLK_FILTER_NEAREST | CLK_ADDRESS_CLAMP;
@@ -41,7 +41,7 @@ float4 getOldValue(image2d_t temporal_acc, image2d_t last_frame_depth, __constan
 	
 	float acc = 0.0f;
 	const float accuracy_threshold = 0.05f;
-	const float far_threshold = 0.05f;
+	const float far_threshold = 0.5f;
 	if (fabs(1.0f - length(last_view_pos) / last_depth.x) < accuracy_threshold && (last_depth.y == intersection.w || last_depth.x > far_threshold)) {
 		return last_color;
 	}
