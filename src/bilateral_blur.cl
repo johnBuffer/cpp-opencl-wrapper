@@ -8,11 +8,6 @@ typedef unsigned int   uint32_t;
 __constant sampler_t linear_sampler = CLK_NORMALIZED_COORDS_FALSE | CLK_FILTER_LINEAR  | CLK_ADDRESS_MIRRORED_REPEAT;
 __constant sampler_t exact_sampler  = CLK_NORMALIZED_COORDS_FALSE | CLK_FILTER_NEAREST | CLK_ADDRESS_MIRRORED_REPEAT;
 
-// From SVGF
-__constant float C_PHI_REF = 4.0f;
-__constant float N_PHI_REF = 128.0f;
-__constant float P_PHI_REF = 1.0f;
-
 __constant float KERNEL[3] = { 3.0f/8.0f, 1.0f/4.0f, 1.0f/16.0f };
 
 
@@ -44,9 +39,6 @@ __kernel void blur(
         float sum = 0.0f;
 
         const uint32_t spacing = 2 * iteration - 1;
-        // const float c_phi = C_PHI_REF / (float)(spacing);
-        // const float p_phi = P_PHI_REF / (float)(spacing);
-        // const float n_phi = N_PHI_REF / (float)(spacing);
         
         const int32_t width = 2;
         float3 tmp;
@@ -60,14 +52,14 @@ __kernel void blur(
                 const float3 other_position = other_data.xyz;
                 const float other_normal = other_data.w;
                 if (other_position.x == current_position.x || other_position.y == current_position.y || other_position.z == current_position.z) {
-                    const float3 other_color  = read_imagef(color_input, linear_sampler, gid + coord_off).xyz;
+                    const float4 other_color  = read_imagef(color_input, linear_sampler, gid + coord_off);
                     // Kernel value
                     const float kernel_val_x = KERNEL[abs(x)];
                     const float kernel_val_y = KERNEL[abs(y)];
                     const float kernel_val = (kernel_val_x + kernel_val_y) * 0.5f;
                     // Sum
-                    const float weight = kernel_val + 0.0001f;
-                    color += other_color * weight;
+                    const float weight = other_color.w * kernel_val + 0.0001f;
+                    color += other_color.xyz * weight;
                     sum += weight;
                 }
             }

@@ -5,7 +5,7 @@ typedef int            int32_t;
 typedef unsigned int   uint32_t;
 
 // Const values
-constant float ACC_COUNT = 24.0f;
+constant float ACC_COUNT = 32.0f;
 constant float NEAR = 0.5f;
 constant sampler_t tex_sampler = CLK_NORMALIZED_COORDS_TRUE | CLK_FILTER_LINEAR | CLK_ADDRESS_CLAMP;
 constant sampler_t exact_sampler = CLK_NORMALIZED_COORDS_FALSE | CLK_FILTER_NEAREST | CLK_ADDRESS_CLAMP;
