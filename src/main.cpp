@@ -16,8 +16,8 @@
 
 int main()
 {
-	constexpr uint32_t WIN_WIDTH = 1920;
-	constexpr uint32_t WIN_HEIGHT = 1080;
+	constexpr uint32_t WIN_WIDTH = 1600;
+	constexpr uint32_t WIN_HEIGHT = 900;
 
 	try {
 		// If your PC or Grapgic Cards has not enough Memory, reduce this.

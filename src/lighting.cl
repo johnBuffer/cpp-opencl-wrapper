@@ -23,6 +23,7 @@ __constant float PI = 3.141592653f;
 __constant uint32_t LEVELS[11] = {0u, 8u, 72u, 584u, 4680u, 37448u, 299592u, 2396744u, 19173960u, 153391688u, 1227133512u};
 __constant float EMISSIVE_INTENSITY = 16.0f;
 __constant float INV_255 = 1.0f / 255.0f;
+__constant float DEPTH_THRESHOLD = 0.25f;
 
 
 typedef struct OctreeStack
@@ -65,9 +66,9 @@ float frac(float x)
 }
 
 
-float3 getRandomizedNormal(const float3 normal, image2d_t noise, float off)
+float3 getRandomizedNormal(const float3 normal, image2d_t noise, float off, uint8_t second)
 {
-	const int2 tex_coords = (int2)(get_global_id(0) % 512u, get_global_id(1) % 512u);
+	const int2 tex_coords = (int2)(get_global_id(0) % 512u, get_global_id(1) % 256u + second * 256u);
 	const float3 noise_value = convert_float3(read_imagei(noise, exact_sampler, tex_coords).xyz) * INV_255;
 
 	const float coord_1 = frac(noise_value.x + off * G1) - 0.5f;
@@ -84,13 +85,12 @@ float3 getRandomizedNormal(const float3 normal, image2d_t noise, float off)
 
 
 // Raytracing functions
-HitPoint castRay(global uint8_t* svo_data, float3 position, float3 d)
+HitPoint castRay(global uint8_t* svo_data, float3 position, float3 d, float max_dist)
 {
 	HitPoint result;
 	result.cell_type = 0;
 
 	const float EPS = 1.0f / (float)(1 << SVO_MAX_DEPTH);
-	
 	// Initialize stack
 	OctreeStack stack[11];
 	// Check octant mask and modify ray accordingly
@@ -127,7 +127,7 @@ HitPoint castRay(global uint8_t* svo_data, float3 position, float3 d)
 	uint8_t normal = 0u;
 	
 	// Explore octree
-	while (scale < SVO_MAX_DEPTH) {
+	while (scale < SVO_MAX_DEPTH && t_min < max_dist) {
 		const uint8_t node = svo_data[node_id];
 		// Compute new T span
 		const float3 t_corner = (float3)(pos.x * t_coef.x - t_offset.x, pos.y * t_coef.y - t_offset.y, pos.z * t_coef.z - t_offset.z);
@@ -230,35 +230,43 @@ HitPoint castRay(global uint8_t* svo_data, float3 position, float3 d)
 }
 
 
-float getSunContribution(global uint8_t* svo_data, const HitPoint point, const float3 light_position)
+float3 getSkyColor(const float3 position, const float3 direction, const SceneSettings* scene)
 {
-	const float3 ray_start = point.position + point.normal * NORMAL_EPS;
-	const float3 ray_direction = normalize(light_position - ray_start);
-	const HitPoint light_intersection = castRay(svo_data, ray_start, ray_direction);
-	if (light_intersection.cell_type) {
-		return 0.0f;
-	}
-	return max(0.0f, dot(point.normal, ray_direction));
+	const float to_sun_intensity = dot(direction, normalize(scene->light_position - position));
+	const float primary_intensity = pow(to_sun_intensity, 511.0f);
+	const float secondary_intensity = 0.2f * pow(to_sun_intensity, 1.0f);
+	return (INV_255) * max(50.0f, min((float3)(255.0f * (primary_intensity + secondary_intensity)) + (float3)(200.0f), (float3)(255.0f)));
 }
 
 
-GiBounce bounceOnce(global uint8_t* svo_data, global float3* blocks_data, const SceneSettings scene, image2d_t noise, float off, const HitPoint start)
+float getSunContribution(global uint8_t* svo_data, const HitPoint* point, const float3 light_position)
+{
+	const float3 ray_start = point->position + point->normal * NORMAL_EPS;
+	const float3 ray_direction = normalize(light_position - ray_start);
+	const HitPoint light_intersection = castRay(svo_data, ray_start, ray_direction, 1.0f);
+	if (light_intersection.cell_type) {
+		return 0.0f;
+	}
+	return max(0.0f, dot(point->normal, ray_direction));
+}
+
+
+GiBounce bounceOnce(global uint8_t* svo_data, global float3* blocks_data, const SceneSettings* scene, image2d_t noise, float off, const HitPoint* start, const uint8_t second)
 {
 	GiBounce result;
 	result.acc = 0.0f;
 	// Launch random ray from surface
-	const float3 gi_start = start.position + NORMAL_EPS * start.normal;
-	const float3 gi_direction = getRandomizedNormal(start.normal, noise, off);
-	result.point = castRay(svo_data, gi_start, gi_direction);
-	result.intensity = max(0.0f, dot(gi_direction, start.normal));
+	const float3 gi_start = start->position + NORMAL_EPS * start->normal;
+	const float3 gi_direction = getRandomizedNormal(start->normal, noise, off, second);
+	result.point = castRay(svo_data, gi_start, gi_direction, DEPTH_THRESHOLD * 0.2f);
+	result.intensity = max(0.0f, dot(gi_direction, start->normal));
 	if (result.point.cell_type) {
 		// Check for sun
-		result.acc = (scene.light_intensity * getSunContribution(svo_data, result.point, scene.light_position)) * blocks_data[result.point.cell_type];
+		result.acc = (scene->light_intensity * getSunContribution(svo_data, &result.point, scene->light_position)) * blocks_data[result.point.cell_type];
 		// Check for emissive
-		//result.acc += (result.point.cell_type == 2) * EMISSIVE_INTENSITY * block_color;
 	} else {
 		// Sky contribution
-		result.acc += (INV_255) * SKY_COLOR;
+		result.acc += getSkyColor(gi_start, gi_direction, scene);
 	}
 
 	result.acc *= result.intensity;
@@ -267,20 +275,20 @@ GiBounce bounceOnce(global uint8_t* svo_data, global float3* blocks_data, const 
 }
 
 
-float3 getGlobalIllumination(global uint8_t* svo_data, global float3* blocks_data, const float3 position, const float3 normal, const SceneSettings scene, image2d_t noise, uint32_t frame_count, bool second)
+float3 getGlobalIllumination(global uint8_t* svo_data, global float3* blocks_data, const float3 position, const float3 normal, const SceneSettings* scene, image2d_t noise, uint32_t frame_count)
 {
 	const float off = frame_count % 1000;
 	HitPoint start;
 	start.position = position;
 	start.normal = normal;
 
-	const GiBounce bounce_1 = bounceOnce(svo_data, blocks_data, scene, noise, off, start);
+	const GiBounce bounce_1 = bounceOnce(svo_data, blocks_data, scene, noise, off, &start, 0);
 	float3 gi_acc = bounce_1.acc;
 	// Eventually second bounce
-	/*if (bounce_1.point.cell_type && second) {
-		const GiBounce bounce_2 = bounceOnce(svo_data, blocks_data, scene, noise, off * G4, bounce_1.point);
+	if (bounce_1.point.cell_type) {
+		const GiBounce bounce_2 = bounceOnce(svo_data, blocks_data, scene, noise, off, &bounce_1.point, 1);
 		gi_acc += bounce_1.intensity * bounce_2.acc;
-	}*/
+	}
 	
 	return gi_acc;
 }
@@ -293,7 +301,7 @@ float3 normalFromNumber(const float number)
 }
 
 
-float getLightIntensity(global uint8_t* svo_data, const float3 position, const float3 normal, const SceneSettings scene, image2d_t noise, uint32_t frame_count)
+float getLightIntensity(global uint8_t* svo_data, const float3 position, const float3 normal, const SceneSettings* scene, image2d_t noise, uint32_t frame_count)
 {
 	const int2 tex_coords = (int2)(get_global_id(0) % 512u, get_global_id(1) % 512u);
 	const float3 noise_value = convert_float3(read_imagei(noise, exact_sampler, tex_coords).xyz) / 255.0f;
@@ -303,8 +311,8 @@ float getLightIntensity(global uint8_t* svo_data, const float3 position, const f
 	const float light_offset_3 = (frac(noise_value.z + G3 * off) - 0.5f);
 
 	const float3 ray_start = position + normal * NORMAL_EPS;
-	const float3 shadow_ray = normalize(scene.light_position + scene.light_radius * (float3)(light_offset_1, light_offset_2, light_offset_3) - position);
-	const HitPoint light_intersection = castRay(svo_data, ray_start, shadow_ray);
+	const float3 shadow_ray = normalize(scene->light_position + scene->light_radius * (float3)(light_offset_1, light_offset_2, light_offset_3) - position);
+	const HitPoint light_intersection = castRay(svo_data, ray_start, shadow_ray, 1.0f);
 	if (light_intersection.cell_type) {
 		return 0.0f;
 	}
@@ -328,18 +336,23 @@ __kernel void lighting(
 	const int2 gid = (int2)(get_global_id(0), get_global_id(1));
 
 	const float4 intersection = read_imagef(ss_position, exact_sampler, gid);
+	const float  pxl_depth = read_imagef(depth, exact_sampler, gid).x;
 
-	const float bounce_dist_threshold = 0.25f;
 	if (intersection.w) {
 		const float3 normal = normalFromNumber(intersection.w);
 		const float3 gi_start = intersection.xyz + normal * NORMAL_EPS;
-		const bool gi_2_bounces = read_imagef(depth, exact_sampler, gid).x < bounce_dist_threshold;
-		const float3 gi = getGlobalIllumination(svo_data, blocks_data, gi_start, normal, scene, noise, frame_count, gi_2_bounces);		
-		const float light_intensity = getLightIntensity(svo_data, intersection.xyz, normal, scene, noise, frame_count);
+		float3 gi = 0.0f;
+		if (pxl_depth < DEPTH_THRESHOLD) {
+			gi = getGlobalIllumination(svo_data, blocks_data, gi_start, normal, &scene, noise, frame_count);
+		} else {
+			const float3 sky_ray = getRandomizedNormal(normal, noise, frame_count%1000, 0);
+			gi = 0.5f * getSkyColor(intersection.xyz, sky_ray, &scene);
+		}
+		const float light_intensity = getLightIntensity(svo_data, intersection.xyz, normal, &scene, noise, frame_count);
 		write_imagef(result_gi, gid, (float4)(gi, 0.0f));
 		write_imagef(result_shadows, gid, (float4)(light_intensity));
 	}
 	else {
-		write_imagef(result_gi, gid, (float4)(0.0f));
+		write_imagef(result_gi, gid, (float4)(1.0f));
 	}
 }

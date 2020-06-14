@@ -13,34 +13,44 @@ struct FpsController : public CameraController
 
 	void move(const glm::vec3& move_vector, Camera& camera, const Losvo& svo, bool boost) override
 	{
-		const float body_height = 1.85f;
+		if (first) {
+			first = false;
+			body_position = camera.position;
+		}
 		const float body_radius = 0.2f;
 		const float feet_eps = 0.05f;
 
 		const float elapsed_time = clock.restart().asSeconds();
 		
 		// Fly mode
-		if (boost || 1) {
+		if (boost) {
 			// These values have to be ajusted with the svo's size
-			const float speed = boost ? 10.0f : 4.0f;
-			camera.move(speed * move_vector * movement_speed * elapsed_time);
+			const float speed = boost ? 4.0f : 2.0f;
+			body_position += speed * move_vector * movement_speed * elapsed_time;
+			camera.position = body_position;
 		}
 		else {
 			v += elapsed_time * g;
-			camera.position += glm::vec3(move_vector.x, 0.0f, move_vector.z) * movement_speed * elapsed_time;
-			camera.position.y += v * elapsed_time;
+			body_position += glm::vec3(move_vector.x, 0.0f, move_vector.z) * movement_speed * elapsed_time;
+			body_position.y += v * elapsed_time;
+			camera.position.x = body_position.x;
+			camera.position.z = body_position.z;
 		}
 
 		// Ground check
-		const HitPoint yp_ray = svo.castRay(camera.position, glm::vec3(0.0f, 1.0f, 0.0f));
+		const HitPoint yp_ray = svo.castRay(body_position, glm::vec3(0.0f, 1.0f, 0.0f));
 		if (yp_ray.hit) {
 			if (yp_ray.distance < body_height) {
-				//std::cout << "HIT " << yp_ray.position.y << std::endl;
-				//std::cout << "Cam Y " << camera.position.y << std::endl;
 				can_jump = true;
-				camera.position.y = svo.world_size - (yp_ray.position.y + body_height);
+				body_position.y = svo.world_size - (yp_ray.position.y + body_height);
+				camera.position.y += (body_position.y - camera.position.y) * 0.2f;
 				v = 0.0f;
 			}
+			else {
+				camera.position.y = body_position.y;
+			}
+		} else {
+			camera.position.y = body_position.y;
 		}
 
 		if (!v) {
@@ -100,6 +110,10 @@ struct FpsController : public CameraController
 	size_t fall;
 	size_t start_jump;
 
+	bool first = true;
+	glm::vec3 body_position;
+	const float body_height_target = 2.5f;
+	float body_height = body_height_target;
 	bool can_jump;
 	float v = 0.0f;
 	const float g = 24.0f;

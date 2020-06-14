@@ -220,12 +220,18 @@ void colorToResultBuffer(float3 color, uint32_t index, __global float* buffer)
 	buffer[4 * index + 3] = 255.0f;
 }
 
-float3 getColorFromIntersection(HitPoint intersection, global float3* blocks_data)
+float3 getColorFromIntersection(const HitPoint* intersection, global float3* blocks_data, image2d_t texture1, image2d_t texture2)
 {
 	// Uncomment to enable textures
 	//const float scale = 256.0f;
-	//const float color = convert_float3(read_imagei(top_image, tex_sampler, intersection.tex_coords).x); 
-	return 255.0f * blocks_data[intersection.cell_type].xyz;
+	float3 color = 0.0f;
+	if (intersection->cell_type == 1) {
+		color = convert_float3(read_imagei(texture1, tex_sampler, intersection->tex_coords).xyz);
+	} else {
+		color = convert_float3(read_imagei(texture2, tex_sampler, intersection->tex_coords).xyz);
+	}
+	
+	return color * blocks_data[intersection->cell_type].xyz;
 
 	// Uncomment to disable textures
 	//return intersection.complexity;
@@ -242,7 +248,7 @@ float3 getColorAndLightFromIntersection(HitPoint intersection, global float3* bl
 		light_intensity = 1.0f;//max(0.0f, dot(intersection.normal, shadow_ray));
 	}
 	
-	return light_intensity * getColorFromIntersection(intersection, blocks_data); 
+	return light_intensity;// * getColorFromIntersection(&intersection, blocks_data); 
 }
 
 float normalToNumber(const float3 normal)
@@ -278,7 +284,7 @@ __kernel void albedo(
 	// Result
 	float3 color = 0.5f * SKY_COLOR;
 	if (intersection.cell_type) {		
-		color = getColorFromIntersection(intersection, blocks_data);
+		color = getColorFromIntersection(&intersection, blocks_data, top_image, side_image);
 		write_imagef(ss_position, gid, (float4)(intersection.position, normalToNumber(intersection.normal)));
 		write_imagef(depth, gid, (float4)(intersection.distance, normalToNumber(intersection.normal), intersection.cell_type, 0.0f));
 	}

@@ -36,7 +36,7 @@ public:
 		, m_time(0.0f)
 		, frame_count(0)
 		, m_gi_denoiser(m_wrapper, { render_width, render_height }, 5, true)
-		, m_shadows_denoiser(m_wrapper, { render_width, render_height }, 0)
+		, m_shadows_denoiser(m_wrapper, { render_width, render_height }, 1)
 	{
 		initialize(max_depth, svo_data);
 	}
@@ -229,6 +229,7 @@ private:
 
 		std::vector<cl_float4> blocks_data = {
 			cl_float3{0.0f, 0.0f, 0.0f},
+			cl_float3{30.0f / 255.0f, 130.0f / 255.0f, 50.0f / 255.0f},
 			cl_float3{1.0f, 1.0f, 1.0f},
 			cl_float3{1.0f, 0.0f, 0.0f},
 			cl_float3{0.0f, 1.0f, 0.0f},
@@ -280,9 +281,9 @@ private:
 	void loadImagesToDevice()
 	{
 		//m_image_side.loadFromFile("../res/grass.jpg");
-		//m_image_top.loadFromFile("../res/grass.jpg");
+		m_image_side.loadFromFile("../res/concrete.jpg");
 
-		m_image_side.loadFromFile("../res/grass_side_16x16.bmp");
+		//m_image_side.loadFromFile("../res/grass_side_16x16.bmp");
 		m_image_top.loadFromFile("../res/grass_top_16x16.bmp");
 
 		sf::Image noise_image;

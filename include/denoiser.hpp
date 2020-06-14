@@ -24,6 +24,7 @@ struct Denoiser
 		execute_temporal(last_view_matrix, last_position, raw_lighting, ss_positions, depths);
 		execute_normalize();
 		if (diso_handling) {
+			//execute_median();
 			//execute_blur_diso(ss_positions);
 		}
 		execute_blur(ss_positions);
