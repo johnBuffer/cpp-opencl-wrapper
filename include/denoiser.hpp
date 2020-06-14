@@ -9,10 +9,11 @@ struct Denoiser
 {
 	const uint8_t local_size = 20u;
 
-	Denoiser(oclw::Wrapper& wrapper_, const glm::uvec2 render_size_, const uint8_t blur_passes_)
+	Denoiser(oclw::Wrapper& wrapper_, const glm::uvec2 render_size_, const uint8_t blur_passes_, bool diso = false)
 		: wrapper(wrapper_)
 		, render_size(render_size_)
 		, blur_passes(blur_passes_)
+		, diso_handling(diso)
 	{
 		initialize();
 	}
@@ -22,6 +23,9 @@ struct Denoiser
 		swapBuffers();
 		execute_temporal(last_view_matrix, last_position, raw_lighting, ss_positions, depths);
 		execute_normalize();
+		if (diso_handling) {
+			//execute_blur_diso(ss_positions);
+		}
 		execute_blur(ss_positions);
 	}
 
@@ -38,16 +42,19 @@ struct Denoiser
 	oclw::Wrapper& wrapper;
 	const glm::uvec2 render_size;
 	const uint8_t blur_passes;
+	const bool diso_handling;
 
 	oclw::Program temporal_program;
 	oclw::Program median_program;
 	oclw::Program blur_program;
+	oclw::Program blur_diso_program;
 
 	oclw::Kernel temporal;
 	oclw::Kernel normalier;
 	oclw::Kernel median;
 	oclw::Kernel gradient;
 	oclw::Kernel blur;
+	oclw::Kernel blur_diso;
 
 	// Buffers
 	DoubleBuffer buff_temporal;
@@ -64,8 +71,9 @@ private:
 		normalier = temporal_program.createKernel("normalizer");
 		// Spacial kernels
 		blur_program = wrapper.createProgramFromFile("../src/bilateral_blur.cl");
+		blur_diso_program = wrapper.createProgramFromFile("../src/bilateral_blur_diso.cl");
 		blur = blur_program.createKernel("blur");
-		gradient = blur_program.createKernel("gradient");
+		blur_diso = blur_diso_program.createKernel("blur");
 		median_program = wrapper.createProgramFromFile("../src/median.cl");
 		median = median_program.createKernel("median");
 		// Initialise buffers
@@ -105,6 +113,17 @@ private:
 		median.setArgument(0, buff_denoised.getCurrent());
 		median.setArgument(1, buff_denoised.getLast());
 		wrapper.runKernel(median, oclw::Size(render_size.x, render_size.y), oclw::Size(local_size, local_size));
+	}
+
+	void execute_blur_diso(oclw::MemoryObject& ss_positions)
+	{
+		blur_diso.setArgument(2, ss_positions);
+		for (uint8_t i(3); i--;) {
+			buff_denoised.swap();
+			blur_diso.setArgument(0, buff_denoised.getCurrent());
+			blur_diso.setArgument(1, buff_denoised.getLast());
+			wrapper.runKernel(blur_diso, oclw::Size(render_size.x, render_size.y), oclw::Size(local_size, local_size));
+		}
 	}
 
 	void execute_gradient(oclw::MemoryObject& ss_positions)

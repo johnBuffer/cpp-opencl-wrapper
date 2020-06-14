@@ -277,10 +277,10 @@ float3 getGlobalIllumination(global uint8_t* svo_data, global float3* blocks_dat
 	const GiBounce bounce_1 = bounceOnce(svo_data, blocks_data, scene, noise, off, start);
 	float3 gi_acc = bounce_1.acc;
 	// Eventually second bounce
-	if (bounce_1.point.cell_type && second) {
+	/*if (bounce_1.point.cell_type && second) {
 		const GiBounce bounce_2 = bounceOnce(svo_data, blocks_data, scene, noise, off * G4, bounce_1.point);
 		gi_acc += bounce_1.intensity * bounce_2.acc;
-	}
+	}*/
 	
 	return gi_acc;
 }

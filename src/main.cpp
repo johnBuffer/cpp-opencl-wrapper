@@ -16,8 +16,8 @@
 
 int main()
 {
-	constexpr uint32_t WIN_WIDTH = 1280;
-	constexpr uint32_t WIN_HEIGHT = 720;
+	constexpr uint32_t WIN_WIDTH = 1920;
+	constexpr uint32_t WIN_HEIGHT = 1080;
 
 	try {
 		// If your PC or Grapgic Cards has not enough Memory, reduce this.
@@ -88,11 +88,11 @@ int main()
 			sf::Sprite albedo_sprite(tex_albedo);
 			window.draw(albedo_sprite);
 
-			const float aim_size = 2.0f;
+			const float aim_size = 3.0f;
 			sf::RectangleShape aim(sf::Vector2f(aim_size, aim_size));
 			aim.setOrigin(aim_size * 0.5f, aim_size * 0.5f);
 			aim.setPosition(WIN_WIDTH*0.5f, WIN_HEIGHT*0.5f);
-			aim.setFillColor(sf::Color::Green);
+			aim.setFillColor(sf::Color::Red);
 			window.draw(aim);
 
 

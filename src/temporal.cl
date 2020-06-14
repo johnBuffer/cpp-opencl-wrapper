@@ -5,11 +5,12 @@ typedef int            int32_t;
 typedef unsigned int   uint32_t;
 
 // Const values
-constant float ACC_COUNT = 32.0f;
+constant float ACC_COUNT = 4.0f;
 constant float NEAR = 0.5f;
 constant sampler_t tex_sampler = CLK_NORMALIZED_COORDS_TRUE | CLK_FILTER_LINEAR | CLK_ADDRESS_CLAMP;
 constant sampler_t exact_sampler = CLK_NORMALIZED_COORDS_FALSE | CLK_FILTER_NEAREST | CLK_ADDRESS_CLAMP;
 
+uint32_t rand_fetch_count = 0;
 
 // Utils functions
 float3 preMultVec3Mat3(float3 v, constant float* mat)
@@ -41,8 +42,9 @@ float4 getOldValue(image2d_t temporal_acc, image2d_t last_frame_depth, __constan
 	
 	float acc = 0.0f;
 	const float accuracy_threshold = 0.05f;
-	const float far_threshold = 0.2f;
+	const float far_threshold = 1.2f;
 	if (fabs(1.0f - length(last_view_pos) / last_depth.x) < accuracy_threshold && (last_depth.y == intersection.w || last_depth.x > far_threshold)) {
+		const float threshold = 0.01f;
 		return last_color;
 	}
 	
@@ -66,22 +68,21 @@ __kernel void temporal(
 	, read_only image2d_t ss_position
 )
 {
-	const int2 gid = (int2)(get_global_id(0), get_global_id(1));
+	const int2 gid = (int2)(get_global_id(0), get_global_id(1));	
+	const float4 intersection = read_imagef(ss_position, exact_sampler, gid);
 
 	float3 color = 1.0f;
 	float acc = 1.0f;
 
-	const float4 intersection = read_imagef(ss_position, exact_sampler, gid);
 	if (intersection.w) {
-		const float4 acc_value = getOldValue(temporal_acc, last_depth, last_view_matrix, last_position, intersection);
 		const float3 new_value = read_imagef(raw_input, exact_sampler, gid).xyz;
+		const float4 acc_value = getOldValue(temporal_acc, last_depth, last_view_matrix, last_position, intersection);
 		acc = acc_value.w + 1.0f;
-		if (acc < ACC_COUNT) {
-			color = new_value + acc_value.xyz;
+		const float contribution_coef = 0.1f;
+		if (acc == 1.0f) {
+			color = new_value;
 		} else {
-			acc = ACC_COUNT - 1.0f;
-			const float conservation_coef = acc / ACC_COUNT;
-			color = conservation_coef * (new_value + acc_value.xyz);
+			color = contribution_coef * new_value + (1.0f - contribution_coef) * acc_value.xyz;
 		}
 	}
 	
@@ -95,5 +96,5 @@ __kernel void normalizer(
 {
 	const int2 gid = (int2)(get_global_id(0), get_global_id(1));
 	const float4 in_color = read_imagef(input, exact_sampler, gid);
-	write_imagef(output, gid, (float4)(fmax(0.0f, in_color.xyz / in_color.w), in_color.w));
+	write_imagef(output, gid, (float4)(fmax(0.0f, in_color.xyz), in_color.w));
 }
