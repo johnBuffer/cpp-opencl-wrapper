@@ -18,8 +18,8 @@ int main()
 		oclw::Wrapper wrapper(oclw::DeviceType::GPU);
 		// Initialize problem's data
 		const uint32_t elements_count = 5u;
-		std::vector<int> a({ 1, 5, 7, 0, 5 });
-		std::vector<int> b({ 4, 3, 1, 1, 4 });
+		std::vector<int> a{ 1, 5, 7, 0, 5 };
+		std::vector<int> b{ 4, 3, 1, 1, 4 };
 		std::vector<int> c;
 		// Create memory objects
 		oclw::MemoryObject a_buff = wrapper.createMemoryObject(a, oclw::ReadOnly | oclw::CopyHostPtr);

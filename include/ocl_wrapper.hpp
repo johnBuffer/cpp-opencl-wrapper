@@ -257,7 +257,7 @@ namespace oclw
 		virtual ~MemoryObject()
 		{
 			if (m_memory_object) {
-				Utils::checkError(clReleaseMemObject(m_memory_object), "Cannot delete memory object");
+				clReleaseMemObject(m_memory_object);
 			}
 		}
 
@@ -380,10 +380,8 @@ namespace oclw
 
 		~Kernel()
 		{
-			cl_int err_num;
 			if (m_kernel) {
-				err_num = clReleaseKernel(m_kernel);
-				Utils::checkError(err_num, "Cannot release kernel");
+				clReleaseKernel(m_kernel);
 			}
 		}
 
@@ -438,7 +436,7 @@ namespace oclw
 		~Program()
 		{
 			if (m_program) {
-				Utils::checkError(clReleaseProgram(m_program), "Cannot release program");
+				clReleaseProgram(m_program);
 			}
 		}
 
@@ -469,7 +467,6 @@ namespace oclw
 		{
 			cl_int err_num;
 			m_command_queue = clCreateCommandQueue(context, device, 0, &err_num);
-			//clCreateCommandQueueWithProperties();
 
 			Utils::checkError(err_num, "Cannot create command queue");
 		}
@@ -484,7 +481,7 @@ namespace oclw
 		~CommandQueue()
 		{
 			if (m_command_queue) {
-				Utils::checkError(clReleaseCommandQueue(m_command_queue), "Cannot create command queue");
+				clReleaseCommandQueue(m_command_queue);
 			}
 		}
 
@@ -555,7 +552,7 @@ namespace oclw
 		~Context()
 		{
 			if (m_context) {
-				Utils::checkError(clReleaseContext(m_context), "Cannot release context");
+				clReleaseContext(m_context);
 			}
 		}
 
