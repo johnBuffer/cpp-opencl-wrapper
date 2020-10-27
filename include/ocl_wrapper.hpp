@@ -101,7 +101,7 @@ namespace oclw
 	};
 
 
-	enum MemoryObjectReadMode {
+	enum MemoryObjectMode {
 		ReadOnly = CL_MEM_READ_ONLY,
 		ReadWrite = CL_MEM_READ_WRITE,
 		WriteOnly = CL_MEM_WRITE_ONLY,
@@ -254,7 +254,7 @@ namespace oclw
 			return *this;
 		}
 
-		~MemoryObject()
+		virtual ~MemoryObject()
 		{
 			if (m_memory_object) {
 				Utils::checkError(clReleaseMemObject(m_memory_object), "Cannot delete memory object");
@@ -299,6 +299,35 @@ namespace oclw
 	{
 	public:
 		Image() = default;
+		Image(cl_mem buffer, uint64_t width_, uint64_t height_, uint64_t element_size)
+			: MemoryObject(buffer, width_ * height_, element_size)
+			, width(width_)
+			, height(height_)
+		{
+
+		}
+
+		Image& operator=(const Image& other)
+		{
+			MemoryObject::operator=(other);
+			width = other.width;
+			height = other.height;
+			return *this;
+		}
+
+		uint64_t getWidth() const
+		{
+			return width;
+		}
+
+		uint64_t getHeight() const
+		{
+			return height;
+		}
+
+	private:
+		uint64_t width;
+		uint64_t height;
 	};
 
 
@@ -320,6 +349,13 @@ namespace oclw
 		}
 
 		void setArgument(uint32_t arg_num, MemoryObject& object)
+		{
+			std::stringstream ssx;
+			ssx << "Cannot set argument [" << arg_num << "] of kernel '" << m_name << "'";
+			Utils::checkError(clSetKernelArg(m_kernel, arg_num, sizeof(cl_mem), &(object.getRaw())), ssx.str());
+		}
+
+		void setArgument(uint32_t arg_num, Image& object)
 		{
 			std::stringstream ssx;
 			ssx << "Cannot set argument [" << arg_num << "] of kernel '" << m_name << "'";
@@ -428,11 +464,13 @@ namespace oclw
 			: m_command_queue(raw_command_queue)
 		{}
 
-		CommandQueue(cl_context context, cl_device_id device)
+		CommandQueue(cl_context context, cl_device_id device, bool out_of_order = false)
 			: m_command_queue(nullptr)
 		{
 			cl_int err_num;
 			m_command_queue = clCreateCommandQueue(context, device, 0, &err_num);
+			//clCreateCommandQueueWithProperties();
+
 			Utils::checkError(err_num, "Cannot create command queue");
 		}
 
@@ -471,14 +509,17 @@ namespace oclw
 		template<typename T>
 		void readImageObject(Image& image, bool blocking_read, std::vector<T>& result)
 		{
-			int32_t err_num = clEnqueueReadImage(m_command_queue, object.getRaw(), blocking_read ? CL_TRUE : CL_FALSE, 0, object.getBytesSize(), result.data(), 0, NULL, NULL);
-			Utils::checkError(err_num, "Cannot read from buffer");
+			size_t origin[] = { 0, 0, 0 };
+			size_t region[] = { image.getWidth(), image.getHeight(), 1 };
+			const bool blocking = blocking_read ? CL_TRUE : CL_FALSE;
+			int32_t err_num = clEnqueueReadImage(m_command_queue, image.getRaw(), blocking, origin, region, 0, 0, result.data(), 0, NULL, NULL);
+			Utils::checkError(err_num, "Cannot read from image");
 		}
 
 		template<typename T>
 		void writeInMemoryObject(MemoryObject& object, bool blocking_write, const T* data)
 		{
-			int32_t err_num = clEnqueueWriteBuffer(m_command_queue, object.getRaw(), blocking_write ? CL_TRUE : CL_FALSE, 0, object.getBytesSize(), data, 0, NULL, NULL);
+			const cl_int err_num = clEnqueueWriteBuffer(m_command_queue, object.getRaw(), CL_TRUE, 0, object.getBytesSize(), data, 0, NULL, NULL);
 			Utils::checkError(err_num, "Cannot write in buffer");
 		}
 
@@ -559,7 +600,7 @@ namespace oclw
 			return devices;
 		}
 
-		CommandQueue createQueue(cl_device_id device)
+		CommandQueue createQueue(cl_device_id device, bool out_of_order = false)
 		{
 			return CommandQueue(m_context, device);
 		}
@@ -588,7 +629,7 @@ namespace oclw
 			return MemoryObject(m_context, sizeof(T), element_count, mode);
 		}
 
-		MemoryObject createImage2D(uint32_t width, uint32_t height, void* data, int32_t mode, ImageFormat format, ChannelDatatype datatype)
+		Image createImage2D(uint32_t width, uint32_t height, void* data, int32_t mode, ImageFormat format, ChannelDatatype datatype)
 		{
 			cl_image_format image_format;
 			image_format.image_channel_order = format;
@@ -602,7 +643,7 @@ namespace oclw
 			cl_int err_num;
 			const cl_mem image = clCreateImage(m_context, mode, &image_format, &image_desc, data, &err_num);
 			Utils::checkError(err_num, "Cannot create 2D image");
-			return MemoryObject(image, width * height, 4u);
+			return Image(image, width, height, 4u);
 		}
 
 		MemoryObject createImage3D(uint32_t width, uint32_t height, uint32_t depth, void* data, int32_t mode, ImageFormat format, ChannelDatatype datatype)
@@ -633,7 +674,7 @@ namespace oclw
 			image_desc.image_height = height;
 			image_desc.image_depth = depth;
 			cl_int err_num;
-			cl_mem image = clCreateImage(m_context, MemoryObjectReadMode::ReadWrite, &image_format, &image_desc, nullptr, &err_num);
+			cl_mem image = clCreateImage(m_context, MemoryObjectMode::ReadWrite, &image_format, &image_desc, nullptr, &err_num);
 			Utils::checkError(err_num, "Cannot create 3D image");
 			return MemoryObject(image, width * height, 4u);
 		}
@@ -679,12 +720,19 @@ namespace oclw
 		void runKernel(Kernel& kernel, const Size& global_size, const Size& local_size, const std::size_t* global_work_offset = nullptr)
 		{
 			m_command_queue.addKernel(kernel, global_size.dimension, global_work_offset, global_size.sizes, local_size.sizes);
+			m_command_queue.waitCompletion();
 		}
 
 		template<typename T>
 		void readMemoryObject(MemoryObject& mem_object, std::vector<T>& result_container, bool blocking_read = true)
 		{
 			m_command_queue.readMemoryObject(mem_object, blocking_read, result_container);
+		}
+
+		template<typename T>
+		void readImageObject(Image& image, std::vector<T>& result_container, bool blocking_read = true)
+		{
+			m_command_queue.readImageObject(image, blocking_read, result_container);
 		}
 
 		template<typename T>
@@ -720,6 +768,26 @@ namespace oclw
 			m_command_queue.writeInMemoryObject(object, blocking_write, data);
 		}
 
+		template<typename T>
+		void writeInMemoryObject(MemoryObject& object, const std::vector<T>& data, bool blocking_write)
+		{
+			m_command_queue.writeInMemoryObject(object, blocking_write, data.data());
+		}
+
+		oclw::CommandQueue createCommandQueue()
+		{
+			if (m_context) {
+				auto& devices_list = m_context.getDevices();
+				m_device = devices_list.front();
+				return m_context.createQueue(m_device);
+			}
+			else {
+				std::cout << "Cannot create queue." << std::endl;
+			}
+
+			return oclw::CommandQueue();
+		}
+
 	private:
 		Context m_context;
 		cl_device_id m_device;
@@ -730,6 +798,11 @@ namespace oclw
 			auto platforms = getPlatforms(1u);
 			if (!platforms.empty()) {
 				m_context = createContext(platforms.front(), type);
+
+				char version[1024];
+				clGetPlatformInfo(platforms.front(), CL_PLATFORM_VERSION, 1024, version, nullptr);
+				std::cout << "Version " << version << std::endl;
+
 				if (!m_context) {
 					std::cout << "Cannot create context." << std::endl;
 				}
