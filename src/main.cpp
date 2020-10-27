@@ -1,99 +1,44 @@
-
 #include <iostream>
 #include <CL/opencl.h>
 #include <ocl_wrapper.hpp>
-#include <SFML/Graphics.hpp>
-#include "event_manager.hpp"
-#include <swarm.hpp>
 
-#include "utils.hpp"
-#include "fly_controller.hpp"
-#include "fps_controller.hpp"
-#include "ocl_raytracer.hpp"
-#include "dynamic_blur.hpp"
-#include "lsvo.hpp"
 
+const std::string program_source = "                                    \
+__kernel void test(__global int* a, __global int* b, __global int* c) { \
+	const int idx = get_global_id(0);                                   \
+	c[idx] = a[idx] + b[idx];                                           \
+}";
 
 
 int main()
 {
-	constexpr uint32_t WIN_WIDTH = 1600;
-	constexpr uint32_t WIN_HEIGHT = 900;
-
 	try
 	{
-		const uint8_t max_depth = 9;
-		SVO* builder = new SVO(max_depth);
-		generateSVO(max_depth, *builder);
-		LSVO svo(*builder, max_depth);
-		delete builder;
-
-		Raytracer raytracer(WIN_WIDTH, WIN_HEIGHT, max_depth, svo.data, 1.0f);
-
-		// Main loop
-		sf::RenderWindow window(sf::VideoMode(WIN_WIDTH, WIN_HEIGHT), "OpenCL and SFML", sf::Style::Default);
-		window.setMouseCursorVisible(false);
-
-		EventManager event_manager(window);
-
-		sf::Texture tex_albedo;
-
-		sf::Vector2f sun(0.0f, 0.0f);
-		SceneSettings scene;
-		scene.light_intensity = 1.5f;
-		scene.light_position = { 0.0f, 0.0f, 0.0f };
-		scene.light_radius = 0.0f;
-
-		// Camera
-		Camera camera;
-		camera.position = glm::vec3(345.317f, 322.447f, 432.477f);
-		camera.last_move = glm::vec3(0.0f);
-		camera.view_angle = glm::vec2(3.61429, -0.72);
-		camera.fov = 1.0f;
-
-		sf::Mouse::setPosition(sf::Vector2i(WIN_WIDTH / 2, WIN_HEIGHT / 2), window);
-		FpsController controller;
-
-		while (window.isOpen())
-		{
-			sf::Vector2i mouse_pos = sf::Mouse::getPosition(window);
-			event_manager.processEvents(controller, camera, svo, scene, sun);
-
-			if (event_manager.mouse_control) {
-				sf::Mouse::setPosition(sf::Vector2i(WIN_WIDTH / 2, WIN_HEIGHT / 2), window);
-				const float mouse_sensitivity = 0.0015f;
-				controller.updateCameraView(mouse_sensitivity * glm::vec2(mouse_pos.x - WIN_WIDTH * 0.5f, (WIN_HEIGHT  * 0.5f) - mouse_pos.y), camera);
-			}
-
-			const float sun_trajectory_radius = 2.0f;
-			scene.light_position = { 1.5f + sun_trajectory_radius * cos(sun.x), sun.y, 1.5f + sun_trajectory_radius * sin(sun.x) };
-
-			//std::cout << camera.view_angle.x << " " << camera.view_angle.y << std::endl;
-			//std::cout << camera.position.x << " " << camera.position.y << " " << camera.position.z << std::endl;
-
-			if (event_manager.mutate_waiting) {
-				event_manager.mutate_waiting = false;
-				raytracer.mutate(event_manager.index, event_manager.child_index, event_manager.value);
-			}
-
-			raytracer.updateKernelArgs(camera, scene);
-			raytracer.render();
-
-			window.clear();
-
-			tex_albedo.loadFromImage(raytracer.getAlbedo());
-			sf::Sprite albedo_sprite(tex_albedo);
-
-			window.draw(albedo_sprite);
-
-			const float aim_size = 2.0f;
-			sf::RectangleShape aim(sf::Vector2f(aim_size, aim_size));
-			aim.setOrigin(aim_size * 0.5f, aim_size * 0.5f);
-			aim.setPosition(WIN_WIDTH*0.5f, WIN_HEIGHT*0.5f);
-			aim.setFillColor(sf::Color::Green);
-			window.draw(aim);
-
-			window.display();
+		// Create a wrapper using GPU
+		oclw::Wrapper wrapper(oclw::DeviceType::GPU);
+		// Initialize problem's data
+		const uint32_t elements_count = 5u;
+		std::vector<int> a({ 1, 5, 7, 0, 5 });
+		std::vector<int> b({ 4, 3, 1, 1, 4 });
+		std::vector<int> c;
+		// Create memory objects
+		oclw::MemoryObject a_buff = wrapper.createMemoryObject(a, oclw::ReadOnly | oclw::CopyHostPtr);
+		oclw::MemoryObject b_buff = wrapper.createMemoryObject(b, oclw::ReadOnly | oclw::CopyHostPtr);
+		oclw::MemoryObject c_buff = wrapper.createMemoryObject<int>(elements_count, oclw::WriteOnly);
+		// Compile program
+		oclw::Program program = wrapper.createProgram(program_source);
+		oclw::Kernel kernel = program.createKernel("test");
+		// Create kernel
+		kernel.setArgument(0, a_buff);
+		kernel.setArgument(1, b_buff);
+		kernel.setArgument(2, c_buff);
+		// Execute the kernel
+		wrapper.runKernel(kernel, oclw::Size(elements_count), oclw::Size(1u));
+		// Read device buffer c_buff
+		wrapper.safeReadMemoryObject(c_buff, c);
+		// Print result
+		for (int i : c) {
+			std::cout << i << std::endl;
 		}
 	}
 	catch (const oclw::Exception& error)
