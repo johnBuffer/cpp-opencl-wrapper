@@ -30,23 +30,17 @@ void generateSVO(uint8_t max_depth, SVO& svo)
 	using Volume = SVO;
 	Volume* volume_raw = &svo;
 
+	const float threshold = 0.5f;
+
 	FastNoise myNoise;
-	myNoise.SetNoiseType(FastNoise::SimplexFractal);
+	myNoise.SetNoiseType(FastNoise::Perlin);
 	for (uint32_t x = 1; x < grid_size_x - 1; x++) {
-		for (uint32_t z = 1; z < grid_size_z - 1; z++) {
-			int32_t max_height = grid_size_y;
-
-			float amp_x = x - grid_size_x * 0.5f;
-			float amp_z = z - grid_size_z * 0.5f;
-			float ratio = std::pow(1.0f - sqrt(amp_x * amp_x + amp_z * amp_z) / (10.0f * grid_size_x), 256.0f);
-			int32_t height = int32_t(92.0f * myNoise.GetNoise(float(0.75f * x), float(0.75f * z)) + 32);
-
-			for (int y(0); y < 30; ++y) {
-				volume_raw->setCell(Cell::Mirror, Cell::Grass, x, y, z);
-			}
-
-			for (int y(0); y < std::min(max_height, height); ++y) {
-				volume_raw->setCell(Cell::Solid, Cell::Grass, x, y, z);
+		for (uint32_t y = 1; y < grid_size_y - 1; y++) {
+			for (uint32_t z = 1; z < grid_size_z - 1; z++) {
+				float noise = myNoise.GetNoise(x, y, z);
+				if (noise > threshold) {
+					svo.setCell(Cell::Solid, Cell::None, x, y, z);
+				}
 			}
 		}
 	}

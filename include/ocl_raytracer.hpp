@@ -84,12 +84,14 @@ public:
 		// Run albedo kernel
 		renderAlbedo();
 		// Run lighting kernel
-		renderLighting();
-		normalize();
+		//renderLighting();
+		//normalize();
 		//median();
-		biblur();
+		//biblur();
 		//blur();
-		combine();
+		//combine();
+
+		m_wrapper.readMemoryObject(m_buff_result_albedo, m_result_albedo, true);
 
 		auto group_albedo = m_swarm.execute([&](uint32_t thread_id, uint32_t max_thread) {
 			const uint32_t start_x = thread_id % 4;

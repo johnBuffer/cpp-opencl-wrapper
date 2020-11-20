@@ -51,7 +51,7 @@ struct FpsController : public CameraController
 		const glm::vec3 feet_offset(0.0f, body_height - feet_eps, 0.0f);
 		const glm::vec3 feet_position = camera.position + feet_offset;
 
-		const HitPoint xp_ray = svo.castRay(feet_position, glm::vec3(1.0f, 0.0f, 0.0f));
+		/*const HitPoint xp_ray = svo.castRay(feet_position, glm::vec3(1.0f, 0.0f, 0.0f));
 		if (xp_ray.hit) {
 			if (xp_ray.distance < body_radius) {
 				camera.position.x = xp_ray.position.x - body_radius;
@@ -77,7 +77,7 @@ struct FpsController : public CameraController
 			if (zn_ray.distance < body_radius) {
 				camera.position.z = zn_ray.position.z + body_radius;
 			}
-		}
+		}*/
 	}
 
 	void forward()

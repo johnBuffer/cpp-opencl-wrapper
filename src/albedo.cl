@@ -12,16 +12,6 @@ __constant sampler_t tex_sampler = CLK_NORMALIZED_COORDS_TRUE | CLK_FILTER_NEARE
 __constant float EPS = 0x1.fffffep-1f;
 __constant float NORMAL_EPS = 0.0078125f * 0.0078125f * 0.0078125f;
 __constant float AMBIENT = 0.2f;
-__constant float3 SKY_COLOR = (float3)(153.0f, 223.0f, 255.0f);
-//__constant float3 SKY_COLOR = (float3)(41.0f, 66.0f, 107.0f);
-//__constant float3 SKY_COLOR = (float3)(0.0f);
-//__constant float3 WATER_COLOR = (float3)(1.0f);
-__constant float3 WATER_COLOR = (float3)(28.0f / 255.0f, 194.0f / 255.0f, 255.0f / 255.0f);
-//__constant float3 WATER_COLOR = (float3)(128.0f / 255.0f, 194.0f / 255.0f, 255.0f / 255.0f);
-__constant float R0 = 0.0204f;
-__constant float time_su = 0.0f;
-
-
 // Structs declaration
 typedef struct Node
 {
@@ -86,7 +76,7 @@ HitPoint castRay(__global Node* svo_data, float3 position, float3 d, bool in_wat
 	result.hit = 0;
 	result.complexity = 0;
 
-	const float ray_coef = 0.00002f;
+	const float ray_coef = 0.125f;
 	const float ray_bias = 0.0f;
 
 	const float EPS = 1.0f / (float)(1 << SVO_MAX_DEPTH);
@@ -219,17 +209,6 @@ HitPoint castRay(__global Node* svo_data, float3 position, float3 d, bool in_wat
 	return result;
 }
 
-float3 reflect(float3 v, float3 normal){
-	return v - 2.0f * dot(v, normal) * normal;
-}
-
-float3 refract(float3 v, float3 normal, float index)
-{
-	const float cos_i = -dot(normal, v);
-	const float cos_t2 = 1.0f - index * index * (1.0f - cos_i * cos_i);
-	return (index * v) + (index * cos_i - sqrt( cos_t2 )) * normal;
-}
-
 void colorToResultBuffer(float3 color, uint32_t index, __global float* buffer)
 {
     buffer[4 * index + 0] = color.x;
@@ -240,20 +219,8 @@ void colorToResultBuffer(float3 color, uint32_t index, __global float* buffer)
 
 float3 getColorFromIntersection(HitPoint intersection, image2d_t top_image, image2d_t side_image)
 {
-	// Uncomment to enable textures
-	const float scale = 256.0f;
-	float3 color;
-	if (intersection.normal.y) {
-		color = convert_float3(read_imagei(top_image, tex_sampler, intersection.tex_coords).xyz);
-	}
-	else {
-		color = convert_float3(read_imagei(side_image, tex_sampler, intersection.tex_coords).xyz);
-	}
-
-	return color;
-
-	// Uncomment to disable textures
-	//return 255.0f;
+	const float coef = 0.2f;
+	return 255.0f * (1.0f - fmin(1.0f, coef * intersection.distance));
 }
 
 float3 getColorAndLightFromIntersection(HitPoint intersection, image2d_t top_image, image2d_t side_image, __global Node* svo_data, float3 light_position, bool under_water)
@@ -295,68 +262,21 @@ __kernel void albedo(
 	const float screen_ratio = (float)(screen_size.x) / (float)(screen_size.y);
 	const float3 screen_position = (float3)(gid.x / (float)screen_size.x - 0.5f, gid.y / (float)screen_size.x - 0.5f / screen_ratio, 0.5f);
 	// Light
-	const float current_time_value = scene.time * time_su;
+	const float current_time_value = scene.time;
 	// Cast ray
 	const float3 d = normalize(multVec3Mat3(screen_position, view_matrix));
 	const HitPoint intersection = castRay(svo_data, scene.camera_position, d, false);
+
+	const float3 light_position = (float3)(-1.0f, -0.5f, -0.25f);
 	// Result
-	float3 color = 0.5f * SKY_COLOR;
+	float3 color = 0.0f;
 	float light_intensity = 1.0f;
 	if (intersection.hit) {
-		if (intersection.water) {
-			write_imagef(screen_space_positions, gid, (float4)(0.0f));
-			
-			light_intensity = 1.0f;
-			const float distortion_strength = 0.0015f;
-			float3 normal_distortion = (float3)(0.0f);
-			const float3 mirror_color = WATER_COLOR;
-			const float wave_speed = 0.05f;
-			if (intersection.normal.y) {
-				const float wave_time = scene.time * wave_speed;
-				normal_distortion = distortion_strength * (float3)(sin((intersection.position.z + wave_time) * 2400.0f), 0.0f, cos((intersection.position.x + wave_time) * 2400.0f));
-			}
-			const float3 normal = normalize(intersection.normal + normal_distortion);
-			const float cos_i = -dot(normal, d);
-			const float transmitted = R0 + (1.0f - R0)*pow(1.0f - cos_i, 5.0f);
-			// Reflection
-			const float3 reflection_start = intersection.position + NORMAL_EPS * normal;
-			const float3 reflection_d = reflect(d, normal);
-			const HitPoint reflection_ray = castRay(svo_data, reflection_start, reflection_d, false);
-			if (reflection_ray.hit) {
-				color = transmitted * getColorAndLightFromIntersection(reflection_ray, top_image, side_image, svo_data, scene.light_position, false);
-			}
-			else {
-				color *= transmitted * mirror_color;
-			}
-
-			// Refraction
-			const float refraction_intensity = (1.0f - transmitted);
-			if (refraction_intensity > 0.05f) {
-				const float3 refraction_start = intersection.position - NORMAL_EPS * normal;
-				const float3 refraction_d = normalize(refract(d, normal, 1.0f / 1.83333f));
-				const HitPoint refraction_ray = castRay(svo_data, refraction_start, refraction_d, true);
-				const float deep_coef = 1.0f / (1.0f + refraction_ray.distance * 128.0f);
-				if (refraction_ray.hit) {
-					color += deep_coef * refraction_intensity * (mirror_color * getColorAndLightFromIntersection(refraction_ray, top_image, side_image, svo_data, scene.light_position, true));
-				} else {
-					color += SKY_COLOR * refraction_intensity * deep_coef * mirror_color;
-				}
-			}
-		}
-		else {
-			const float normal_number = normalToNumber(intersection.normal);
-			write_imagef(screen_space_positions, gid, (float4)(intersection.position, normal_number));
-			write_imagef(depth, gid, (float4)(intersection.distance, normal_number, 0.0f, 0.0f));
-			color = getColorFromIntersection(intersection, top_image, side_image);
-		}
-	}
-	else {
-		// SKY
-		const float to_sun_intensity = dot(d, normalize(scene.light_position - scene.camera_position));
-		const float primary_intensity = pow(to_sun_intensity, 511.0f);
-		const float secondary_intensity = 0.2f * pow(to_sun_intensity, 1.0f);
-		color = max((float3)(24.0f, 59.0f, 75.0f), min((float3)(255.0f * (primary_intensity + secondary_intensity)) + color, (float3)(255.0f)));
-		write_imagef(screen_space_positions, gid, (float4)(0.0f));
+		const float normal_number = normalToNumber(intersection.normal);
+		write_imagef(screen_space_positions, gid, (float4)(intersection.position, normal_number));
+		write_imagef(depth, gid, (float4)(intersection.distance, normal_number, 0.0f, 0.0f));
+		//color = getColorAndLightFromIntersection(intersection, top_image, side_image, svo_data, light_position, false);
+		color = getColorFromIntersection(intersection, top_image, side_image);
 	}
 	
     colorToResultBuffer(color, index, albedo_result);
