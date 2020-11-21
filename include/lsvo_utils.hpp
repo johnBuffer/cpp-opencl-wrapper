@@ -10,15 +10,11 @@ struct LSVONode
 		: child_mask(0U)
 		, leaf_mask(0U)
 		, child_offset(0U)
-		, reflective_mask(0U)
-		, emissive(0u)
 	{}
 
 	uint8_t  child_mask;
 	uint8_t  leaf_mask;
 	uint32_t child_offset;
-	uint8_t  reflective_mask;
-	uint8_t  emissive;
 };
 
 

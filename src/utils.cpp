@@ -30,6 +30,7 @@ void generateSVO(uint8_t max_depth, SVO& svo)
 	using Volume = SVO;
 	Volume* volume_raw = &svo;
 
+	const float scale = 2.0f;
 	const float threshold = 0.5f;
 
 	FastNoise myNoise;
@@ -37,8 +38,8 @@ void generateSVO(uint8_t max_depth, SVO& svo)
 	for (uint32_t x = 1; x < grid_size_x - 1; x++) {
 		for (uint32_t y = 1; y < grid_size_y - 1; y++) {
 			for (uint32_t z = 1; z < grid_size_z - 1; z++) {
-				float noise = myNoise.GetNoise(x, y, z);
-				if (noise > threshold) {
+				float noise = myNoise.GetNoise(scale*x, scale*y, scale*z);
+				if (std::abs(noise) > threshold) {
 					svo.setCell(Cell::Solid, Cell::None, x, y, z);
 				}
 			}

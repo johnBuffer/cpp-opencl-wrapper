@@ -76,7 +76,7 @@ struct LSVO : public Volumetric
 			// Check if child exists here
 			const uint8_t child_shift = child_offset ^ mirror_mask;
 			const uint8_t child_mask = parent_ref.child_mask >> child_shift;
-			const uint8_t reflective = (parent_ref.reflective_mask >> child_shift) & 1u;
+			//const uint8_t reflective = (parent_ref.reflective_mask >> child_shift) & 1u;
 			if ((child_mask & 1u) && t_min <= t_max) {
 				if (tc_max * ray_size_coef + ray_size_bias >= scale_f) {
 					break;
@@ -91,12 +91,7 @@ struct LSVO : public Volumetric
 						result.hit = true;
 						result.global_index = parent_id;
 						result.child_index = child_shift;
-						if (reflective) {
-							result.cell.type = Cell::Mirror;
-						}
-						else {
-							result.cell.type = Cell::Solid;
-						}
+						result.cell.type = Cell::Solid;
 						break;
 					}
 					// Eventually add parent to the stack

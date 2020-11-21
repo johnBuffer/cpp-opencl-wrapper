@@ -18,8 +18,6 @@ typedef struct Node
     uint8_t  child_mask;
 	uint8_t  leaf_mask;
 	uint32_t child_offset;
-	uint8_t  reflective_mask;
-	uint8_t  emissive;
 } Node;
 
 typedef struct OctreeStack
@@ -35,8 +33,6 @@ typedef struct HitPoint
 	float2   tex_coords;
 	float    distance;
 	float3   normal;
-	bool     water;
-	bool     emissive;
 	uint16_t complexity;
 } HitPoint;
 
@@ -70,14 +66,16 @@ float ratio(float val1, float val2)
 }
 
 // Raytracing functions
-HitPoint castRay(__global Node* svo_data, float3 position, float3 d, bool in_water)
+HitPoint castRay(global Node* svo_data, float3 position, float3 d, bool in_water)
 {
 	HitPoint result;
 	result.hit = 0;
 	result.complexity = 0;
 
-	const float ray_coef = 0.125f;
+	const float max_dist = 0.25f;
+	const float ray_coef = 8.0f;
 	const float ray_bias = 0.0f;
+	bool no_pop = false;
 
 	const float EPS = 1.0f / (float)(1 << SVO_MAX_DEPTH);
 	
@@ -121,38 +119,27 @@ HitPoint castRay(__global Node* svo_data, float3 position, float3 d, bool in_wat
 		// Check if child exists here
 		const uint8_t child_shift = child_offset ^ mirror_mask;
 		const uint8_t child_mask = (parent_ref.child_mask >> child_shift) & 1u;
+		const float bias = t_min * t_min * t_min * ray_coef + ray_bias;
 		if (child_mask) {
 			const float tv_max = fmin(t_max, tc_max);
 			const float half_scale = scale_f * 0.5f;
 			const float3 t_half = half_scale * t_coef + t_corner;
 			const uint8_t leaf_mask = (parent_ref.leaf_mask >> child_shift) & 1u;
-			const uint8_t watr_mask = (parent_ref.reflective_mask >> child_shift) & 1u;
 			// We hit a leaf
-			if (leaf_mask && (!watr_mask || (watr_mask != in_water)) || tc_max * ray_coef + ray_bias >= scale_f) {
+			if (leaf_mask || bias >= scale_f) {
 				result.hit = 1u;
 				// Could use mirror mask
 				result.normal = -sign(d) * (float3)(normal & 1u, (normal>>1u) & 1u, (normal>>2u) & 1u);
 				result.distance = t_min;
-				result.water = watr_mask;
-				result.emissive = (parent_ref.emissive >> child_shift) & 1u;
 
 				if ((mirror_mask & 1) == 0) pos.x = 3.0f - scale_f - pos.x;
 				if ((mirror_mask & 2) == 0) pos.y = 3.0f - scale_f - pos.y;
 				if ((mirror_mask & 4) == 0) pos.z = 3.0f - scale_f - pos.z;
 				result.position = fmin(fmax(position + t_min * d, pos + (float3)EPS), pos + (float3)(scale_f - EPS));
 
-				const float tex_scale = (float)(1 << (SVO_MAX_DEPTH - scale));
-				if (result.normal.x) {
-					result.tex_coords = (float2)(frac(result.position.z * tex_scale), frac(result.position.y * tex_scale));
-				}
-				else if (result.normal.y) {
-					result.tex_coords = (float2)(frac(result.position.x * tex_scale), frac(result.position.z * tex_scale));
-				}
-				else if (result.normal.z) {
-					result.tex_coords = (float2)(frac(result.position.x * tex_scale), frac(result.position.y * tex_scale));
-				}
 				break;
 			}
+
 			// Eventually add parent to the stack
 			if (tc_max < h) {
 				stack[scale-12].parent_index = parent_id;
@@ -205,7 +192,6 @@ HitPoint castRay(__global Node* svo_data, float3 position, float3 d, bool in_wat
 		}
 	}
 
-	result.distance = t_min;
 	return result;
 }
 
@@ -217,29 +203,15 @@ void colorToResultBuffer(float3 color, uint32_t index, __global float* buffer)
 	buffer[4 * index + 3] = 255.0f;
 }
 
-float3 getColorFromIntersection(HitPoint intersection, image2d_t top_image, image2d_t side_image)
+float3 getColorFromIntersection(HitPoint intersection, float3 light_position)
 {
-	const float coef = 0.2f;
-	return 255.0f * (1.0f - fmin(1.0f, coef * intersection.distance));
-}
-
-float3 getColorAndLightFromIntersection(HitPoint intersection, image2d_t top_image, image2d_t side_image, __global Node* svo_data, float3 light_position, bool under_water)
-{
-	const float3 ray_start = intersection.position + intersection.normal * NORMAL_EPS;
-
-	const float3 shadow_ray = normalize(light_position - ray_start);
-	const HitPoint light_intersection = castRay(svo_data, ray_start, shadow_ray, under_water);
-	float light_intensity = AMBIENT;
-	if (!light_intersection.hit) {
-		light_intensity = 1.0f;//max(0.0f, dot(intersection.normal, shadow_ray));
+	if (intersection.hit == 2) {
+		return (float3)(255.0f, 0.0f, 0.0f);
 	}
-	
-	return light_intensity * getColorFromIntersection(intersection, top_image, side_image); 
-}
-
-float normalToNumber(const float3 normal)
-{
-	return normal.x + 2.0f * normal.y + 4.0f * normal.z;
+	const float range = 0.75f;
+	const float coef = 4.0f;
+	const float diffuse = fmax(AMBIENT, dot(intersection.normal, normalize(light_position - intersection.position)));
+	return fmin(255.0f, (255.0f * (1.0f - range) + 255.0f * range * (1.0f - fmin(1.0f, coef * intersection.distance))) * diffuse);
 }
 
 
@@ -266,17 +238,13 @@ __kernel void albedo(
 	// Cast ray
 	const float3 d = normalize(multVec3Mat3(screen_position, view_matrix));
 	const HitPoint intersection = castRay(svo_data, scene.camera_position, d, false);
-
 	const float3 light_position = (float3)(-1.0f, -0.5f, -0.25f);
 	// Result
 	float3 color = 0.0f;
 	float light_intensity = 1.0f;
 	if (intersection.hit) {
-		const float normal_number = normalToNumber(intersection.normal);
-		write_imagef(screen_space_positions, gid, (float4)(intersection.position, normal_number));
-		write_imagef(depth, gid, (float4)(intersection.distance, normal_number, 0.0f, 0.0f));
 		//color = getColorAndLightFromIntersection(intersection, top_image, side_image, svo_data, light_position, false);
-		color = getColorFromIntersection(intersection, top_image, side_image);
+		color = getColorFromIntersection(intersection, scene.camera_position);
 	}
 	
     colorToResultBuffer(color, index, albedo_result);
