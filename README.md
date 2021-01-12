@@ -22,7 +22,7 @@ In this example we will create a very simple hello worldish opencl application w
 ### Declare opencl program source
 ```cpp
 const std::string program_source = "                                    \
-__kernel void test(__global int* a, __global int* b, __global int* c) { \
+kernel void test(global int* a, global int* b, global int* c) { \
     const int idx = get_global_id(0);                                   \
     c[idx] = a[idx] + b[idx];                                           \
 }";
