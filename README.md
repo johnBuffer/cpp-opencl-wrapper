@@ -27,6 +27,7 @@ kernel void test(global int* a, global int* b, global int* c) {  \
     c[idx] = a[idx] + b[idx];                                    \
 }";
 ```
+Source can also be loaded fromm a file using `Utils::loadSourceFromFile`
 
 ### The main function
 ```cpp
